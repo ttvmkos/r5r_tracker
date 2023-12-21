@@ -1,6 +1,7 @@
 # r5r_tracker
 Stats Tracker system for R5Reloaded servers. 
 
+Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 
 The following settings can be placed in your playlists_r5_patch.txt file (within fs_1v1)
