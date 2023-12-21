@@ -1,0 +1,2628 @@
+// stub script
+
+global function PIN_Init
+global function PIN_ItemPickup
+global function PIN_GameStart
+global function PIN_PlanePath
+global function PIN_SetGameStartTime
+global function PIN_GameStartedForPlayer
+global function PIN_CircleLocation
+global function GameSummary_GetPlayerData
+global function PIN_RoundEnd
+global function PIN_GameEnd
+global function PIN_AddPlayer
+global function PIN_PlayerLeft
+global function PIN_PlayerSpawned
+global function PIN_PlayerDowned
+global function PIN_PlayerRevived
+global function PIN_PlayerKilled
+global function PIN_DamageDone
+global function PIN_DamageDoneToPlayerForWeapon
+global function PIN_PlayerEquip
+global function PIN_PlayerUse
+global function PIN_PlayerOutResource
+global function PIN_Interact
+global function PIN_PlayerAbility
+global function PIN_PlayerAbilityReady
+global function PIN_AddToPlayerCountStat
+global function PIN_OnWeaponAttack
+global function PIN_Ping
+global function PIN_OnPlayerHealed
+global function PIN_PlayerLandedOnGround
+global function PIN_PlayerJumpedFromPlane
+global function PIN_Training
+
+
+
+// ██████  ███████ ██████     ██████  ███████ ██    ██     ████████ ██████   █████   ██████ ██   ██ ███████ ██████ 
+// ██   ██ ██      ██   ██    ██   ██ ██      ██    ██        ██    ██   ██ ██   ██ ██      ██  ██  ██      ██   ██ 
+// ██████  ███████ ██████     ██   ██ █████   ██    ██        ██    ██████  ███████ ██      █████   █████   ██████  
+// ██   ██      ██ ██   ██    ██   ██ ██       ██  ██         ██    ██   ██ ██   ██ ██      ██  ██  ██      ██   ██ 
+// ██   ██ ███████ ██   ██ ██ ██████  ███████   ████          ██    ██   ██ ██   ██  ██████ ██   ██ ███████ ██   ██ 
+// r5r.dev by mkos
+
+
+global function GetUniqueFightId
+global function CreateDamageEvent
+global function EndFight
+global function GetBulletsPerShot
+global function GetDamagePerBullet
+global function GetHeadshotDamagePerBullet
+global function IsSpecialWeapon
+global function HandleDamage
+global function R5R_OnPlayerDamaged
+global function ClientCommand_mkos_ea_verify
+global function ClientCommand_mkos_test_return_data
+global function PlayerConnectedCallback
+global function PlayerDisconnectedCallback
+global function DidJump
+global function PrintAllPlayerMetrics
+global function DestroyStats
+global function LineBreak
+global function PIN_WinnerByKillsAndDamage
+
+global struct GameSummarySquadData
+{
+	int kills
+	int damageDealt
+	int survivalTime
+	int revivesGiven
+	int respawnsGiven
+	int deaths
+}
+
+
+//TODO: GetCurrentRound() needs to be implemented in a
+//global uniform way instead of injecting a function into fs_dm
+
+global int fightIdCounter = 0
+global bool SHOULD_SHIP = false
+global bool hasSpecialWeaponShotBeenCountered = false;
+global bool PROCESS_THIS = true;
+global bool PIN_GameState_Start = false;
+global table PlayerSupergliding
+global table < string, bool > PlayerDidJump
+global bool afk_to_rest_enabled = true;// bool to reflect state of cc (chat command)
+global float FS_MaxHealth;
+global string DISCORD_PLAYERS_WEBHOOK;
+global string DISCORD_MATCHES_WEBHOOK;
+const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
+
+//verify struct
+
+global struct PlayerVerifyCount {
+    string playerID
+    int verifyCount
+};
+
+
+//START KILL RECAP
+/*****************************************************************************************************************************/
+
+global struct DamageEvent {
+	array<string> weaponOrder
+    string weaponSource
+	string attackerName
+	string victimName
+	string attackerDISPLAYNAME
+	string victimDISPLAYNAME
+    int hitCount
+    float bulletsHit
+    float damage
+	int headshots
+	float actionTimestamp
+	string lastWeaponSource
+	float lastHitTimestamp
+	bool isNew
+	string shotIdentifier
+};
+
+
+// array of player structs containing various new metrics
+struct PlayerMetrics {
+    string playerID
+    array<float> JumpTimestamps
+    table<string, array< float > > WeaponShotsTimestamps
+	array<float> SuperglideTimestamps
+	int kills
+	float damage
+	string playername
+};
+
+array<PlayerMetrics> PlayerMetricsArray
+
+
+#if SERVER   
+bool function Logging_Enabled() 				{ return GetCurrentPlaylistVarBool("logging_enabled", false) }
+bool function Logging_Encryption() 				{ return GetCurrentPlaylistVarBool("logging_encryption", false) }
+bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("logging_shipstats", false) }
+bool function Master_Server() 					{ return GetCurrentPlaylistVarBool("master_server", false) }
+#endif
+
+
+array<PlayerVerifyCount> playerVerifyCounts
+array<DamageEvent> allDamageEvents
+
+
+int function GetUniqueFightId() {
+    return fightIdCounter++;
+}
+
+
+
+void function DestroyStats(){
+	
+	SHOULD_SHIP = false;
+	allDamageEvents.resize(0);
+	PlayerMetricsArray.resize(0);
+	playerVerifyCounts.resize(0);
+	
+}
+
+//endfight function to count from global metrics struct
+int function CountEventsWithinTimeframe(array< float > timestamps, float startTime, float endTime) {
+    int count = 0;
+    foreach (timestamp in timestamps) {
+        if (timestamp >= startTime && timestamp <= endTime) {
+            count++;
+        }
+    }
+    return count;
+}
+
+
+//test function for _LG_Duels
+void function RecapStats(entity player, float damage, float hits, float shots, string victim, float victimdamage, float victimhits, float victimshots) {
+    float accuracy = 0.0;
+    float victim_accuracy = 0.0;
+	
+    if (shots > 0.0) {
+        accuracy = (hits / shots) * 100.0;
+        if (accuracy >= 100.0) {
+            accuracy = 100.0;
+        }
+    }
+	
+    if (victimshots > 0.0) {
+        victim_accuracy = (victimhits / victimshots) * 100.0;
+        if (victim_accuracy >= 100.0) {
+            victim_accuracy = 100.0;
+        }
+    }
+
+    string print_totals = format("Your Dmg: %d, Your Accuracy: %d%% \n %s's Dmg: %d, %s's Accuracy: %d%%", damage, accuracy, victim, victimdamage, victim, victim_accuracy);
+    Message(player, "Recap vs: " + victim, print_totals, 3.5);
+}
+
+
+
+
+DamageEvent function CreateDamageEvent( string weaponSource, float damage, string attackerName, string attackerDISPLAYNAME, string victimName, string victimDISPLAYNAME, string shotIdentifier = "" ) {
+    DamageEvent event;
+	event.isNew = true;
+	event.attackerName = attackerName;
+	event.attackerDISPLAYNAME = attackerDISPLAYNAME;
+	event.victimName = victimName;
+	event.victimDISPLAYNAME = victimDISPLAYNAME;
+    event.weaponSource = weaponSource;
+    event.damage = damage;
+    event.hitCount = 0;
+    event.bulletsHit = 0.0;
+	event.headshots = 0;
+	event.actionTimestamp = Time();
+	event.lastWeaponSource = weaponSource;
+	event.lastHitTimestamp = 0;
+	event.shotIdentifier = shotIdentifier;
+    return event;
+}
+
+
+
+	void function EndFight(entity victim, entity attacker, var damageInfo, float deathtime)
+
+	{	
+		if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer()){
+		//sqprint("skip");
+		} else {
+			if (!IsValid(victim) || !attacker.p.isConnected || !victim.p.isConnected) {
+				return;
+			}
+		}
+		if ( attacker.IsPlayer() && !IsValid(attacker) ){
+			return; }
+
+		//Increment fightid
+		int id = GetUniqueFightId();
+		// to identify each death/kill as the same fight
+		//int id = fightIdCounter;
+
+		string logString = "|#Fight Recap:{" + GetUnixTimestamp() + "}| Fight ID:{" + id + "}| Victim: {" + victim.GetPlatformUID() + "};";
+		
+
+		// initialize vars..
+		float totalDamageToVictim = 0.0;
+		float timeWindow = deathtime;
+		bool REPORT_STATS = true;
+		float fightStartTime = FLT_MAX;
+		float fightEndTime = 0.0; 
+		
+		//hardcoded jump & sueprglide grace for pre-shot start of fight actions
+		float jumpgrace = 1.2
+		float glidegrace = 2.2
+
+		// temp array to analyze data
+		array<DamageEvent> relevantDamageEvents;
+
+		// initialize attacker array totals
+		array<string> playerIDs;
+		array<string> playerDISPLAYNAME;
+		array<float> playerTotalDamages;
+		array<int> playerTotalHits;
+		array<int> playerTotalHeadshots;
+		array<int> playerTotalJumps;
+		array<int> playerTotalShots;
+		array<int> playerSuperglides;
+
+		// initialize victim total vars
+		float victimTotalDamage = 0.0;
+		int victimTotalHits = 0;
+		int victimTotalHeadshots = 0;
+		int victimTotalJumps = 0;
+		int victimTotalShots = 0;
+		int victimSuperglides = 0;
+		
+		//initialize attacker shared int vars (depending on current attacker these change during loops)
+		int attackerJumps = 0;
+		int attackerShots = 0;
+		int attackerSuperglides = 0;
+		
+		
+		// collect all DamageEvents for victim and calculate total damage
+		foreach (DamageEvent event in allDamageEvents) {
+			if (event.victimName == victim.GetPlatformUID()) {
+				totalDamageToVictim += event.damage;
+				relevantDamageEvents.append(event);
+				
+				//sqprint(format("Event timestamp: %d",event.actionTimestamp))
+				//sqprint(format("Event lasthit: %d",event.lastHitTimestamp))
+				
+				if (event.actionTimestamp < fightStartTime) {
+					fightStartTime = event.actionTimestamp;
+				}
+				if (event.lastHitTimestamp > fightEndTime) {
+					fightEndTime = event.lastHitTimestamp;
+				}
+			}
+		}
+		
+		//sqprint(format("\n Fight start time: %d, end time: %d",fightStartTime, fightEndTime));
+		
+		// set should ship to true
+		if ( totalDamageToVictim >= 50 ){
+		SHOULD_SHIP = true;
+		}
+		if ( totalDamageToVictim <= 0 ){
+		REPORT_STATS = false;
+		}
+
+		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1") {
+			timeWindow = DAMAGE_LOOKBACK_TIME_WINDOW;
+		}
+
+		// Reset totalDamageToVictim for the second pass
+		totalDamageToVictim = 0.0;
+
+		// log DamageEvents that fall within the time window if damages are less than full health
+		foreach (DamageEvent event in relevantDamageEvents) {
+			if (deathtime - event.actionTimestamp <= timeWindow) {
+			
+				totalDamageToVictim += event.damage;
+
+				string currentAttacker = event.attackerName;
+				string currentAttackerDISPLAYNAME = event.attackerDISPLAYNAME;
+				string weaponSource = event.weaponSource;
+				string mul = event.hitCount > 1 ? "s" : "";
+
+				logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
+
+				if (IsSpecialWeapon(weaponSource)) {
+					int bulletsPerShot = GetBulletsPerShot(weaponSource);
+					int totalBulletsFired = event.hitCount * bulletsPerShot;
+					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s {%d/%d} bullets with weapon {%s} headshots: {%d};",
+										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, event.bulletsHit, totalBulletsFired, weaponSource, event.headshots);
+				} else {
+					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s with weapon {%s} headshots: {%d};",
+										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, weaponSource, event.headshots);
+				}
+				
+				
+				//attackers jumps & total shots for fight
+				int attackerIndex = GetPlayerMetricsIndex(currentAttacker);
+				if (attackerIndex != -1) {
+					attackerJumps = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
+					attackerSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
+					foreach (weapon, timestamps in PlayerMetricsArray[attackerIndex].WeaponShotsTimestamps) {
+						attackerShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
+					}
+				}
+
+				// attackers totals
+				int playerIndex = playerIDs.find(currentAttacker);
+				if (playerIndex == -1) {
+					// new attacker
+					playerIDs.append(currentAttacker);
+					playerDISPLAYNAME.append(currentAttackerDISPLAYNAME);
+					playerTotalDamages.append(0.0);
+					playerTotalHits.append(0);
+					playerTotalHeadshots.append(0);
+					playerTotalJumps.append(0);
+					playerTotalShots.append(0);
+					playerSuperglides.append(0);
+					playerIndex = playerIDs.len() - 1;
+				}
+					playerTotalDamages[playerIndex] += event.damage;
+					playerTotalHits[playerIndex] += event.hitCount;
+					playerTotalHeadshots[playerIndex] += event.headshots;
+					playerTotalJumps[playerIndex] += attackerJumps;
+					playerTotalShots[playerIndex] += attackerShots;
+					playerSuperglides[playerIndex] += attackerSuperglides;
+			}
+		}
+
+
+		// if total damage to victim is less than max health, extend time frame
+		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1" ) {
+			foreach (DamageEvent event in allDamageEvents) {
+				if (event.victimName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow ) {
+					if (totalDamageToVictim + event.damage <= FS_MaxHealth) {
+						totalDamageToVictim += event.damage;
+
+						string currentAttacker = event.attackerName;
+						string currentAttackerDISPLAYNAME = event.attackerDISPLAYNAME;
+						string weaponSource = event.weaponSource;
+						string mul = event.hitCount > 1 ? "s" : "";
+
+						logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
+
+						if (IsSpecialWeapon(weaponSource)) {
+							int bulletsPerShot = GetBulletsPerShot(weaponSource);
+							int totalBulletsFired = event.hitCount * bulletsPerShot;
+							logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s {%d/%d} bullets with weapon {%s} headshots: {%d};",
+												event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, event.bulletsHit, totalBulletsFired, weaponSource, event.headshots);
+						} else {
+							logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s with weapon {%s} headshots: {%d};",
+												event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, weaponSource, event.headshots);
+						}
+						
+						
+						//attackers jumps & total shots for fight
+						int attackerIndex = GetPlayerMetricsIndex(currentAttacker);
+						if (attackerIndex != -1) {
+							attackerJumps = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
+							attackerSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
+							foreach (weapon, timestamps in PlayerMetricsArray[attackerIndex].WeaponShotsTimestamps) {
+								attackerShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
+							}
+						}
+						
+						//attackers jumps & total shots for fight
+						int playerIndex = playerIDs.find(currentAttacker);
+						if (playerIndex == -1) {
+							// new attacker
+							playerIDs.append(currentAttacker);
+							playerDISPLAYNAME.append(currentAttackerDISPLAYNAME);
+							playerTotalDamages.append(0.0);
+							playerTotalHits.append(0);
+							playerTotalHeadshots.append(0);
+							playerTotalJumps.append(0);
+							playerTotalShots.append(0);
+							playerSuperglides.append(0);
+							playerIndex = playerIDs.len() - 1;
+						}
+							playerTotalDamages[playerIndex] += event.damage;
+							playerTotalHits[playerIndex] += event.hitCount;
+							playerTotalHeadshots[playerIndex] += event.headshots;
+							playerTotalJumps[playerIndex] += attackerJumps;
+							playerTotalShots[playerIndex] += attackerShots;
+							playerSuperglides[playerIndex] += attackerSuperglides;
+					}
+				}
+			}
+		}
+
+
+		// victim
+		foreach (DamageEvent event in allDamageEvents) {
+			if (event.attackerName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow) {
+				victimTotalDamage += event.damage;
+				victimTotalHits += event.hitCount;
+				victimTotalHeadshots += event.headshots;	
+				
+				string currentAttacker = event.attackerName;
+				string currentAttackerDISPLAYNAME = event.attackerDISPLAYNAME;
+				string weaponSource = event.weaponSource;
+				string mul = event.hitCount > 1 ? "s" : "";
+				
+				int victimIndex = GetPlayerMetricsIndex(victim.GetPlatformUID());
+				if (victimIndex != -1) {
+					victimTotalJumps += CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
+					victimSuperglides += CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
+					foreach (weapon, timestamps in PlayerMetricsArray[victimIndex].WeaponShotsTimestamps) {
+						victimTotalShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
+					}
+				}
+				
+				logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
+
+				if (IsSpecialWeapon(weaponSource)) {
+					int bulletsPerShot = GetBulletsPerShot(weaponSource);
+					int totalBulletsFired = event.hitCount * bulletsPerShot;
+					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s {%d/%d} bullets with weapon {%s} headshots: {%d};",
+										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, event.bulletsHit, totalBulletsFired, weaponSource, event.headshots);
+				} else {
+					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s with weapon {%s} headshots: {%d};",
+										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, weaponSource, event.headshots);
+				}
+			}
+		}
+
+		// attackers summary - may change weapon(s) in the future to use cafe's logic for weps
+		for (int i = 0; i < playerIDs.len(); ++i) {
+			logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
+								playerIDs[i], playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i], playerTotalHeadshots[i], playerTotalJumps[i], playerTotalShots[i], playerSuperglides[i]);
+								
+								AddToPlayerDamage( playerIDs[i], playerTotalDamages[i] )
+								
+								//*move to gametype specific in future or set playlist bool
+								if ( GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
+								{
+									if (IsValid( attacker ) && IsValid( victim ) )
+									{
+										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.GetPlatformUID(), victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
+									}
+								}
+								
+		}
+		// victim summary
+		logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
+                    victim.GetPlatformUID(), victim.GetPlayerName(), victimTotalDamage, victimTotalHits, victimTotalHeadshots, victimTotalJumps, victimTotalShots, victimSuperglides);
+			
+					AddToPlayerDamage( victim.GetPlatformUID(), victimTotalDamage )
+			
+		//*move to gametype specific in future or set playlist bool
+		if ( GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
+								{
+			if ( IsValid( victim ) )
+			{	
+				for (int i = 0; i < playerIDs.len(); ++i) 
+				{
+					RecapStats( victim, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat(), playerIDs[i], playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat()  )
+				}
+			}
+		}
+			
+
+		// remove damage events so they are not reused in the next fight
+
+		array<DamageEvent> remainingDamageEvents;
+
+		if (GetCurrentPlaylistName() == "fs_1v1") {
+			// Remove all events related to the current fight (both victim and attacker)
+			foreach (DamageEvent event in allDamageEvents) {
+				if (event.victimName != victim.GetPlatformUID() && event.attackerName != victim.GetPlatformUID()) {
+					remainingDamageEvents.append(event);
+				}
+			}
+
+		} else {
+
+			//only remove attacker -> victim damage events, but leave victim damage events.
+			//these will be invalidated based on timeframe for multi fight scenarios
+			foreach (DamageEvent event in allDamageEvents) {
+				if (event.victimName != victim.GetPlatformUID()) {
+					remainingDamageEvents.append(event);
+				}
+			}
+		}
+
+
+
+		allDamageEvents = remainingDamageEvents;
+
+
+
+
+
+
+            float timeRemaining;
+            if (GetCurrentPlaylistName() == "fs_1v1") {
+                const int INITIAL_DELAY = 7;
+                const int DELAY_BETWEEN_ROUNDS = 13;
+
+                int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+                timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+            } else if (GameRules_GetGameMode() == "fs_dm") {
+                const int INITIAL_DELAY = 8;
+                int DELAY_BETWEEN_ROUNDS;
+
+                if (VOTING_PHASE_ENABLE) {
+                    DELAY_BETWEEN_ROUNDS = 32;
+                } else {
+                    DELAY_BETWEEN_ROUNDS = 13;
+                }
+
+                int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+                timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+            }
+
+            int placeM = (GetNumTeamsRemaining() == 0) ? 0 : GetNumTeamsRemaining();
+
+			string attName = "";
+			string aController = "";
+			string attTeam = "-1";
+			if (!attacker.IsPlayer())
+			{
+				attTeam = "-1";
+				aController = "worldspawn";
+
+				} else {
+				attTeam = attacker.GetTeam().tostring();
+				aController = attacker.p.input.tostring();
+			}
+
+
+
+            string team_of_killer = attTeam;
+            string team_of_killed = victim.GetTeam().tostring();
+			float pingVictim = victim.GetLatency() * 1000 - 40;
+			float pingAttacker = 0;
+			string a_OID = "";
+
+			if (attacker.IsPlayer())
+			{
+				attName = attacker.GetPlayerName();
+				pingAttacker = attacker.GetLatency() * 1000 - 40;
+				a_OID = attacker.GetPlatformUID()
+				
+				if (REPORT_STATS){
+					AddToPlayerKills( a_OID, attName )
+				}
+				
+				} else {
+
+				attName = DamageInfo_GetDamageSourceIdentifier( damageInfo ).tostring();
+				a_OID = "172";
+			}
+			
+			//temporary unknown
+			//aController = "";
+			string victimcontroller = victim.p.input.tostring();
+
+			int pA = pingAttacker.tointeger();
+			int pV = pingVictim.tointeger();
+            logString += format("\n^^,%s,1,%s,%d,%s,%s,%s,%i,%d,%s,%d,%d,%s,%s\n&&,%s,%d,%s,%d,%s,%s,%i,%d,%s,%d,%d,%s,%s,%s\n",
+                a_OID, //attName, //0
+                GetNumTeamsRemaining().tostring(), //2
+                GetUnixTimestamp(), //3
+                victim.GetPlatformUID(), //victim.GetPlayerName(), //4
+                team_of_killer, //5
+                team_of_killed, //6
+                timeRemaining, //7
+                id, //8
+				aController, //9
+				pA, //10
+				pV, //11
+				attName, //a_OID, //12	
+				victim.GetPlayerName(), //13							//victim totals	below
+                victim.GetPlatformUID(), //0 victim.GetPlayerName()
+                placeM, //1
+                a_OID, //attName, //2
+                GetUnixTimestamp(), //3
+                team_of_killer, //4
+                team_of_killed, //5
+                timeRemaining, //6
+                id, //7
+				aController, //8
+				pV, //9
+				pA, //10
+				victimcontroller, //11
+				attName, //12
+				victim.GetPlayerName() //13
+            );
+
+			if (REPORT_STATS){
+				LogEvent(logString, false, Logging_Encryption());
+				//sqprint(logString);
+			}
+
+            return;
+    }
+
+
+// these need replaced with global CONST to make future updates seamless
+
+int function GetBulletsPerShot(string weaponSource) {
+    switch (weaponSource) {
+        case "mp_weapon_shotgun": return 8;
+        case "mp_weapon_doubletake": return 3;
+        case "mp_weapon_mastiff": return 8;
+        case "mp_weapon_energy_shotgun": return 11;
+        case "mp_weapon_shotgun_pistol": return 3;
+
+    }
+    return 0;
+}
+
+float function GetDamagePerBullet(string weaponSource) {
+    switch (weaponSource) {
+        case "mp_weapon_shotgun": return 7.00;
+        case "mp_weapon_doubletake": return 21.00;
+        case "mp_weapon_shotgun_pistol": return 20.25;
+        case "mp_weapon_energy_shotgun": return 9.00;
+        case "mp_weapon_mastiff": return 11.00;
+    }
+    return 0;
+}
+
+
+
+
+float function GetHeadshotDamagePerBullet(string weaponSource) {
+    switch (weaponSource) {
+        case "mp_weapon_mastiff": return 13.75;
+        case "mp_weapon_doubletake": return 36.75;
+        case "mp_weapon_shotgun": return 8.75;
+        case "mp_weapon_energy_shotgun": return 11.25;
+        case "mp_weapon_shotgun_pistol": return 18.75;
+
+    }
+    return 0;
+}
+
+
+bool function IsSpecialWeapon(string weaponSource) {
+    switch (weaponSource) {
+		case "mp_weapon_shotgun":
+        case "mp_weapon_mastiff":
+		case "mp_weapon_energy_shotgun":
+        case "mp_weapon_doubletake":
+		case "mp_weapon_shotgun_pistol":
+            return true;
+    }
+    return false;
+}
+
+
+void function HandleDamage(DamageEvent event, entity attacker, string weaponSource, float damageAmount, var damageInfo, entity victim) {
+	if (!IsValid(victim) || !IsValid(attacker)) return;
+
+	if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer()){
+		// sqprint("skip");
+		} else {
+			if (!IsValid(victim) || !attacker.p.isConnected || !victim.p.isConnected) {
+				return;
+			}
+		}
+		if ( attacker.IsPlayer() && !IsValid(attacker) ){
+			return; }
+
+	float currentHealth = victim.GetHealth().tofloat() + victim.GetShieldHealth().tofloat();
+
+	// negate damage that can't be done (no health to recieve damage)
+	if (damageAmount > currentHealth) {
+		damageAmount = currentHealth;
+	}
+
+	// for calculating total projectiles from constants
+	float damagePerBullet = GetDamagePerBullet(weaponSource);
+	float bulletsHit = damageAmount / damagePerBullet;
+
+	// headshot count -- damage not used any more
+	if (IsValidHeadShot(damageInfo, victim)) {
+		damagePerBullet = GetHeadshotDamagePerBullet(weaponSource);
+		event.headshots++;
+	}
+
+	bool multiple = false;
+	// count damageInfo from special weapons as a single shot
+	float currentTime = Time();
+	if (IsSpecialWeapon(weaponSource)) {
+		if (event.lastHitTimestamp == 0 || (currentTime - event.lastHitTimestamp) * 1000 > 100) {
+			event.hitCount++;
+			multiple = true;
+		}
+	} else {
+		event.hitCount++;
+	}
+
+	// update DamageEvent
+	event.lastHitTimestamp = currentTime;
+	event.bulletsHit += bulletsHit;
+
+	if (event.isNew) {
+		event.damage = damageAmount;
+
+		if (multiple) {
+			event.isNew = true;
+		} else {
+			event.isNew = false;
+		}
+	} else {
+		event.damage += damageAmount;
+		if (multiple) {
+			event.isNew = true;
+		}
+	}
+
+
+	//sqprint(format("Handling damage for an event with isNew: %s and existing damage: %.2f\n", event.isNew ? "true" : "false", event.damage));
+}
+
+
+
+void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
+{	
+
+	//sqprint("on player damaged called") //DEBUG
+    // early exits
+    if (!IsValid(victim) || Bleedout_IsBleedingOut(victim)) return;
+
+    entity attacker = InflictorOwner(DamageInfo_GetAttacker(damageInfo));
+    int sourceId = DamageInfo_GetDamageSourceIdentifier(damageInfo);
+
+    // exclude this damage type
+    if (sourceId == eDamageSourceId.bleedout || sourceId == eDamageSourceId.human_execution) return;
+
+    string weaponSource = DamageSourceIDToString(sourceId);
+    float damageAmount = DamageInfo_GetDamage(damageInfo);
+
+	//mkosDEBUG
+	//sqprint(format("Source ID: %d, Weapon Source: %s, Damage Amount: %.2f", sourceId, weaponSource, damageAmount));
+
+    string attackerName = " ";
+	string attackerDISPLAYNAME = "";
+    if (attacker.IsPlayer() && IsValid(attacker)) {
+        attackerName = attacker.GetPlatformUID();
+		attackerDISPLAYNAME = attacker.GetPlayerName();
+		//sqprint("Valid attacker is player");
+    } else {
+        attackerName = DamageInfo_GetDamageSourceIdentifier(damageInfo).tostring();
+		//sqprint("Not player and set to damage");
+        if (attackerName == "172") {
+			//sqprint("Set to ring");
+            attackerName = "172";
+        }
+    }
+
+    string victimName = "Unknown";
+	string victimDISPLAYNAME = "Unknown";
+    if (IsValid(victim)) {
+        victimName = victim.GetPlatformUID();
+		victimDISPLAYNAME = victim.GetPlayerName();
+    }
+
+
+	// find existing event and its index
+	bool eventExists = false;
+	int mostRecentEventIndex = -1;
+	int existingEventIndex = -1;
+	float latestTimestamp = -1.0;
+
+	// find most recent event with the same attacker and victim
+	for (int i = 0; i < allDamageEvents.len(); ++i) {
+		if ( allDamageEvents[i].attackerName == attackerName && allDamageEvents[i].victimName == victimName ) {
+			if ( allDamageEvents[i].actionTimestamp > latestTimestamp ) {
+				mostRecentEventIndex = i;
+				latestTimestamp = allDamageEvents[i].actionTimestamp;
+			}
+		}
+	}
+
+	if (mostRecentEventIndex != -1) {
+		existingEventIndex = mostRecentEventIndex;
+		eventExists = true;
+	} else {
+		existingEventIndex = -1;
+		eventExists = false;
+	}
+
+	// sqprint(format("Event exists: %s, existing event index: %d\n", eventExists ? "true" : "false", existingEventIndex));
+
+ string shotIdentifier = "";
+    if (IsSpecialWeapon(weaponSource)) {
+        shotIdentifier = format("%s_%s_%.2f", attackerName, weaponSource, Time());
+    }
+
+    if ( eventExists ) {
+        // last weapon used from the existing event
+        string lastWeaponSource = allDamageEvents[existingEventIndex].weaponOrder[allDamageEvents[existingEventIndex].weaponOrder.len() - 1];
+
+        // check if weapon changed or new shot from special weapon
+        if (lastWeaponSource != weaponSource || (IsSpecialWeapon(weaponSource) && allDamageEvents[existingEventIndex].shotIdentifier != shotIdentifier)) {
+            DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, shotIdentifier );
+            newEvent.weaponOrder.append(weaponSource);
+            newEvent.shotIdentifier = shotIdentifier;
+            HandleDamage(newEvent, attacker, weaponSource, damageAmount, damageInfo, victim);
+            allDamageEvents.append(newEvent);
+        } else {
+            // update existing damage event
+            allDamageEvents[existingEventIndex].isNew = false;
+            allDamageEvents[existingEventIndex].weaponOrder.append(weaponSource);
+            HandleDamage(allDamageEvents[existingEventIndex], attacker, weaponSource, damageAmount, damageInfo, victim);
+        }
+    } else {
+        // if not, create new one
+        DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, shotIdentifier );
+        newEvent.weaponOrder.append(weaponSource);
+        newEvent.shotIdentifier = shotIdentifier;
+        HandleDamage(newEvent, attacker, weaponSource, damageAmount, damageInfo, victim);
+        allDamageEvents.append(newEvent);
+    }
+
+    /*
+    sqprint("Current Damage Events: \n");
+    foreach (DamageEvent event in allDamageEvents) {
+        sqprint(format("Attacker: %s, Victim: %s, Damage: %.2f, Time: %.2f\n", event.attackerName, event.victimName, event.damage, event.actionTimestamp));
+    }
+	*/
+}
+	/*
+	bool function EA_Verify( string test ){
+
+		return false;
+
+	}
+	*/
+
+
+
+	bool function ClientCommand_mkos_ea_verify(entity player, array<string> args)
+	{
+		if (!IsValid(player)) // || !player.p.isConnected)
+			return false;
+	
+		if (GetCurrentPlaylistName() == "fs_1v1") {
+			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" )
+			mkos_Force_Rest( player, [] )
+		}
+
+		if (args.len() < 1){
+
+				Message(player, "Token from R5R.DEV is required.");
+				printt("Token is required.");
+				return false;
+
+			}
+
+		string ea_acc = player.GetPlayerName();
+		string OID = player.GetPlatformUID();
+	
+
+		int index = -1;
+		for (int i = 0; i < playerVerifyCounts.len(); i++) {
+			if (playerVerifyCounts[i].playerID == ea_acc) {
+				index = i;
+				break;
+			}
+		}
+
+		if (index == -1) {
+			PlayerVerifyCount newEntry;
+			newEntry.playerID = ea_acc;
+			newEntry.verifyCount = 0;
+			playerVerifyCounts.append(newEntry);
+			index = playerVerifyCounts.len() - 1;
+		}
+
+		if (playerVerifyCounts[index].verifyCount >= 3) {
+			Message(player, "Too many attempts. Try again later.");
+			return false;
+		}
+
+		playerVerifyCounts[index].verifyCount += 1;
+
+		string token = args[0];
+		int VERIFY = EA_Verify( token, OID, ea_acc );
+		//int VERIFY = EA_Verify( token, ea_acc )
+
+		switch (VERIFY) {
+			case 10:
+				Message(player, "Failed: Expired Token", "Please request a new one");
+				return false;
+
+			case 2:
+				Message(player, "Invalid token", "Usage: ea_verify   yourtoken");
+				return false;
+
+			case 4:
+				Message(player, "Failed", "EA Account already linked.");
+				return false;
+
+			case 1:
+				Message(player, "SUCCESS", "Your account was successfully verified on R5R.DEV");
+				return true;
+
+			case 5:
+				Message(player, "Failed: ", "Database error on success");
+				return false;
+
+			case 3:
+				Message(player, "Failed: ", "DB error");
+				return false;
+
+			case 6:
+				Message(player, "Failed: ", "Missing Data");
+				return false;
+
+			case 8:
+				Message(player, "Failed: ", "CURL Error.");
+				return false;
+
+			case 0:
+			default:
+				Message(player, "Failed", "Could not verify EA Account.");
+				return false;
+		}
+
+		return false;
+
+	}
+
+	//END.DEV
+
+//END KILL RECAP
+/*****************************************************************************************************************************/
+
+
+
+	//client command: show
+	bool function ClientCommand_mkos_test_return_data(entity player, array<string> args){
+		
+		if ( args.len() < 1){
+			
+			Message( player, "\n\n\nUsage: ", " showdata argument \n\n\n Arguments:\n map - Shows current map name \n round - Shows current round number \n input - Shows a list of players and their current input", 5 )
+			return true;
+			
+		}
+		
+		string requestedData = args[0];
+
+		switch(requestedData){
+
+			case "map":
+				//sqprint( GetMapName() )
+				Message( player, "Mapname:", GetMapName(), 5 )
+				return true;
+			case "round":
+				//sqprint( GetCurrentRound().tostring() )
+				Message( player, "Round:", GetCurrentRound().tostring(), 5 )
+				return true;
+			case "input":
+					
+					string data = "";
+					foreach ( active_player in GetPlayerArray() ){
+					
+						string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
+						data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + "\n"; 
+			
+					}
+					
+					Message( player, "Current Player Inputs", data, 20);
+					return true;
+				
+			default:
+				//sqprint ( "Usage: show argument \n" )
+				Message( player, "Failed: ", "Usage: show argument \n", 5 )
+				return true;
+		}
+		return false;
+	}
+	
+	
+	
+	string function LineBreak(string str, int interval = 80) {
+		string output = "";
+
+		// Iterate over the string and add line breaks
+		for (int i = 0; i < str.len(); i += interval) {
+			int end = i + interval;
+			if (end > str.len()) {
+				end = str.len();
+			}
+			output += str.slice(i, end) + "\n";
+		}
+
+		return output;
+	}
+	
+	
+	bool function Is_Bool(string str)
+	{
+		int num = 0;
+		string a_str = str; 
+		
+		if (a_str.len() == 0 || (a_str[0] < '0' || a_str[0] > '9') && a_str[0] != '-') return false;
+		
+		try { num = a_str.tointeger(); } catch (outofrange) { return false; }
+		
+		return (num >= 0 && num <= 1);
+	}
+	
+	entity function GetPlayerEntityByName( string name )
+	{
+
+		foreach ( player in GetPlayerArray() ){
+		
+			if ( player.GetPlayerName() == name ){
+				
+				return player;
+			
+			}
+		
+		}
+		
+		unreachable	
+	}
+	
+	
+	bool function IsAdmin( string CheckPlayer ){
+	
+		if ( CheckPlayer in lg_admins ) {	
+				return true;	
+		}
+		
+		foreach ( Player, OID in lg_admins) {
+		
+			if ( Player == CheckPlayer || OID == CheckPlayer) 
+			{
+				return true;
+			}
+		
+		}
+		
+		return false;
+		
+	}
+	
+
+	bool function ClientCommand_mkos_admin(entity player, array<string> args){
+		
+		
+		if ( !IsValid( player ) ) return false;
+		string PlayerName = player.GetPlayerName();
+		string PlayerUID = player.GetPlatformUID();
+
+  
+		if (PlayerName in lg_admins) {
+		
+			if (lg_admins[PlayerName] != PlayerUID) {
+				return false;
+			}
+			
+		} else { return false }
+
+
+		
+		
+		string command = "";
+		string param = "";
+		
+		if (args.len() > 0){
+			command = args[0];
+		}
+		
+		if (args.len() > 1){
+			param = args[1];
+		}
+		
+		switch(command){  
+			
+			case "help":	
+			
+			
+							try 
+							{
+							
+								Message( player, "Commands:", "A command is entered as: \n cc command param. \n Repalce the #param with your query. \n\n cc kick #uid    - Kicks a player by uid \n cc afk #0/1    - disabled or enables afk to rest mode \n cc playself audiofile    - Plays audiofile to self \n cc playall audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration    - Says a message with a title for specifieed duration \n cc banplayer #name #reason    - Bans a player by name \n cc banplayerid #uid    - Bans a player by uid \n cc unban #uid    - unbans a player by uid", 20)
+							
+							} catch (err) { return false }
+					
+							return true
+				
+				
+			case "kick":	
+			
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot kick admin")
+								return false
+							}
+			
+							try 
+							{		
+								KickPlayerById( args[1], "Kicking..." )
+								Message( player, "Kicked player", "PUID: " + args[1] + " was kicked" )
+								return true
+							} catch (erraaarg)
+							{
+								Message( player, "Error", "Invalid player or argument missing" )
+								return false
+							}
+							
+							return true;
+				
+				
+			case "afk":
+					
+							try {
+							
+								if ( args[1] == "1" )
+								{
+									afk_to_rest_enabled = true;
+									Message( player, "Command sent", "Afk to rest was ENABLED" )
+									return true
+								} 
+								else if ( args[1] == "0" )
+								{
+									afk_to_rest_enabled = false;
+									Message( player, "Command sent", "Afk to rest was disabled" )
+									return true
+								} 
+							} catch (erroreo){
+							
+								Message( player, "Error", "argument missing" )
+								return false
+							}
+							
+							return true
+							
+			case "playonself": 
+			
+								
+							if ( args.len() < 2 ){
+							
+								Message( player, "Failed", "playself requires param of audiofile as string")
+								return false
+							
+							} 
+								
+							try {
+							
+								EmitSoundOnEntity( player, args[1] )
+								
+							} catch ( erra ){
+									
+										Message(player, "Failed", "Command failed because of: \n\n " + erra )
+										return false
+									
+									}
+							
+							return true
+				
+				
+			case "playself": 
+			
+								
+							if ( args.len() < 2 ){
+							
+								Message( player, "Failed", "playself requires param of audiofile as string")
+								return false
+							
+							} 
+								
+							try {
+							
+								EmitSoundOnEntityOnlyToPlayer( player, player, args[1] )
+								
+							} catch ( erra ){
+									
+										Message(player, "Failed", "Command failed because of: \n\n " + erra )
+										return false
+									
+									}
+							
+							return true
+							
+							
+			case "playall":
+						
+							
+							foreach (connected_player in GetPlayerArray()){
+							
+								try {
+						
+									EmitSoundOnEntityOnlyToPlayer( connected_player, connected_player, args[1] )
+									return true
+									
+								} catch ( errb ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errb )
+									return false
+								
+								}
+							
+							}
+
+							return true
+			
+							
+							
+			case "stopplayall":
+						
+							
+							foreach (connected_player in GetPlayerArray()){
+							
+								try {
+						
+									StopSoundOnEntity( connected_player, args[1] )
+									return true
+									
+								} catch ( errb ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errb )
+									return false
+								
+								}
+							
+							}
+
+							return true
+							
+							
+					
+					
+			case "sayall": 
+					
+							if ( args.len() < 4 ){
+							
+								Message( player, "Failed", "sayall requires duration for third param of command as float")
+								return false
+							
+							} 
+							
+							foreach ( say_to_player in GetPlayerArray()){
+							
+								try	{
+								
+									Message( say_to_player, args[1], args[2], args[3].tofloat())
+									return true
+									
+								} catch ( errc ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errc )
+									return false
+								
+								}
+							}
+					
+							return true
+					
+					
+			case "banplayer":
+					  
+						
+							if ( args.len() < 3 ){
+							
+								Message( player, "Failed", "banplayer requires reason for second param of command as string")
+								return false
+							
+							}
+							
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot ban admin")
+								return false
+							}
+							
+							try {
+									BanPlayerByName( args[1], args[2] );
+									Message( player, "Success", "Player: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
+									return true
+									
+								} catch ( errd ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errd )
+									return false
+								
+								}
+						
+					
+					
+							return true
+					
+					
+					
+			case "banplayerid":
+			
+						
+					
+							if ( args.len() < 3 ){
+							
+								Message( player, "Failed", "banplayerid requires reason for second param of command as string")
+								return false
+							
+							}
+							
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot ban admin")
+								return false
+							}
+							
+							try {
+							
+									BanPlayerById( args[1], args[2])
+									Message( player, "Success", "ID: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
+									return true
+									
+								} catch ( erre ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + erre )
+									return false
+								
+								}
+						
+					
+					
+							return true
+					
+			case "unban":
+			
+					
+					
+						if ( args.len() < 2 ){
+						
+							Message( player, "Failed", "unban requires id for 1st param of command as string")
+							return false
+						
+						}
+						
+						try {
+						
+								UnbanPlayer( args[1])
+								
+								Message( player, "Success", "ID: " + args[1] + " was unbanned")
+								
+								return true
+								
+							} catch ( erre ){
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + erre )
+								return false
+							}
+					
+						
+					
+						return true;
+						
+						
+						
+			case "playerinfo":
+			
+						try {
+						
+							string info = PrintAllPlayerMetrics(true);
+							Message( player, "Current Stats: ", LineBreak(info), 20);
+							return true;
+						
+						} catch (errf){
+							
+							Message( player, "Failed", "Command failed because of: \n\n " + errf )
+							return false;
+						}
+						
+			//for testing
+			case "zero":
+			
+						if ( args.len() < 1){
+						
+							Message( player, "Failed", "Param 1 of command 'zero' requires playername string.")
+							return false;
+							
+						}
+			
+						try {
+							
+							entity z_player = GetPlayerEntityByName(args[1])
+							string playeroid = z_player.GetPlatformUID()
+							
+							int index = GetPlayerMetricsIndex( playeroid )
+							
+							if ( index != -1 ){
+							
+								foreach ( playerMetrics in PlayerMetricsArray ) {
+									if ( playerMetrics.playerID == args[1] ) {
+									
+										PlayerMetricsArray.removebyvalue(playerMetrics);
+										
+									}
+								}
+								
+								Message( player, "Success", "Player " + args[1] + " stats were zeroed. Does not effect kill/death/damage. ")
+								return true;
+								
+							}
+						
+						} catch (errg) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errg )
+							return false;
+							
+						}
+						
+			case "debug":
+			
+						try {
+						
+							sqprint( format("Current mode:  %s", player.p.inputmode) ); 
+							Message( player, "Success: ", "Current inputmode: " + player.p.inputmode );
+							return true;
+							
+						} catch (errh) {
+							
+							Message( player, "Failed", "Command failed because of: \n\n " + errh )
+							return false;
+							
+						}
+		
+						
+			case "changeinput":
+								
+								
+						try {	
+								int uid = args[1].tointeger();
+								//string name = args[1]
+								string str = args[2]
+								string a_str = str;
+								
+								if (str == "false"){ a_str = "0" }
+								if (str == "true"){ a_str = "1" }
+								if (str == "mnk" ){ a_str = "0" }
+								if (str == "controller" ) { a_str = "1" }
+								
+								if ( !Is_Bool(a_str) ){
+								
+									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
+									return false;
+								
+								}
+								
+								entity select_player = GetEntityFromEncodedEHandle( uid )
+								//entity select_player = GetPlayerEHandleByName( name )
+								select_player.p.input = a_str.tointeger();
+								
+								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
+								
+								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
+								return true;
+						
+						} catch (errj) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errj )
+							return false;
+						
+						}
+						
+			case "input":					
+								
+						try {	
+						
+								string name = args[1]
+								string str = args[2]
+								string a_str = str;
+								
+								if (str == "false"){ a_str = "0" }
+								if (str == "true"){ a_str = "1" }
+								if (str == "mnk" ){ a_str = "0" }
+								if (str == "controller" ) { a_str = "1" }
+								
+								if ( !Is_Bool(a_str) ){
+								
+									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
+									return false;
+								
+								}
+								
+								entity select_player =  GetPlayerEntityByName( name )
+								select_player.p.input = a_str.tointeger();
+								
+								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
+								
+								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
+								return true;
+						
+						} catch (errj) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errj )
+							return false;
+						
+						}
+						
+			case "listhandles":
+						
+						try {
+						
+							string statement = "\n ";
+							
+							foreach ( list_player in GetPlayerArray() )
+							{
+								int handle = list_player.GetEncodedEHandle()
+								string p_name = list_player.GetPlayerName()
+								
+								statement += " Player: " + p_name + "   Handle: " + handle + "\n";
+								
+							}
+							
+							sqprint(statement);
+							Message( player, "Handles:", statement, 20)
+							
+							return true;
+						
+						} catch (errk) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errk )
+							return false;
+						
+						}
+						
+						
+			default:
+			
+						sqprint ( "Usage: cc commmand param \n" )
+						return true;
+		}
+		
+		
+		return true;
+	}
+
+
+	/* TODO: implement
+	bool function AddEntityCallback_OnAttack( entity player )
+	{
+
+		string who = player.GetPlayerName()
+		sqprint(format("%s attacked", who.tostring))
+		return true
+
+	}
+	*/
+	
+//declare table to store admins
+table<string, string> lg_admins
+
+void function PIN_Init()
+{	
+		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
+			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
+			sqprint(message)
+			
+			AddCallback_OnClientConnected(PlayerConnectedCallback);
+			AddCallback_OnClientDisconnected(PlayerDisconnectedCallback);	
+			if (Master_Server()){ 
+				AddClientCommandCallback( "ea_verify", ClientCommand_mkos_ea_verify ) 
+				AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
+			}
+			AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data ) 
+			AddCallback_OnWeaponAttack(WeaponAttack);
+			RegisterSignal( "SuperglideDetectionResetStats" )
+			
+			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
+		}
+		
+	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
+	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
+	lg_admins["R5mkos"] <- "1007946891142";
+	
+}
+
+
+
+void function PlayerConnectedCallback(entity player) 
+{	
+	
+	while(IsDisconnected( player )) WaitFrame()
+	
+	if ( !IsValid( player ) ) return
+	
+	AddEntityCallback_OnDamaged( player, R5R_OnPlayerDamaged )
+    thread PIN_AddPlayer(player);
+	AddPlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, OnJumped);
+	AddPlayerMovementEventCallback( player, ePlayerMovementEvents.MANTLE, Flowstate_TrackingVision_SuperglideDetection_Stats ) //credit cafe
+	
+	string count = GetNumHumanPlayers().tostring();
+	string OID = player.GetPlatformUID();
+	string name = player.GetPlayerName();
+	
+	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
+		thread PlayerCounts("Connected", name, OID, count )
+	}
+	
+}
+
+void function PlayerCounts( string state, string name, string OID, string count ){
+
+	if ( GetGlobalNetInt( "FSDM_GameState" ) == eTDMState.IN_PROGRESS || GetNumHumanPlayers() == 1 )
+	{
+		_STATSHOOK_UpdatePlayerCount(state, name, OID, count, DISCORD_PLAYERS_WEBHOOK )
+	}
+
+}
+
+
+void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
+
+	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_matches_enabled", false ) )
+	{
+		_STATSHOOK_EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK )
+	}
+
+}
+
+/***************************# JUMPS / SHOTS / SuperGlides #******************************************/
+
+
+void function Flowstate_TrackingVision_SuperglideDetection_Stats(entity player) { 
+	if ( !IsValid(player) ) return
+    string playerID = player.GetPlatformUID();
+	//PlayerSupergliding.rawset(playerID, true)
+    //sqprint("Set superglide status to true for player: " + playerID); 
+	thread Flowstate_TrackingVision_TryToTrackSuperglide_Stats( player )
+	AddPlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, DidJump)
+}
+
+
+/*
+void function EndSuperglide( entity player ) {
+	
+	if ( !IsValid(player) ) { return }
+	
+	sqprint("Should be ending...")
+    string playerID = player.GetPlayerName();
+	PlayerSupergliding.rawset(playerID, false)	
+    return
+	
+}
+*/
+
+void function DidJump( entity player ){
+
+	if ( !IsValid(player) ) { return }
+	
+	string playerID = player.GetPlatformUID();
+	PlayerDidJump[playerID] = true;
+	
+}
+
+void function ResetJump( string playerID ){
+	PlayerDidJump[playerID] <- false;	
+}
+
+bool function pDidJump( string playerID ){
+	
+	if ( ! (playerID in PlayerDidJump) ) return false
+	
+	if ( PlayerDidJump[playerID] == true ) return true 
+	
+	return false;
+}
+
+
+int function GetGlides(string playerID) {
+    foreach (playerMetrics in PlayerMetricsArray) {
+        if (playerMetrics.playerID == playerID) {
+            return playerMetrics.SuperglideTimestamps.len();
+        }
+    }
+    return 0;
+}
+
+//credit: columbiaFPS (cafe), modified by mkos
+void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player )
+{	
+	
+	if ( !IsValid(player) ) return
+	
+	Signal( player, "SuperglideDetectionResetStats" )
+	EndSignal( player, "SuperglideDetectionResetStats" )
+	//sqprint("Superglide reset signal");
+	
+		
+	bool AttemptingSuperGlide = true
+	string playerID = player.GetPlatformUID() 
+	ResetJump(playerID);
+			
+	float playerVel
+	vector playerVelV
+	float airtime = 0;
+	bool hadair = false;
+	bool didmantle = false;
+	bool didslide = false;
+	vector start = player.GetOrigin()
+	
+	while( IsValid( player ) && !player.IsObserver() && AttemptingSuperGlide == true)
+	{
+		
+		if ( IsValid( player ) )
+		{
+			//sqprint(format("Time: %d, on ground? %s , mantling? %s, Did jump? %s", Time(), player.IsOnGround().tostring(), player.IsMantling().tostring(), pDidJump(playerID).tostring()))
+		
+			playerVelV = player.GetVelocity()
+			playerVel = playerVelV.Length()
+			vector current = player.GetOrigin();
+			vector difference = current - start;
+			float distance = sqrt(difference.x * difference.x + difference.y * difference.y + difference.z * difference.z);
+
+			
+			
+			if( player.IsOnGround() || player.IsMantling())
+			{	
+				airtime = 0.0
+				//sqprint(format("Air time reset: %d", airtime ))
+				if (player.IsMantling()){ didmantle = true; }
+				
+			} else if( !player.IsOnGround() && !player.ContextAction_IsZipline() && !player.IsMantling() )
+			{
+				airtime += 0.025
+				hadair = true;
+				if ( player.IsSliding() ){ didslide = true }
+				//sqprint(format("Air time increasing: %d", airtime ))
+			}
+			
+			if ( player.IsSliding() ){ didslide = true }
+			
+			
+			
+			
+			
+				
+			/* run this check multiple times due to the nature of superglide timing */
+				
+			if( pDidJump(playerID) == true && didmantle == true && didslide == true && playerVel > 445 && airtime <= 0.6 )
+			{	
+				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
+				AttemptingSuperGlide = false;
+				RecordPlayerSuperglides( playerID )
+				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				{	
+					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
+					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+				}
+				break;	
+			} 
+			
+			if( pDidJump(playerID) == true && didmantle == true && didslide == true && playerVel > 445 && airtime <= 0.6 )
+			{	
+				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
+				AttemptingSuperGlide = false;
+				RecordPlayerSuperglides( playerID )
+				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				{	
+					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
+					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+				}
+				break;	
+			} 
+			
+			if( pDidJump(playerID) == true && didmantle == true && didslide == true && playerVel > 445 && airtime <= 0.6 )
+			{	
+				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
+				AttemptingSuperGlide = false;
+				RecordPlayerSuperglides( playerID )
+				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				{	
+					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
+					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+				}
+				break;	
+			} 
+			
+			
+			
+			
+			
+			
+			
+			if (distance > 115 && player.IsOnGround())
+			{
+				//sqprint(format("breaking due to moving from mantle. Distance: %d", distance))
+				AttemptingSuperGlide = false;
+				break;		
+			}
+			if (!player.IsMantling() && player.IsOnGround() && hadair == true)
+			{
+				//sqprint("Breaking due to mantle time and ground")
+				AttemptingSuperGlide = false;
+				break;	
+			}
+			if (player.IsMantling()){ didmantle = true; }
+			if ( player.IsSliding() ){ didslide = false }
+			ResetJump(playerID);
+
+		} else { break; }
+		
+		wait 0
+	}
+	
+	//sqprint("End of loop");
+	RemovePlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, DidJump)
+}
+
+
+string function PrintAllPlayerMetrics(bool trigger = false) {
+    string json = "[";
+    foreach (index, metrics in PlayerMetricsArray) {
+        if (index > 0) {
+            json += ", ";
+        }
+        json += "{";
+        json += format("\"player\": \"%s\", ", metrics.playerID);
+        json += format("\"jumps\": %d, ", metrics.JumpTimestamps.len());
+		json += format("\"superglides\": %d, ", metrics.SuperglideTimestamps.len());
+        json += "\"weaponShots\": {";
+        bool wep_first = true;
+        foreach (weaponName, timestamps in metrics.WeaponShotsTimestamps) {
+            if (!wep_first) {
+                json += ", ";
+            }
+            json += format("\"%s\": %d", weaponName, timestamps.len());
+            wep_first = false;
+        }
+        json += "}";
+        json += "}";
+    }
+    json += "]";
+	
+	
+	/*LogEvent(
+		format("^|,%s\n",json),
+		false,
+		Logging_Encryption()
+		);
+	*/
+	
+	if (trigger){
+	
+		return json;
+		
+	} else {
+	
+		sqprint("^|," + json + "\n");
+		
+	}
+	
+	unreachable
+	
+}
+
+
+int function GetPlayerMetricsIndex(string playerID) 
+{
+    for (int i = 0; i < PlayerMetricsArray.len(); i++) {
+        if (PlayerMetricsArray[i].playerID == playerID) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void function RecordPlayerJump(string playerID) 
+{
+	float time = Time();
+ 
+    int index = GetPlayerMetricsIndex(playerID);
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.JumpTimestamps = [time];
+        PlayerMetricsArray.append(NewMetrics);
+    } else {
+        PlayerMetricsArray[index].JumpTimestamps.append(time);
+    }
+}
+
+
+void function RecordPlayerSuperglides(string playerID) 
+{
+	float time = Time();
+ 
+    int index = GetPlayerMetricsIndex(playerID);
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.SuperglideTimestamps = [time];
+        PlayerMetricsArray.append(NewMetrics);
+    } else {
+        PlayerMetricsArray[index].SuperglideTimestamps.append(time);
+    }
+}
+
+
+void function RecordPlayerShot(string playerID, string weaponName) 
+{
+    int index = GetPlayerMetricsIndex(playerID);
+	float time = Time();
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.WeaponShotsTimestamps = {[weaponName] = [time]};
+        PlayerMetricsArray.append(NewMetrics);
+    } else {
+        if (!(weaponName in PlayerMetricsArray[index].WeaponShotsTimestamps)) {
+			PlayerMetricsArray[index].WeaponShotsTimestamps[weaponName] <- [time];
+        } else {
+            PlayerMetricsArray[index].WeaponShotsTimestamps[weaponName].append(time);
+        }
+    }
+}
+
+void function AddToPlayerKills( string playerID, string playername )
+{
+
+	int index = GetPlayerMetricsIndex(playerID);
+	float time = Time();
+	
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.kills = 1;
+		NewMetrics.playername = playername;
+        PlayerMetricsArray.append(NewMetrics);
+		
+    } else {
+	
+		if ( PlayerMetricsArray[index].playername == "" ){
+			PlayerMetricsArray[index].playername = playername;
+		}
+		
+		PlayerMetricsArray[index].kills += 1;
+		
+    }
+
+}
+
+int function GetPlayerKills( string playerID ) 
+{
+    foreach (playerMetrics in PlayerMetricsArray) {
+        if (playerMetrics.playerID == playerID) {
+            return playerMetrics.kills;
+        }
+    }
+    return 0;
+}
+
+
+void function AddToPlayerDamage( string playerID, float damage )
+{
+
+	int index = GetPlayerMetricsIndex(playerID);
+	float time = Time();
+	
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.damage = damage;
+        PlayerMetricsArray.append(NewMetrics);
+		
+    } else {
+       
+            PlayerMetricsArray[index].damage += damage;
+			
+    }
+
+}
+
+float function GetPlayerDamage(string playerID) 
+{
+    foreach (playerMetrics in PlayerMetricsArray) {
+        if (playerMetrics.playerID == playerID) {
+            return playerMetrics.damage;
+        }
+    }
+    return 0;
+}
+
+
+void function OnJumped(entity player) 
+{
+    string playerID = player.GetPlatformUID();
+	RecordPlayerJump( playerID );
+    //sqprint(format("%s jumped", playerID));
+}
+
+
+void function WeaponAttack(entity player, entity weapon, string weaponName, int ammoUsed, vector origin, vector dir) {
+    
+	string pname = player.GetPlatformUID();
+	//sqprint(player.GetPlayerName() + " attacked with " + weaponName);
+	RecordPlayerShot( pname, weaponName);
+	
+}
+
+
+/**** END JUMPS SHOTS SUPERGLIDES ************************************************************/
+
+void function PlayerDisconnectedCallback(entity player) 
+{
+    string reason = "Disconnection";
+    PIN_PlayerLeft(player, reason);
+}
+
+void function PIN_GameStart()
+{
+	if ( PIN_GameState_Start ) { return }
+
+	/*
+	string message = format("game started at %d ", GetUnixTimestamp())
+	sqprint(message)
+	*/
+
+	if ( isLogging() ) { return }
+	
+	
+	DestroyStats(); //make sure metrics incrued during intermediate time is not included
+
+	// Round started, make a new log. r5r.dev
+	if (Logging_Enabled())
+	{
+		//mkos -start-log
+		//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
+		LogEvent(
+		format("|#Tracker version:2.0\n|| New match; round %s;  started at: %d\n",GetCurrentRound().tostring(), GetUnixTimestamp()),
+		true,
+		Logging_Encryption()
+		);
+		//sqprint(format("Current round: %s ; isLogging: %s",GetCurrentRound().tostring(), isLogging().tostring()));
+	} else {
+		sqprint("::: Logging disabled -- to enable set in playlists file --");
+		}
+
+	//thread Thread_CheckInput();
+	PIN_GameState_Start = true;
+	//END .DEV
+}
+
+void function PIN_SetGameStartTime()
+{
+
+}
+
+//make sure round_end isn't started from multiple sources in codebase at same time.
+bool process_end_round_complete = true; 
+
+void function PIN_RoundEnd( int roundnum )
+{	
+	if ( process_end_round_complete == true ){
+		thread FinishGameStatsRound()
+	}
+}
+
+
+void function FinishGameStatsRound(){
+	
+	
+	if ( process_end_round_complete == true ){
+	
+		process_end_round_complete = false;
+	
+		//string message = format("round ended at %d, shipping match stats ", GetUnixTimestamp() )
+		//sqprint(message)
+		PIN_GameState_Start = false;
+
+						//R5R.DEV
+						if ( Logging_Enabled() && isLogging() )
+						{
+								//mkos: log winner placement - && denotes placement entry for parser
+								LogEvent(
+								format("\n|| Game ended at %d\n\n %s", GetUnixTimestamp(), PrintAllPlayerMetrics(true)),
+								false,
+								Logging_Encryption()
+								);
+
+										if(!Logging_ShipStats()){
+											sqprint("Shipping to stats server DISABLED -- check playlists file to enable --");
+										}
+											
+										if ( !Flag( "SurvivalCommentary_FirstBloodReached" ) || !SHOULD_SHIP ){
+										sqprint("No stats to ship...\n");
+										stopLogging(false);
+										} else {
+										stopLogging(Logging_ShipStats()); //IMPORTANT
+										
+										//send to discord:
+										string recap = PIN_WinnerByKillsAndDamage();
+										thread EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK );
+										
+											if (Logging_ShipStats())
+											{
+												foreach(player in GetPlayerArray())
+													{
+														if(!IsValid(player)) continue
+														Message(player, "Stats Shipped", "\n\n\n\n Match metrics sent to tracker @ www.r5r.dev \n\n\n\n" , 4)
+													}
+											}
+										}
+
+						}
+						//END.DEV
+		
+		DestroyStats();
+		process_end_round_complete = true;			
+	} 
+}
+
+
+void function PIN_GameEnd()
+{
+	 if ( process_end_round_complete == true ){
+			thread FinishGameStatsRound()
+		}
+}
+
+
+int function FS_RoundTime(){ return GetCurrentPlaylistVarInt("flowstateRoundtime", 1800) }
+
+void function PIN_AddPlayer( entity player )
+{	
+	
+	
+	if ( Logging_Enabled() && isLogging() && IsValid( player ) )
+	{	
+	
+		string pName = player.GetPlatformUID();
+		string p_ea_name = player.GetPlayerName();
+		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n " , 10)	
+		
+		/*
+		int attempts = 0;
+		while ( !isLogging() && attempts < 22 && IsValid( player ) )
+		{
+			wait(1);
+			attempts++;
+
+			if ( !IsValid( player ) || !player.p.isConnected )
+			{
+			//sqprint("Player disconnected");
+			return;
+			}
+		}
+		
+		
+		
+		
+		if (!isLogging() || attempts >= 22 || !IsValid( player ) ) {
+		sqprint(format("Failed to write connection entries to log || Logthread did not start. logging: %s, connected: %s", isLogging().tostring(), player.p.isConnected.tostring()));
+		} else {
+		*/
+			try {
+					float timeRemaining;
+
+				if (GetCurrentPlaylistName() == "fs_1v1") {
+					const int INITIAL_DELAY = 7;
+					const int DELAY_BETWEEN_ROUNDS = 13;
+
+					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+				} else if (GameRules_GetGameMode() == "fs_dm") {
+					const int INITIAL_DELAY = 8;
+					int DELAY_BETWEEN_ROUNDS;
+
+					if (VOTING_PHASE_ENABLE) {
+						DELAY_BETWEEN_ROUNDS = 32;
+					} else {
+						DELAY_BETWEEN_ROUNDS = 13;
+					}
+
+					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+				}
+				if (IsValid(player)) {
+
+					//string ctrl = player.p.AmIController.tostring();
+
+					LogEvent(format("^^,%s,0,%s,%d,,,,%i,,,,,%s\n",
+					   pName,
+					   GetNumTeamsRemaining().tostring(),
+					   GetUnixTimestamp(),
+					   timeRemaining,
+					   p_ea_name
+					  // ctrl
+					   ),
+					false,
+					Logging_Encryption()
+					);
+				} else {
+					sqprint("Player disconnected before logging.");
+				}
+
+				//sqprint(format("Logs wrote at %i isLogging: %s", timeRemaining, isLogging().tostring()));
+			} catch (error) {
+				sqprint("Probably a disconnection " + error);
+			}
+		//}
+
+
+	}
+	
+}
+
+void function PIN_PlayerLeft( entity player, string reason )
+{
+	
+	string pname = player.GetPlatformUID()
+	string p_ea_name = player.GetPlayerName()
+	string OID = player.GetPlatformUID()
+	//string message = format("%s disconnected ", pname )
+	//sqprint(message)
+
+	//TODO:
+	//notify all structs to finalize data and write logstrings
+	//for player to file for match so that data is not lost.
+	//this makes logging efficient by keeping data in structs
+	//for as long as we can.
+
+	if (Logging_Enabled()) {
+
+		if (!isLogging()) {
+			//sqprint("Failed to write disconnection entries to log || Logthread did not start.");
+		} else {
+				
+				if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
+				
+					string count = (GetNumHumanPlayers() - 1).tostring();
+					thread PlayerCounts("Left", p_ea_name, OID, count );
+					
+				}
+		
+				float timeRemaining;
+
+				if (GetCurrentPlaylistName() == "fs_1v1") {
+					const int INITIAL_DELAY = 7;
+					const int DELAY_BETWEEN_ROUNDS = 13;
+
+					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+				} else if (GameRules_GetGameMode() == "fs_dm") {
+					const int INITIAL_DELAY = 8;
+					int DELAY_BETWEEN_ROUNDS;
+
+					if (VOTING_PHASE_ENABLE) {
+						DELAY_BETWEEN_ROUNDS = 32;
+					} else {
+						DELAY_BETWEEN_ROUNDS = 13;
+					}
+
+					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
+					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
+				}
+
+			LogEvent(
+				format("|&,%s,%i,%d,%s",
+					   pname,
+					   timeRemaining,
+					   GetUnixTimestamp(),
+					   p_ea_name
+					   ),
+				false,
+				Logging_Encryption()
+			);
+		}
+	}
+}
+
+void function PIN_PlayerSpawned( entity player )
+{
+	/*
+	string pname = player.GetPlayerName()
+	string message = format("%s spawned ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerDowned( entity victim, entity attacker, var damageInfo )
+{
+	/*
+	string downedplayer = victim.GetPlayerName()
+	string attackingplayer = attacker.GetPlayerName()
+	string message = format("%s was downed by %s ", downedplayer, attackingplayer )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerRevived( entity injured, entity healer )
+{
+	/*
+	string downedplayer = injured.GetPlayerName()
+	string revivingplayer = healer.GetPlayerName()
+	string message = format("%s was revived by %s ", downedplayer, revivingplayer )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerKilled( entity victim, entity attacker, var damageInfo )
+{	
+	/*
+	string pname = victim.GetPlayerName()
+	string killer = attacker.GetPlayerName()
+	string message = format("%s died to %s", pname, killer )
+	sqprint(message)
+	*/
+
+	float deathtime = Time();
+
+	if ( isLogging() && Logging_Enabled() && IsValid(victim) && IsValid(attacker) && victim.IsPlayer() && attacker.IsPlayer()) {
+    // sqprint("Ending fight via onplayerdied");
+    EndFight( victim, attacker, damageInfo, deathtime ); // IMPORTANT!
+
+	} else if ( Logging_Enabled() && isLogging() && IsValid(victim) && victim.IsPlayer() ){
+
+		//TODO: Call function with additional flag
+		// for attackers from non player sources
+		EndFight( victim, attacker, damageInfo, deathtime );
+
+	}
+}
+
+void function PIN_PlanePath( vector startPos, vector endPos, float duration )
+{
+
+}
+
+void function PIN_SetGameStartGetUnixTimestamp()
+{
+	/*
+	int time = GetUnixTimestamp()
+	string message = format(" deprecate Game start time: %d ", time )
+	sqprint(message)
+	*/
+}
+
+
+
+/* #########################TODO: track only once ########################### */
+
+array<string> GameStartedForPlayer
+
+bool function IsPlayerTracked(string playerID) {
+    for (int i = 0; i < GameStartedForPlayer.len(); i++) {
+        if (GameStartedForPlayer[i] == playerID) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void function RemovePlayer(string playerID) {
+    array<string> updatedList;
+
+    for (int i = 0; i < GameStartedForPlayer.len(); i++) {
+        if (GameStartedForPlayer[i] != playerID) {
+            updatedList.push(GameStartedForPlayer[i]);
+        }
+    }
+
+    GameStartedForPlayer = updatedList;
+}
+/* #################################### ########################### */
+
+
+
+
+void function PIN_GameStartedForPlayer( entity player )
+{
+
+	if  ( !IsValid(player) ) {
+		return;
+	}
+
+	string pname = player.GetPlayerName()
+
+	if ( IsPlayerTracked(pname)) {
+        return;
+    }
+
+	GameStartedForPlayer.push(pname);
+
+	/*
+	// useless, handled by onconnected
+	string message = format("useless call; Game started for: %s ", pname )
+	sqprint(message)
+	*/
+		
+}
+
+
+/* ######################################################################################### */
+
+void function PIN_ItemPickup( entity player, entity pickup, string ref, int unitsPickedUp )
+{
+	//string pname = player.GetPlayerName()
+	//string message = format("%s picked up item %s", pname, ref )
+	//sqprint(message)
+}
+
+void function PIN_CircleLocation( string type, vector origin, float radius, string action )
+{
+
+}
+
+void function PIN_DamageDone( entity attacker, entity victim, float damageAmount )
+{
+	/* doesn't help without damageInfo
+
+	string pname = attacker.GetPlayerName()
+	string vname = victim.GetPlayerName()
+	string message = format("%s did damage to %s", pname, vname)
+	sqprint(message)
+	*/
+
+}
+
+void function PIN_DamageDoneToPlayerForWeapon( entity attacker, string weaponclassname, float damageAmount, bool isHeadshot )
+{
+	/* useless
+	string pname = attacker.GetPlayerName()
+	string message = format("%s did damge with weapon ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerEquip( entity player )
+{	
+	/* useless
+	string pname = player.GetPlayerName()
+	string message = format("%s equiped something ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerUse( entity player, string ref, ... )
+{	
+	/*
+	string pname = player.GetPlayerName()
+	string message = format("%s used %s ", pname, ref )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerOutResource( entity player, string ref )
+{
+
+}
+
+string function PIN_WinnerByKillsAndDamage() {
+
+    int Most_Kills = -1;
+    float Most_Damage = -1.0;
+    string winner = "";
+    float winner_damage;
+    int winner_kills;
+    string winner_oid = "";
+
+    foreach (player in PlayerMetricsArray) {
+        int kills = player.kills;
+        float damage = player.damage;
+
+        if (kills > Most_Kills || (kills == Most_Kills && damage > Most_Damage)) {
+            Most_Kills = kills;
+            Most_Damage = damage;
+
+            winner = player.playername;
+            winner_oid = player.playerID;
+            winner_damage = damage;
+            winner_kills = kills;
+        }
+    }
+
+    if (winner != "") {
+        string json = "{ \"winner\": \"" + winner + "\", \"winner_oid\": \"" + winner_oid + "\", \"winner_kills\": " + winner_kills.tostring() + ", \"winner_damage\": " + format("%.2f", winner_damage) + " }";
+        return json;
+    }
+
+    return "";
+}
+
+
+GameSummarySquadData function GameSummary_GetPlayerData( entity player )
+{
+	GameSummarySquadData data
+
+	if ( !IsValid( player ) )
+		return data
+
+	data.kills = player.GetPlayerNetInt( "kills" )
+	data.deaths = player.p.numberOfDeaths
+	data.survivalTime = int( GetUnixTimestamp() - player.p.lastRespawnTime )
+	data.damageDealt = int( player.p.playerDamageDealt )
+	data.revivesGiven = player.p.revivesGiven
+	data.respawnsGiven = player.p.respawnsGiven
+
+
+    string metrics = format("Player Stats - Kills: %d, Deaths: %d, Survival Time: %d seconds, Damage Dealt: %d, Revives Given: %d, Respawns Given: %d",
+                                 data.kills, data.deaths, data.survivalTime, data.damageDealt, data.revivesGiven, data.respawnsGiven);
+    //sqprint(metrics);
+
+	return data
+}
+
+void function PIN_Interact(entity player, string sound, ... )
+{	
+	/* useless metric atm
+	string pname = player.GetPlayerName()
+	string message = format("%s interacted ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerAbility( entity player, string name, int ability, entity tracked, table additionalData )
+{	
+	/* useless metric atm
+	string pname = player.GetPlayerName()
+	string message = format("%s used: %s ", pname, name )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerAbilityReady( entity player, int ability )
+{
+
+}
+
+void function PIN_AddToPlayerCountStat( entity player, string ability )
+{
+
+}
+
+void function PIN_OnWeaponAttack( entity player, entity meleeAttackWeapon, string classname, int num, vector origin, vector lookDirection )
+{
+	/* no need, handled by ondamage
+	string pname = player.GetPlayerName()
+	string message = format("%s meleed: ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_Ping( entity player, string pingType, entity pingEnt, vector position )
+{	
+	/* no need yet
+	sqprint(format( "%s, %s, %s", string( player ), pingType, string( pingEnt ) ))
+	string pname = player.GetPlayerName()
+	//string ping_what = pingEnt.tostring()
+	string message = format("%s pinged: at location: ", pname )
+	sqprint(message)
+	*/
+}
+
+void function PIN_OnPlayerHealed( entity player, ... )
+{	
+	/*
+	//TODO:
+	string who = player.GetPlayerName()
+	string message = format("%s healed", who )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerLandedOnGround( entity player )
+{	
+	/*
+	get player vectors to build map
+	
+	string who = player.GetPlayerName()
+	string message = format("%s landed on ground", who )
+	sqprint(message)
+	*/
+}
+
+void function PIN_PlayerJumpedFromPlane( entity player, int len )
+{
+	/*
+	get player vectors to build map
+	
+	string who = player.GetPlayerName()
+	string message = format("%s jumped from plane", who )
+	sqprint(message)
+	*/
+}
+
+void function PIN_Training( entity player, string status, string trainingStatus )
+{
+
+}
