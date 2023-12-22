@@ -82,7 +82,7 @@ void function CheckAfkKickThread(entity player)
 		{	
 			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 25 )
 			{	
-				Message(player, "\n\n\n\n\n\n You are Resting", "Type rest in console to exit rest \n or press panel button to resume 1v1s \n\n\n\n  Type wait in console for info \n about your IBMM queue times \n\n\n\n Type 'show input' in console for a list \n of players and their current inputs", 25, "")
+				Message(player, "\n\n\n\n\n\n You are Resting", "Type 'rest' in console to exit rest \n or press panel button to resume 1v1s \n\n\n\n  Type 'wait' in console for info \n about your IBMM queue times \n\n\n\n Type 'show input' in console for a list \n of players and their current inputs", 25, "")
 				player.p.messagetime = Time()
 			}
 			

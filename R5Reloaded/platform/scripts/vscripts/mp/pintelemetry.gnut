@@ -878,94 +878,105 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
 	bool function ClientCommand_mkos_ea_verify(entity player, array<string> args)
 	{
+		
+		thread PlayerEA_Verify( player, args )
+		
+		return true;
+		
+	}
+	
+	
+	void function PlayerEA_Verify( entity player, array<string> args ) {
+	
+	
 		if (!IsValid(player)) // || !player.p.isConnected)
-			return false;
-	
-		if (GetCurrentPlaylistName() == "fs_1v1") {
-			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" )
-			mkos_Force_Rest( player, [] )
-		}
-
-		if (args.len() < 1){
-
-				Message(player, "Token from R5R.DEV is required.");
-				printt("Token is required.");
-				return false;
-
+				return;
+		
+			if (GetCurrentPlaylistName() == "fs_1v1") {
+				Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" )
+				mkos_Force_Rest( player, [] )
 			}
 
-		string ea_acc = player.GetPlayerName();
-		string OID = player.GetPlatformUID();
-	
+			if (args.len() < 1){
 
-		int index = -1;
-		for (int i = 0; i < playerVerifyCounts.len(); i++) {
-			if (playerVerifyCounts[i].playerID == ea_acc) {
-				index = i;
-				break;
+					Message(player, "Token from R5R.DEV is required.");
+					printt("Token is required.");
+					return;
+
+				}
+
+			string ea_acc = player.GetPlayerName();
+			string OID = player.GetPlatformUID();
+		
+
+			int index = -1;
+			for (int i = 0; i < playerVerifyCounts.len(); i++) {
+				if (playerVerifyCounts[i].playerID == ea_acc) {
+					index = i;
+					break;
+				}
 			}
-		}
 
-		if (index == -1) {
-			PlayerVerifyCount newEntry;
-			newEntry.playerID = ea_acc;
-			newEntry.verifyCount = 0;
-			playerVerifyCounts.append(newEntry);
-			index = playerVerifyCounts.len() - 1;
-		}
+			if (index == -1) {
+				PlayerVerifyCount newEntry;
+				newEntry.playerID = ea_acc;
+				newEntry.verifyCount = 0;
+				playerVerifyCounts.append(newEntry);
+				index = playerVerifyCounts.len() - 1;
+			}
 
-		if (playerVerifyCounts[index].verifyCount >= 3) {
-			Message(player, "Too many attempts. Try again later.");
-			return false;
-		}
+			if (playerVerifyCounts[index].verifyCount >= 3) {
+				Message(player, "Too many attempts. Try again later.");
+				return;
+			}
 
-		playerVerifyCounts[index].verifyCount += 1;
+			playerVerifyCounts[index].verifyCount += 1;
 
-		string token = args[0];
-		int VERIFY = EA_Verify( token, OID, ea_acc );
-		//int VERIFY = EA_Verify( token, ea_acc )
+			string token = args[0];
+			int VERIFY = EA_Verify( token, OID, ea_acc );
+			//int VERIFY = EA_Verify( token, ea_acc )
 
-		switch (VERIFY) {
-			case 10:
-				Message(player, "Failed: Expired Token", "Please request a new one");
-				return false;
+			switch (VERIFY) {
+				case 10:
+					Message(player, "Failed: Expired Token", "Please request a new one");
+					return;
 
-			case 2:
-				Message(player, "Invalid token", "Usage: ea_verify   yourtoken");
-				return false;
+				case 2:
+					Message(player, "Invalid token", "Usage: ea_verify   yourtoken");
+					return;
 
-			case 4:
-				Message(player, "Failed", "EA Account already linked.");
-				return false;
+				case 4:
+					Message(player, "Failed", "EA Account already linked.");
+					return;
 
-			case 1:
-				Message(player, "SUCCESS", "Your account was successfully verified on R5R.DEV");
-				return true;
+				case 1:
+					Message(player, "SUCCESS", "Your account was successfully verified on R5R.DEV");
+					return;
 
-			case 5:
-				Message(player, "Failed: ", "Database error on success");
-				return false;
+				case 5:
+					Message(player, "Failed: ", "Database error on success");
+					return;
 
-			case 3:
-				Message(player, "Failed: ", "DB error");
-				return false;
+				case 3:
+					Message(player, "Failed: ", "DB error");
+					return;
 
-			case 6:
-				Message(player, "Failed: ", "Missing Data");
-				return false;
+				case 6:
+					Message(player, "Failed: ", "Missing Data");
+					return;
 
-			case 8:
-				Message(player, "Failed: ", "CURL Error.");
-				return false;
+				case 8:
+					Message(player, "Failed: ", "CURL Error.");
+					return;
 
-			case 0:
-			default:
-				Message(player, "Failed", "Could not verify EA Account.");
-				return false;
-		}
+				case 0:
+				default:
+					Message(player, "Failed", "Could not verify EA Account.");
+					return;
+			}
 
-		return false;
-
+			return;
+		
 	}
 
 	//END.DEV
@@ -1000,14 +1011,38 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 			case "input":
 					
 					string data = "";
-					foreach ( active_player in GetPlayerArray() ){
+					string inputmsg = "Current Player Inputs";
 					
-						string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
-						data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + "\n"; 
-			
+					try 
+					{
+					
+						foreach ( active_player in GetPlayerArray() ){
+						
+							string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
+							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + "\n"; 
+				
+						}
+						
+						
+						if( (inputmsg.len() + data.len()) > 599 ){
+						
+							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+							return true;
+						
+						}
+						
+						Message( player, inputmsg, data, 20);
+					
+					} 
+					catch (show_err) 
+					{
+	
+						Message(player, "Failed", "Command failed because of: \n\n " + show_err )
+						return false
+								
 					}
 					
-					Message( player, "Current Player Inputs", data, 20);
+					
 					return true;
 				
 			default:
@@ -1562,10 +1597,9 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 						
 						}
 						
-						
 			default:
 			
-						sqprint ( "Usage: cc commmand param \n" )
+						//sqprint ( "Usage: cc commmand param \n" )
 						return true;
 		}
 		
@@ -1590,6 +1624,7 @@ table<string, string> lg_admins
 
 void function PIN_Init()
 {	
+	
 		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)

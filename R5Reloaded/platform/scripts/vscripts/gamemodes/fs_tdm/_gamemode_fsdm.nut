@@ -4766,12 +4766,14 @@ bool function ClientCommand_GiveWeapon(entity player, array<string> args)
 		Message( player, "NOT ALLOWED IN RESTING MODE" )
 		return false
 	}
-
+	
+	/*
 	if( is1v1EnabledAndAllowed() && isPlayerInWaitingList( player ) )
 	{
 		Message( player, "NOT ALLOWED IN WAITING MODE" )
 		return false
 	}
+	*/
 
 	if( is1v1EnabledAndAllowed() && args[0] != "p" && args[0] != "s" )
 		return false

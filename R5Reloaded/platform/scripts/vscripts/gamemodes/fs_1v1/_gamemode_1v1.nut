@@ -745,7 +745,7 @@ void function PlayerRestoreHP_1v1(entity player, float health, float shields)
 		Inventory_SetPlayerEquipment(player, "armor_pickup_lv2", "armor")
 	else if(shields <= 100)
 		Inventory_SetPlayerEquipment(player, "armor_pickup_lv3", "armor")
-	else if(shields <= 125)
+	else if(shields <= 125 && !GetCurrentPlaylistVarBool( "karma_server", false ) )
 		Inventory_SetPlayerEquipment(player, "armor_pickup_lv5", "armor")
 
 	player.SetShieldHealth( shields )
@@ -863,7 +863,13 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //å¤æ
 	if(!IsValid(player)) return
 
 	Inventory_SetPlayerEquipment(player, "armor_pickup_lv3", "armor")
-	PlayerRestoreHP_1v1(player, 100, 0 ) //mkosDEBUG
+	
+	if (GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false ))
+	{
+		PlayerRestoreHP_1v1(player, 100, 0 ) //lg
+	}
+	
+	PlayerRestoreHP_1v1(player, 100, player.GetShieldHealthMax().tofloat())
 
 	Survival_SetInventoryEnabled( player, false )
 	//SetPlayerInventory( player, [] )
@@ -1940,7 +1946,7 @@ void function InputWatchdog( entity player, entity opponent, soloGroupStruct gro
 				
 				}
 				
-				wait 0.2
+				wait 0.1
 			}
 	
 	if ( IsValid ( player ) ) player.p.inputmode = "OPEN";
