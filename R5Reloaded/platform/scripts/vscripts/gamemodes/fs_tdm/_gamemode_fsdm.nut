@@ -229,7 +229,7 @@ void function Init_IBMM( entity player )
 	
 	if (GetCurrentPlaylistVarBool( "use_global_stats", false))
 	{
-		thread SQ_LoadPlayerKD( player )
+		SQ_LoadPlayerKD( player )
 		thread SetPlayerKD( player )
 	}
 	
@@ -447,6 +447,9 @@ void function SQ_LoadPlayerKD( entity player )
 
 void function SetPlayerKD( entity player )
 {	
+
+	wait 1; //fixes timing issue
+	
 	string OID = "0";
 	int attempts = 0;
 	
@@ -455,12 +458,12 @@ void function SetPlayerKD( entity player )
 		OID = player.GetPlatformUID()
 	}
 	
-	while ( IsValid( player ))
+	int player_lifetime_kills = 0;
+	int player_lifetime_deaths = 0;
+	int player_lifetime_glides = 0;
+	
+	while ( IsValid( player ) )
 	{
-		
-		int player_lifetime_kills = 0;
-		int player_lifetime_deaths = 0;
-		int player_lifetime_glides = 0;
 		
 		string p_kd = GetKDString( OID )
 		
@@ -470,7 +473,7 @@ void function SetPlayerKD( entity player )
 		if ( p_kd == "NA" )
 			break
 			
-		if ( attempts > 6 )
+		if ( attempts > 3 )
 			break
 		
 		if ( p_kd != "" || p_kd != "NA" )
@@ -496,10 +499,11 @@ void function SetPlayerKD( entity player )
 		}
 		
 		attempts++
-		wait .5
+		wait 1
 		
 	}
 	
+	wait 1
 	
 	SQ_ResetStats( OID )
 	

@@ -1706,6 +1706,7 @@ void function PIN_Init()
 	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	lg_admins["R5mkos"] <- "1007946891142";
+	lg_admins["apex3rdpartier"] <- "1012544928175";
 	
 }
 
