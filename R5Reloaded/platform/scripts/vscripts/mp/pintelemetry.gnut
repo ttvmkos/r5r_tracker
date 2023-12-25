@@ -125,6 +125,7 @@ struct PlayerMetrics {
     table<string, array< float > > WeaponShotsTimestamps
 	array<float> SuperglideTimestamps
 	int kills
+	int deaths
 	float damage
 	string playername
 };
@@ -478,7 +479,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 								{
 									if (IsValid( attacker ) && IsValid( victim ) )
 									{
-										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.GetPlatformUID(), victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
+										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.GetPlayerName(), victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
 									}
 								}
 								
@@ -496,7 +497,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 			{	
 				for (int i = 0; i < playerIDs.len(); ++i) 
 				{
-					RecapStats( victim, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat(), playerIDs[i], playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat()  )
+					RecapStats( victim, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat(), playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat()  )
 				}
 			}
 		}
@@ -577,6 +578,8 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 			float pingVictim = victim.GetLatency() * 1000 - 40;
 			float pingAttacker = 0;
 			string a_OID = "";
+			string v_OID = victim.GetPlatformUID();
+			string vicName = victim.GetPlayerName();
 
 			if (attacker.IsPlayer())
 			{
@@ -594,6 +597,12 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				a_OID = "172";
 			}
 			
+			if (REPORT_STATS)
+			{
+				AddToPlayerDeaths( v_OID, vicName )
+			}
+			
+			
 			//temporary unknown
 			//aController = "";
 			string victimcontroller = victim.p.input.tostring();
@@ -604,7 +613,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
                 a_OID, //attName, //0
                 GetNumTeamsRemaining().tostring(), //2
                 GetUnixTimestamp(), //3
-                victim.GetPlatformUID(), //victim.GetPlayerName(), //4
+                v_OID, //was victim.GetPlayerName(), //4
                 team_of_killer, //5
                 team_of_killed, //6
                 timeRemaining, //7
@@ -613,8 +622,8 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				pA, //10
 				pV, //11
 				attName, //a_OID, //12	
-				victim.GetPlayerName(), //13							//victim totals	below
-                victim.GetPlatformUID(), //0 victim.GetPlayerName()
+				vicName, //13							//victim totals	below
+                v_OID, //0 was victim.GetPlayerName()
                 placeM, //1
                 a_OID, //attName, //2
                 GetUnixTimestamp(), //3
@@ -627,7 +636,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				pA, //10
 				victimcontroller, //11
 				attName, //12
-				victim.GetPlayerName() //13
+				vicName //13
             );
 
 			if (REPORT_STATS){
@@ -650,7 +659,7 @@ int function GetBulletsPerShot(string weaponSource) {
         case "mp_weapon_shotgun_pistol": return 3;
 
     }
-    return 0;
+    return 0; //should return 1 default in case wrong call to function
 }
 
 float function GetDamagePerBullet(string weaponSource) {
@@ -1017,9 +1026,10 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 					{
 					
 						foreach ( active_player in GetPlayerArray() ){
-						
+							
+							string handicap = active_player.p.p_damage == 2 ? "On" : "Off";
 							string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
-							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + "\n"; 
+							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
 				
 						}
 						
@@ -1038,6 +1048,55 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 					{
 	
 						Message(player, "Failed", "Command failed because of: \n\n " + show_err )
+						return false
+								
+					}
+					
+					
+					return true;
+					
+			case "stats":
+					
+					string data = "";
+					string inputmsg = "Current Player Global Stats";
+					
+					try 
+					{
+					
+						foreach ( active_player in GetPlayerArray() ){
+							
+							float kd = 0.0
+							string kd_string = "";
+							
+							int kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
+							int deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
+							
+							if (deaths > 0) 
+							{
+								kd = getkd( kills, deaths )
+							}
+							
+							kd_string = kd != 0.0 ? kd.tostring() : "N/A";
+							
+							data += "Player: " + active_player.GetPlayerName() + " Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
+				
+						}
+						
+						
+						if( (inputmsg.len() + data.len()) > 599 ){
+						
+							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+							return true;
+						
+						}
+						
+						Message( player, inputmsg, data, 20);
+					
+					} 
+					catch (show_err2) 
+					{
+	
+						Message(player, "Failed", "Command failed because of: \n\n " + show_err2 )
 						return false
 								
 					}
@@ -1641,7 +1700,9 @@ void function PIN_Init()
 			
 			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
-		
+	
+	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
+	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
 	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	lg_admins["R5mkos"] <- "1007946891142";
@@ -1818,7 +1879,7 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
 				{	
 					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 
@@ -1831,7 +1892,7 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
 				{	
 					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 
@@ -1844,7 +1905,7 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
 				{	
 					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Glides: %d", GetGlides(playerID)), superglide_msg )
+					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 
@@ -1887,10 +1948,14 @@ string function PrintAllPlayerMetrics(bool trigger = false) {
         if (index > 0) {
             json += ", ";
         }
+		
         json += "{";
         json += format("\"player\": \"%s\", ", metrics.playerID);
         json += format("\"jumps\": %d, ", metrics.JumpTimestamps.len());
 		json += format("\"superglides\": %d, ", metrics.SuperglideTimestamps.len());
+        json += format("\"kills\": %d, ", metrics.kills); 
+        json += format("\"deaths\": %d, ", metrics.deaths);
+       
         json += "\"weaponShots\": {";
         bool wep_first = true;
         foreach (weaponName, timestamps in metrics.WeaponShotsTimestamps) {
@@ -2013,6 +2078,31 @@ void function AddToPlayerKills( string playerID, string playername )
 
 }
 
+void function AddToPlayerDeaths( string playerID, string playername )
+{
+
+	int index = GetPlayerMetricsIndex(playerID);
+	float time = Time();
+	
+    if (index == -1) {
+        PlayerMetrics NewMetrics;
+        NewMetrics.playerID = playerID;
+        NewMetrics.deaths = 1;
+		NewMetrics.playername = playername;
+        PlayerMetricsArray.append(NewMetrics);
+		
+    } else {
+	
+		if ( PlayerMetricsArray[index].playername == "" ){
+			PlayerMetricsArray[index].playername = playername;
+		}
+		
+		PlayerMetricsArray[index].deaths += 1;
+		
+    }
+
+}
+
 int function GetPlayerKills( string playerID ) 
 {
     foreach (playerMetrics in PlayerMetricsArray) {
@@ -2052,6 +2142,43 @@ float function GetPlayerDamage(string playerID)
         }
     }
     return 0;
+}
+
+int function GetPlayerDeaths(string playerID) 
+{
+    foreach (playerMetrics in PlayerMetricsArray) {
+        if (playerMetrics.playerID == playerID) {
+            return playerMetrics.deaths;
+        }
+    }
+    return 0;
+}
+
+void function UpdateRoundStats_GlobalsCarryOver()
+{
+
+	foreach ( player in GetPlayerArray() )
+	{
+		if ( IsValid( player ) )
+		{
+		
+			int lifetime_kills = player.p.lifetime_kills
+			int lifetime_deaths = player.p.lifetime_deaths
+			int lifetime_glides = player.p.lifetime_glides
+		
+			string player_oid = player.GetPlatformUID()
+			int current_kills = GetPlayerKills( player_oid ) 
+			int current_deaths = GetPlayerDeaths( player_oid )
+			int current_glides = GetGlides( player_oid )
+			
+			player.p.lifetime_kills = current_kills + lifetime_kills
+			player.p.lifetime_deaths = current_deaths + lifetime_deaths
+			player.p.lifetime_glides = current_glides + lifetime_glides
+			
+		}
+		
+	}
+
 }
 
 
@@ -2129,6 +2256,15 @@ void function PIN_RoundEnd( int roundnum )
 	}
 }
 
+void function UpdateLiveStats( string metrics )
+{
+	
+	if ( metrics != "" )
+	{
+		SQ_UpdateLiveStats( metrics )
+	}
+	
+}
 
 void function FinishGameStatsRound(){
 	
@@ -2161,6 +2297,10 @@ void function FinishGameStatsRound(){
 										} else {
 										stopLogging(Logging_ShipStats()); //IMPORTANT
 										
+										//update live global stats for match making (verified only)
+										string metrics = PrintAllPlayerMetrics(true);
+										thread UpdateLiveStats( metrics );
+										
 										//send to discord:
 										string recap = PIN_WinnerByKillsAndDamage();
 										thread EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK );
@@ -2178,7 +2318,8 @@ void function FinishGameStatsRound(){
 						}
 						//END.DEV
 		
-		DestroyStats();
+		UpdateRoundStats_GlobalsCarryOver()
+		DestroyStats()
 		process_end_round_complete = true;			
 	} 
 }

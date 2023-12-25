@@ -23,7 +23,10 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 	superglide_counter_msg					1 // Shows players' superglide counts
 	custom_superglide_msg					"Kewl beans" //shows custom msg under counter.
 	patch_for_dropoff						1 // enables extra locations for dropoff allowing for 32 max players
-				
+		
+
+	use_global_stats						1 //uses global player stats for matchmaking
+		
 	// DISCORD WEBHOOKS:
 	// For Discord webhooks help:  https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
         

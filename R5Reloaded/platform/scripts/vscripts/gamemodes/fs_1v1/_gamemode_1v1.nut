@@ -46,7 +46,7 @@ global array <entity> soloPlayersResting = []
 // float for waiting to switch input matching to OPEN
 global float grace_period = 15.0
 
-bool function  Fetch_IBMM_Bool_For_Player( entity player ) {
+bool function Fetch_IBMM_Bool_For_Player( entity player ) {
 
 if ( !IsValid( player ) ) return false
 if ( soloPlayersWaiting.len() <= 0 ) return false
@@ -243,15 +243,16 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 {
 	if( !IsValid(player) ) //|| !IsAlive(player) )
 		return false
-		
-	TakeAllWeapons( player )
 
 	if(soloPlayersResting.contains(player))
 	{
 		return false
-	}
-	else
-	{	
+	} 
+	
+	if(isPlayerInWaitingList(player))
+		return false
+
+	
 		soloModePlayerToRestingList(player)
 		try
 		{
@@ -262,10 +263,7 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 
 		}
 
-		thread respawnInSoloMode(player)
-		TakeAllWeapons( player )
-	}
-	
+	TakeAllWeapons( player )	
 	player.p.lastRestUsedTime = Time()
 
 	return true
@@ -428,7 +426,7 @@ void function soloModePlayerToWaitingList(entity player)
 	
 	
 	if(IsValid(player))
-		playerStruct.kd = getkd( player.GetPlayerNetInt( "kills" ), player.GetPlayerNetInt( "deaths" ))
+		playerStruct.kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
 	else
 		playerStruct.kd = 0
 	playerStruct.lastOpponent = player.p.lastKiller
@@ -1786,10 +1784,8 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				entity lastOpponent = eachPlayerStruct.lastOpponent
 
 				if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
-				if(bestOpponent != lastOpponent) //最合适玩家是上局对手,用第二合适玩家代替
+				if( (bestOpponent != lastOpponent && Fetch_IBMM_Bool_For_Player( bestOpponent ) == true && Fetch_IBMM_Bool_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Bool_For_Player( playerSelf ) == false && Fetch_IBMM_Bool_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
 				{		
-				
-					if ( Fetch_IBMM_Bool_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ){
 						
 						bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
 						
@@ -1801,12 +1797,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					
 						break
 					
-					}
 				}
-				else if (IsValid(scondBestOpponent && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false))
+				else if ( IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == true && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == false && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
 				{	
 					
-					if ( Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input ){
+					if ( Fetch_IBMM_Bool_For_Player( bestOpponent ) == true || Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input ){
 						
 						bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
 						
@@ -1918,10 +1913,12 @@ void function soloModeThread(LocPair waitingRoomLocation)
 //mkos input watch
 void function InputWatchdog( entity player, entity opponent, soloGroupStruct group ){
 	
-	while ( group.IsFinished == false ){
-			
+	while ( true ){
+				
+				if ( group.IsFinished ) break
 				if ( !IsValid ( player ) || !IsValid( opponent ) ) break
 				if ( !IsAlive(player) || !IsAlive( opponent ) ) break
+				if ( isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) break
 				//sqprint("Waiting for input to change");
 			
 				if ( player.p.input != opponent.p.input ){
@@ -1946,7 +1943,7 @@ void function InputWatchdog( entity player, entity opponent, soloGroupStruct gro
 				
 				}
 				
-				wait 0.1
+				wait 0.01
 			}
 	
 	if ( IsValid ( player ) ) player.p.inputmode = "OPEN";

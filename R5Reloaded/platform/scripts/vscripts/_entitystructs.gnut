@@ -741,7 +741,7 @@ global struct ServerPlayerStruct
 	int ziplineUsages = 0
 	float lastmoved
 	
-	//LGDuel /or/ r5r stats
+	//mkos /or/ r5r stats
 	
 	string hitsound
 	int input
@@ -751,6 +751,11 @@ global struct ServerPlayerStruct
 	bool destroynotify = false
 	float IBMM_grace_period = 0 // disabled default
 	float messagetime = 0
+	int movevalue = 0
+	int p_damage = 3 //for lgduel default dmg/heal 
+	int lifetime_kills = 0
+	int lifetime_deaths = 0
+	int lifetime_glides = 0
 	
 	
 	//MovementGym

@@ -82,7 +82,7 @@ void function CheckAfkKickThread(entity player)
 		{	
 			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 25 )
 			{	
-				Message(player, "\n\n\n\n\n\n You are Resting", "Type 'rest' in console to exit rest \n or press panel button to resume 1v1s \n\n\n\n  Type 'wait' in console for info \n about your IBMM queue times \n\n\n\n Type 'show input' in console for a list \n of players and their current inputs", 25, "")
+				Message(player, "\n\n\n\n\n\n You are Resting", "Type 'rest' in console to exit rest \n or press panel button to resume 1v1s \n\n\n\n  Type 'wait' in console for info \n about your IBMM queue times \n\n\n\n Type 'show input' in console for a list \n of players and their current inputs \n\n\n\n Type 'show stats' in console for a list \n of players and their current stats", 25, "")
 				player.p.messagetime = Time()
 			}
 			
@@ -123,14 +123,13 @@ void function AfkThread_PlayerMoved( entity player )
 
 void function AfkThread_AddPlayerCallbacks( entity player )
 {	
-	//removed attack to lessen amount of input registers -mkos
-	//AddButtonPressedPlayerInputCallback( player, IN_ATTACK, AfkThread_PlayerMoved )
+	AddButtonPressedPlayerInputCallback( player, IN_ATTACK, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_JUMP, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, AfkThread_PlayerMoved )
-	AddButtonPressedPlayerInputCallback( player, IN_LEFT, AfkThread_PlayerMoved )
-	AddButtonPressedPlayerInputCallback( player, IN_RIGHT, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_USE, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, AfkThread_PlayerMoved )
+	AddButtonPressedPlayerInputCallback( player, IN_LEFT, AfkThread_PlayerMoved )
+	AddButtonPressedPlayerInputCallback( player, IN_RIGHT, AfkThread_PlayerMoved )
 }

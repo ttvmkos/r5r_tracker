@@ -60,7 +60,9 @@ global function GetBlackListedWeapons
 //R5R.DEV Tracker
 global function GetCurrentRound 
 global function Thread_CheckInput
+global function ClientCommand_mkos_LGDuel_IBMM_wait
 global bool input_monitor_running = false;
+const SQ_MAX_INT_32 = 2147483647;
 
 //LGDuels
 const string HIT_0 = "UI_Survival_Intro_LaunchCountDown_3Seconds"
@@ -190,7 +192,10 @@ struct
 // ██   ██ ██   ██      ██ ██          ██      ██    ██ ██  ██ ██ ██         ██    ██ ██    ██ ██  ██ ██      ██
 // ██████  ██   ██ ███████ ███████     ██       ██████  ██   ████  ██████    ██    ██  ██████  ██   ████ ███████
 
-//R5R.DEV:
+
+//////////////////////////////////////////////////// 
+///////////////////  R5R.DEV:  /////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////// 
 int function GetCurrentRound() { 
     return file.currentRound;
 }
@@ -202,6 +207,7 @@ void function INIT_LGDuels( entity player )
 	thread AddEntityCallback_OnDamaged( player, LGDuel_OnPlayerDamaged )
 	AddClientCommandCallback("hitsound", ClientCommand_mkos_LGDuel_hitsound )
 	AddClientCommandCallback("HITSOUND", ClientCommand_mkos_LGDuel_hitsound )
+	AddClientCommandCallback("handicap", ClientCommand_mkos_LGDuel_p_damage )
 	player.p.hitsound = HIT_0
 	CreatePanelText(player, "", "LG Duels by:", < 3450.38, -9592.87, -9888.37 >, < 354.541, 271.209, 0 >, false, 1.5, 1)
 	CreatePanelText(player, "mkos ", "",		< 3472.44, -9592.87, -9888.37 >, < 354.541, 271.209, 0 >, false, 3, 2)
@@ -212,62 +218,199 @@ void function INIT_LGDuels( entity player )
 void function Init_IBMM( entity player )
 {
 	
-	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
-	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
 	thread notify_thread( player )
 	player.p.IBMM_grace_period = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
 	player.p.messagetime = 0
+	thread Thread_CheckInput( player )
+	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
+	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
+	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
+	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, SetInput_IN_FORWARD )
+	
+	if (GetCurrentPlaylistVarBool( "use_global_stats", false))
+	{
+		thread SQ_LoadPlayerKD( player )
+		thread SetPlayerKD( player )
+	}
+	
+}
+
+
+//Made by @CafeFPS
+//modified by mkos
+void function Thread_CheckInput( entity player )
+{
+
+	int timesCheckedForNewInput = 0
+	int previousInput = -1
+	bool isCheckerRunning
+
+    while ( true ) 
+	{
+		wait 0.2
+		
+		if( !IsValid( player ) )
+			break
+		int typeOfInput = GetInput( player )
+		
+		if ( !isCheckerRunning && typeOfInput == 1 )
+			player.p.movevalue = 0
+		
+		if( typeOfInput == 9 )
+			continue
+
+		if( isCheckerRunning )
+		{
+			if( typeOfInput == previousInput )
+			{
+				if( timesCheckedForNewInput >= 4 )
+				{
+					isCheckerRunning = false
+					timesCheckedForNewInput = 0
+
+					if ( InvalidInput( typeOfInput, player.p.movevalue ) ) {
+					
+                       // HandlePlayer( player ); 
+					   player.p.input = 1
+						
+                    } else {
+					
+                        //sqprint("Player did change input! Old: " + player.p.input.tostring() + " - New: " + typeOfInput.tostring());
+                        player.p.input = typeOfInput;
+						
+                    }
+					continue
+				}
+				timesCheckedForNewInput++
+				//sqprint( "Checking if it's a valid input change..." + typeOfInput.tostring() + previousInput.tostring() + " - Times checked: " + timesCheckedForNewInput.tostring() )
+			}
+			else
+			{
+				timesCheckedForNewInput = 0
+				isCheckerRunning = false
+				//sqprint( "Player did NOT change input. It was a false alarm." )
+			}
+			
+			previousInput = typeOfInput
+			continue
+		}
+
+		if( player.p.input != typeOfInput && !isCheckerRunning )
+		{
+			//sqprint( "Input change check triggered. " + player.p.input.tostring() + typeOfInput.tostring() + " - Did player change input?" )
+			isCheckerRunning = true
+			previousInput = typeOfInput
+			continue
+		}
+
+		/*
+		if( player.p.input == 0 )
+				sqprint( player.GetPlayerName() + "is mnk" )
+			else // 1
+				sqprint( player.GetPlayerName() + "is rolla" )
+		*/
+    }
+}
+
+bool function InvalidInput( int input_type, int movevalue ){
+
+	if ( movevalue == 0 && input_type == 0 )
+	{
+		return true
+	} 
+	
+	return false
+	
+}
+
+void function HandlePlayer( entity player ){
+	
+	string id = player.GetPlatformUID()
+	int action = GetCurrentPlaylistVarInt( "invalid_input_action", 1 )
+	string msg = GetCurrentPlaylistVarString( "invalid_input_msg", "Invalid Input Device" )
+	bool log_invalid_input = GetCurrentPlaylistVarBool( "log_invalid_input", false )
+	
+	switch (action)
+	{
+	
+		case 1:
+			sqprint("Action: keeping as controller")
+			player.p.input = 1;
+			break
+		case 2:
+			sqprint("Action: kick")
+			//KickPlayerById( id, msg )
+			break
+		case 3:
+			sqprint("Action: Ban")
+			//BanPlayerById( id, msg )
+			break
+	
+	}
 	
 }
 
 int function GetInput( entity player )
-{
-    float value = player.GetInputAxisRight() == 0 ? player.GetInputAxisForward() : player.GetInputAxisRight()
-
-    if( value == 0 ){	
-		//sqprint("value was 0, returning");
-        return 9;
-	}
-
-    int input = value.tostring().len() < 5 ? 0 : 1 ;
-	return input;
-}
-
-void function Thread_CheckInput(){
-
-	input_monitor_running = true;
-
-	while ( true ) {
+{	
+    float value = player.GetInputAxisRight() == 0 ? player.GetInputAxisForward() : player.GetInputAxisRight() 
 	
-		foreach ( player in GetPlayerArray() ){
-			
-			//0 mnk , 1 controller
-			int p_input = GetInput( player );
-			
-			if ( IsValid( player ) && p_input != 9 ){
-				//sqprint(format("Setting player %s input to %d", player.GetPlayerName(), p_input ))
-				if ( player.p.input != p_input ){
-					player.p.input = p_input;
-				}
-			}
-			
-		}
+    if( value == 0 || value == 0.5 )
+		return 9
 		
-		wait 0.2
-	
-	}
-	
-	input_monitor_running = false;
-	
+	//sqprint( "Right axis value: " + player.GetInputAxisRight().tostring() + " --- Player forward axis: " + player.GetInputAxisForward())
+	//sqprint("Value: " + value.tostring() + " Length:" + value.tostring().len().tostring() )
+    return value.tostring().len() < 5 ? 0 : 1
 }
+
+
+
+void function SetInput_IN_MOVELEFT( entity player )
+{
+	//sqprint("Setting movevalue for " + player.GetPlayerName() + " to 3")
+	player.p.movevalue = 3
+}
+
+void function SetInput_IN_MOVERIGHT( entity player )
+{
+	//sqprint("Setting movevalue for " + player.GetPlayerName() + " to 4")
+	player.p.movevalue = 4
+}
+
+void function SetInput_IN_BACK( entity player )
+{	
+	//sqprint("Setting movevalue for " + player.GetPlayerName() + " to 5")
+	player.p.movevalue = 5
+}
+
+void function SetInput_IN_FORWARD( entity player )
+{	
+	//sqprint("Setting movevalue for " + player.GetPlayerName() + " to 6")
+	player.p.movevalue = 6
+}
+
+
 
 //LGDuel
 void function LGDuel_OnPlayerDamaged(entity victim, var damageInfo)
 {	
-
+	
+	int p_damage = 3;
+	
     if ( !IsValid(victim) || Bleedout_IsBleedingOut(victim) ) return;
 
     entity attacker = InflictorOwner( DamageInfo_GetAttacker(damageInfo) );
+	
+	if ( attacker.IsPlayer() ) 
+	{
+		p_damage = attacker.p.p_damage;
+	}
+	
+	float victimhealth = victim.GetHealth().tofloat();
+	
+	if ( p_damage == 2 && victimhealth <= 96 )
+	{
+		victim.SetHealth ( victimhealth + 1 )
+	}
 	
 		if ( IsValid(attacker) && attacker.IsPlayer() && IsAlive(attacker) ){
 			
@@ -277,7 +420,7 @@ void function LGDuel_OnPlayerDamaged(entity victim, var damageInfo)
 
 			if ( atthealth <= 96 ){
 				//sqprint( format("increasing %s's health by 3", attacker.GetPlayerName()) )
-				attacker.SetHealth( atthealth + 3.0 )
+				attacker.SetHealth( atthealth + p_damage )
 			}
 		}
 	
@@ -294,6 +437,72 @@ bool function IsNumeric(string str, int limit = 16 )
     try { num = str.tointeger(); } catch (outofrange) { return false; }
 	
     return (num >= 0 && num <= limit );
+}
+
+
+void function SQ_LoadPlayerKD( entity player )
+{
+	LoadKDString( player.GetPlatformUID() )
+}
+
+void function SetPlayerKD( entity player )
+{	
+	string OID = "0";
+	int attempts = 0;
+	
+	if(IsValid( player ))
+	{
+		OID = player.GetPlatformUID()
+	}
+	
+	while ( IsValid( player ))
+	{
+		
+		int player_lifetime_kills = 0;
+		int player_lifetime_deaths = 0;
+		int player_lifetime_glides = 0;
+		
+		string p_kd = GetKDString( OID )
+		
+		if ( p_kd == "" )
+			continue
+			
+		if ( p_kd == "NA" )
+			break
+			
+		if ( attempts > 6 )
+			break
+		
+		if ( p_kd != "" || p_kd != "NA" )
+		{
+			array<string> KD_Data = split( p_kd , ",")
+			string kills = KD_Data[0]
+			string deaths = KD_Data[1]
+			string glides = KD_Data[2]
+			
+			if ( IsNumeric( kills, SQ_MAX_INT_32) && IsNumeric( deaths, SQ_MAX_INT_32) && IsNumeric( glides, SQ_MAX_INT_32)){
+			
+				player_lifetime_kills = kills.tointeger()
+				player_lifetime_deaths = deaths.tointeger()
+				player_lifetime_glides = glides.tointeger()
+			
+			}
+			
+			player.p.lifetime_kills = player_lifetime_kills;
+			player.p.lifetime_deaths = player_lifetime_deaths; 
+			player.p.lifetime_glides = player_lifetime_glides;
+			
+			break
+		}
+		
+		attempts++
+		wait .5
+		
+	}
+	
+	
+	SQ_ResetStats( OID )
+	
 }
 
 
@@ -326,7 +535,7 @@ string function IntToSound(string num)
 }
 	
 	
-bool function ClientCommand_mkos_LGDuel_hitsound(entity player, array<string> args)
+bool function ClientCommand_mkos_LGDuel_hitsound( entity player, array<string> args )
 {
 	if ( !IsValid( player ) ) return false
 	
@@ -364,11 +573,77 @@ bool function ClientCommand_mkos_LGDuel_hitsound(entity player, array<string> ar
 					return false
 				
 				}
-	
+				
+	return false
 					
 }
 
-bool function ClientCommand_mkos_LGDuel_IBMM_wait(entity player, array<string> args)
+
+bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> args )
+{
+	if ( !IsValid( player ) ) return false
+	
+	string param = ""
+	
+	if (args.len() > 0){
+		param = args[0];
+	}
+	
+	
+		if (args.len() < 1)
+		{
+			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n handicap:", " Type into console: handicap # \n replacing # with 'on' or 'off'.  \n\n On: Deal and recieve 2 damage per hit. \n\n Off: Deal and recieve 3 damage per hit.", 15)
+			return false
+		}				
+		
+		if ( param == "")
+		{
+			return false; 
+		}
+		
+		
+		switch( param )
+		{
+		
+		case "on":
+					try
+					{
+						
+						player.p.p_damage = 2;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						Message( player, "Success", "Damage and healing was set to 2.", 3);
+						return true
+					
+					} catch ( handicap_err_1 ){
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_1 )
+								return false
+							
+					}
+		
+		case "off":
+					try
+					{
+						
+						player.p.p_damage = 3;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						Message( player, "Success", "Damage and healing was set to 3.", 3);
+						return true
+					
+					} catch ( handicap_err_2 ){
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_2 )
+								return false
+							
+					}
+				
+		}
+		
+	return false
+					
+}
+
+bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> args )
 {
 	if ( !IsValid( player ) ) return false
 	
@@ -410,6 +685,12 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait(entity player, array<string> a
 	
 					
 }
+
+
+
+//////////////////////////////////////////////////// 
+///////////////////  END R5R.DEV  /////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////// 
 
 
 void function _CustomTDM_Init()
@@ -497,9 +778,6 @@ void function _CustomTDM_Init()
 		
 
     })
-	
-	//run the checkinput thread 
-	thread Thread_CheckInput()
 
 	if( GetCurrentPlaylistName() != "fs_dm_oddball" && GetCurrentPlaylistName() != "fs_haloMod_oddball" )
 		AddSpawnCallback( "prop_survival", DissolveItem )
