@@ -788,6 +788,9 @@ bool function isGroupVaild(soloGroupStruct group)
 void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复活死亡玩家和同一个sologroup的玩家
 {
 	if (!IsValid(player)) return
+	
+	if ( !player.p.isConnected ) return //crash fix mkos
+	
 	// printt("respawnInSoloMode!")
 	// Warning("respawn player: " + player.GetPlayerName())
 
