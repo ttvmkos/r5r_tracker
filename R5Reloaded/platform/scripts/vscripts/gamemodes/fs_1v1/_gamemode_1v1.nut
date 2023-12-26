@@ -1803,21 +1803,16 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				}
 				else if ( IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == true && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == false && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
 				{	
-					
-					if ( Fetch_IBMM_Bool_For_Player( bestOpponent ) == true || Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input ){
 						
-						bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
-						
+						//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
 						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Bool_For_Player(scondBestOpponent), inputresult  ));
 					
-				
 						// Warning("Secondary opponent, kd gap: " + lowestKd)
 						newGroup.player1 = playerSelf
 						newGroup.player2 = scondBestOpponent
 						
 						break
 					
-					}
 				}
 				else
 				{
