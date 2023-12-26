@@ -62,7 +62,6 @@ global function GetCurrentRound
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
 global bool input_monitor_running = false;
-const SQ_MAX_INT_32 = 2147483647;
 
 //LGDuels
 const string HIT_0 = "UI_Survival_Intro_LaunchCountDown_3Seconds"
@@ -215,6 +214,7 @@ void function INIT_LGDuels( entity player )
 }
 
 
+
 void function Init_IBMM( entity player )
 {
 	
@@ -226,12 +226,6 @@ void function Init_IBMM( entity player )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
 	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, SetInput_IN_FORWARD )
-	
-	if (GetCurrentPlaylistVarBool( "use_global_stats", false))
-	{
-		SQ_LoadPlayerKD( player )
-		thread SetPlayerKD( player )
-	}
 	
 }
 
@@ -423,89 +417,6 @@ void function LGDuel_OnPlayerDamaged(entity victim, var damageInfo)
 				attacker.SetHealth( atthealth + p_damage )
 			}
 		}
-	
-}
-
-
-
-bool function IsNumeric(string str, int limit = 16 )
-{
-
-    if (str.len() == 0 || (str[0] < '0' || str[0] > '9') && str[0] != '-') return false;
-	
-    int num = 0;
-    try { num = str.tointeger(); } catch (outofrange) { return false; }
-	
-    return (num >= 0 && num <= limit );
-}
-
-
-void function SQ_LoadPlayerKD( entity player )
-{
-	LoadKDString( player.GetPlatformUID() )
-}
-
-void function SetPlayerKD( entity player )
-{	
-
-	wait 1; //fixes timing issue
-	
-	string OID = "0";
-	int attempts = 0;
-	
-	if(IsValid( player ))
-	{
-		OID = player.GetPlatformUID()
-	}
-	
-	int player_lifetime_kills = 0;
-	int player_lifetime_deaths = 0;
-	int player_lifetime_glides = 0;
-	
-	while ( IsValid( player ) )
-	{
-		
-		string p_kd = GetKDString( OID )
-		
-		if ( p_kd == "" )
-			continue
-			
-		if ( p_kd == "NA" )
-			break
-			
-		if ( attempts > 3 )
-			break
-		
-		if ( p_kd != "" || p_kd != "NA" )
-		{
-			array<string> KD_Data = split( p_kd , ",")
-			string kills = KD_Data[0]
-			string deaths = KD_Data[1]
-			string glides = KD_Data[2]
-			
-			if ( IsNumeric( kills, SQ_MAX_INT_32) && IsNumeric( deaths, SQ_MAX_INT_32) && IsNumeric( glides, SQ_MAX_INT_32)){
-			
-				player_lifetime_kills = kills.tointeger()
-				player_lifetime_deaths = deaths.tointeger()
-				player_lifetime_glides = glides.tointeger()
-			
-			}
-			
-			player.p.lifetime_kills = player_lifetime_kills;
-			player.p.lifetime_deaths = player_lifetime_deaths; 
-			player.p.lifetime_glides = player_lifetime_glides;
-			
-			break
-		}
-		
-		attempts++
-		wait 1
-		
-	}
-	
-	wait 1
-	
-	SQ_ResetStats( OID )
 	
 }
 
@@ -859,6 +770,7 @@ void function _CustomTDM_Init()
 	{
 		FsOddballInit()
 	}
+	
 }
 
 void function __OnEntitiesDidLoad()
@@ -907,6 +819,7 @@ void function __OnEntitiesDidLoad()
 		}
 		break
     }
+	
 }
 
 void function _RegisterLocation(LocationSettings locationSettings)

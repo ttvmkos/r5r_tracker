@@ -60,6 +60,7 @@ global function PrintAllPlayerMetrics
 global function DestroyStats
 global function LineBreak
 global function PIN_WinnerByKillsAndDamage
+global function IsNumeric
 
 global struct GameSummarySquadData
 {
@@ -86,7 +87,9 @@ global bool afk_to_rest_enabled = true;// bool to reflect state of cc (chat comm
 global float FS_MaxHealth;
 global string DISCORD_PLAYERS_WEBHOOK;
 global string DISCORD_MATCHES_WEBHOOK;
+global bool FETCH_BATCH_COMPLETE = false;
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
+const SQ_MAX_INT_32 = 2147483647;
 
 //verify struct
 
@@ -95,9 +98,6 @@ global struct PlayerVerifyCount {
     int verifyCount
 };
 
-
-//START KILL RECAP
-/*****************************************************************************************************************************/
 
 global struct DamageEvent {
 	array<string> weaponOrder
@@ -145,10 +145,154 @@ array<PlayerVerifyCount> playerVerifyCounts
 array<DamageEvent> allDamageEvents
 
 
-int function GetUniqueFightId() {
-    return fightIdCounter++;
+bool function IsNumeric(string str, int limit = 16 )
+{
+
+    if (str.len() == 0 || (str[0] < '0' || str[0] > '9') && str[0] != '-') return false;
+	
+    int num = 0;
+    try { num = str.tointeger(); } catch (outofrange) { return false; }
+	
+    return (num >= 0 && num <= limit );
 }
 
+
+void function INIT_BATCH_FETCH() {
+	
+	FETCH_BATCH_COMPLETE = false
+	array<string> oids
+	string oid_list = "";
+	
+	wait 5 //allow players to load
+	//sqprint("Calling init batch")
+	
+	foreach ( player in GetPlayerArray() )
+	{	
+	
+		bool next_player = false;
+
+        while ( !player.p.isConnected ) 
+		{
+            if ( !IsValid( player ) || IsDisconnected( player )) 
+			{
+                next_player = true
+                break;
+            }
+
+            wait 0.1
+			//sqprint("waiting for connection")
+        }
+
+        if ( next_player ) {
+            continue
+        }
+	
+		oids.append( player.GetPlatformUID() )	
+		
+	}
+	
+	int list_length = oids.len()
+	
+	if( list_length > 0 ) 
+	{	
+		
+		foreach ( index, oid in oids ) 
+		{
+            oid_list += oid;
+			
+            if ( index < list_length - 1 ) 
+			{
+                oid_list += ",";
+            }
+			
+        }
+	
+        LoadBatchKDStrings( oid_list )
+    }
+	
+	
+	FETCH_BATCH_COMPLETE = true
+	
+	//sqprint("fetch batch complete = true")
+	
+}
+
+void function SQ_LoadPlayerKD( entity player )
+{
+	LoadKDString( player.GetPlatformUID() )
+}
+
+void function SetPlayerKD( entity player )
+{	
+	
+	while ( FETCH_BATCH_COMPLETE == false )
+	{
+		//sqprint("waiting for batch fetch to complete")
+		wait 1
+	}
+	
+	wait 2.5; //fixes potential timing issue
+	
+	string OID = "0";
+	int attempts = 0;
+	
+	if(IsValid( player ))
+	{
+		OID = player.GetPlatformUID()
+	}
+	
+	int player_lifetime_kills = 0;
+	int player_lifetime_deaths = 0;
+	int player_lifetime_glides = 0;
+	
+	while ( IsValid( player ) )
+	{
+		
+		string p_kd = GetKDString( OID )
+		
+		sqprint("p_kd = " + p_kd )
+		
+		if ( p_kd == "" )
+			continue
+			
+		if ( p_kd == "NA" )
+			break
+			
+		if ( attempts > 3 )
+			break
+		
+		if ( p_kd != "" || p_kd != "NA" )
+		{
+			array<string> KD_Data = split( p_kd , ",")
+			string kills = KD_Data[0]
+			string deaths = KD_Data[1]
+			string glides = KD_Data[2]
+			
+			if ( IsNumeric( kills, SQ_MAX_INT_32) && IsNumeric( deaths, SQ_MAX_INT_32) && IsNumeric( glides, SQ_MAX_INT_32)){
+			
+				player_lifetime_kills = kills.tointeger()
+				player_lifetime_deaths = deaths.tointeger()
+				player_lifetime_glides = glides.tointeger()
+			
+			}
+			
+			player.p.lifetime_kills = player_lifetime_kills;
+			player.p.lifetime_deaths = player_lifetime_deaths; 
+			player.p.lifetime_glides = player_lifetime_glides;
+			
+			break
+		}
+		
+		attempts++
+		wait 1
+		
+	}
+	
+	wait 1
+	
+	SQ_ResetStats( OID )
+	
+}
 
 
 void function DestroyStats(){
@@ -158,6 +302,14 @@ void function DestroyStats(){
 	PlayerMetricsArray.resize(0);
 	playerVerifyCounts.resize(0);
 	
+}
+
+
+//START KILL RECAP
+/*****************************************************************************************************************************/
+
+int function GetUniqueFightId() {
+    return fightIdCounter++;
 }
 
 //endfight function to count from global metrics struct
@@ -1708,6 +1860,9 @@ void function PIN_Init()
 	lg_admins["R5mkos"] <- "1007946891142";
 	lg_admins["apex3rdpartier"] <- "1012544928175";
 	
+	//fetch global STATS
+	thread INIT_BATCH_FETCH()
+	
 }
 
 
@@ -1730,6 +1885,18 @@ void function PlayerConnectedCallback(entity player)
 	
 	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
 		thread PlayerCounts("Connected", name, OID, count )
+	}
+	
+	bool global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
+	
+	if ( global_stats && FETCH_BATCH_COMPLETE )
+	{
+		SQ_LoadPlayerKD( player )
+	}
+	
+	if ( global_stats )
+	{
+		thread SetPlayerKD( player )
 	}
 	
 }
@@ -2406,12 +2573,12 @@ void function PIN_AddPlayer( entity player )
 					Logging_Encryption()
 					);
 				} else {
-					sqprint("Player disconnected before logging.");
+					//sqprint("Player disconnected before logging.");
 				}
 
 				//sqprint(format("Logs wrote at %i isLogging: %s", timeRemaining, isLogging().tostring()));
 			} catch (error) {
-				sqprint("Probably a disconnection " + error);
+				//sqprint("Probably a disconnection " + error);
 			}
 		//}
 
