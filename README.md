@@ -8,6 +8,7 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 
 
 	// mkos systems
+	cc_administration						1 // enables client command administration	
 
 	logging_enabled 						1 //enables logging system
 	logging_encryption						1 //encrypts data for transfer (reccomended)
@@ -25,7 +26,7 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 	patch_for_dropoff						1 // enables extra locations for dropoff allowing for 32 max players
 		
 
-	use_global_stats						1 //uses global player stats for matchmaking
+	use_global_stats						1 //loads global stats, uses global player stats for matchmaking
 		
 	// DISCORD WEBHOOKS:
 	// For Discord webhooks help:  https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
@@ -37,3 +38,13 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 
 	// extra
 	karma_server	                  1          // for karma servers
+	custom_match_ending_title		"Match complete"	 //custom title before map reload/cycle
+	custom_match_ending_message	"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle		
+	
+	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
+
+	custom_1v1_weapons_primary "" //comma separated weapons list for 1v1
+	custom_1v1_weapons_primary_continue ""
+
+	custom_1v1_weapons_secondary "" //comma separated weapons list for 1v1
+	custom_1v1_weapons_secondary_continue "" 

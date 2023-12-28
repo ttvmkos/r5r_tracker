@@ -137,7 +137,8 @@ array<PlayerMetrics> PlayerMetricsArray
 bool function Logging_Enabled() 				{ return GetCurrentPlaylistVarBool("logging_enabled", false) }
 bool function Logging_Encryption() 				{ return GetCurrentPlaylistVarBool("logging_encryption", false) }
 bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("logging_shipstats", false) }
-bool function Master_Server() 					{ return GetCurrentPlaylistVarBool("master_server", false) }
+bool function Enable_CC_Administration() 		{ return GetCurrentPlaylistVarBool("cc_administration", false) }
+bool function Ea_Verify_Server()				{ return GetCurrentPlaylistVarBool("ea_verify_server", false) }
 #endif
 
 
@@ -208,6 +209,9 @@ void function INIT_BATCH_FETCH() {
         }
 	
         LoadBatchKDStrings( oid_list )
+		
+		wait 1
+		
     }
 	
 	
@@ -225,21 +229,24 @@ void function SQ_LoadPlayerKD( entity player )
 void function SetPlayerKD( entity player )
 {	
 	
+	if( !IsValid( player )) 
+			return
+	
+	
 	while ( FETCH_BATCH_COMPLETE == false )
 	{
 		//sqprint("waiting for batch fetch to complete")
 		wait 1
 	}
 	
-	wait 2.5; //fixes potential timing issue
 	
-	string OID = "0";
+	wait 5.0; //fixes potential timing issue
+	
+	
+	string OID;
 	int attempts = 0;
 	
-	if(IsValid( player ))
-	{
-		OID = player.GetPlatformUID()
-	}
+	OID = player.GetPlatformUID()
 	
 	int player_lifetime_kills = 0;
 	int player_lifetime_deaths = 0;
@@ -284,12 +291,11 @@ void function SetPlayerKD( entity player )
 		}
 		
 		attempts++
-		wait 1
+		wait 1;
 		
 	}
 	
-	wait 1
-	
+	wait 0.2
 	SQ_ResetStats( OID )
 	
 }
@@ -303,6 +309,772 @@ void function DestroyStats(){
 	playerVerifyCounts.resize(0);
 	
 }
+
+
+
+//declare table to store admins
+table<string, string> lg_admins
+
+void function PIN_Init()
+{	
+	
+		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
+			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
+			sqprint(message)
+			
+			AddCallback_OnClientConnected(PlayerConnectedCallback);
+			AddCallback_OnClientDisconnected(PlayerDisconnectedCallback);	
+			if (Enable_CC_Administration()){ 
+				AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
+			}
+			if (Ea_Verify_Server()){
+				AddClientCommandCallback( "ea_verify", ClientCommand_mkos_ea_verify ) 
+			}
+			AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data ) 
+			AddCallback_OnWeaponAttack(WeaponAttack);
+			RegisterSignal( "SuperglideDetectionResetStats" )
+			
+			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
+		}
+	
+	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
+	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
+	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
+	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
+	lg_admins["R5mkos"] <- "1007946891142";
+	
+	//fetch global STATS
+	thread INIT_BATCH_FETCH()
+	
+}
+
+
+
+void function PlayerConnectedCallback(entity player) 
+{	
+	
+	while(IsDisconnected( player )) WaitFrame()
+	
+	if ( !IsValid( player ) ) return
+	
+	AddEntityCallback_OnDamaged( player, R5R_OnPlayerDamaged )
+    thread PIN_AddPlayer(player);
+	AddPlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, OnJumped);
+	AddPlayerMovementEventCallback( player, ePlayerMovementEvents.MANTLE, Flowstate_TrackingVision_SuperglideDetection_Stats ) //credit cafe
+	
+	string count = GetNumHumanPlayers().tostring();
+	string OID = player.GetPlatformUID();
+	string name = player.GetPlayerName();
+	
+	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
+		thread PlayerCounts("Connected", name, OID, count )
+	}
+	
+	bool global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
+	
+	if ( global_stats && FETCH_BATCH_COMPLETE )
+	{
+		SQ_LoadPlayerKD( player )
+	}
+	
+	if ( global_stats )
+	{
+		thread SetPlayerKD( player )
+	}
+	
+}
+
+void function PlayerCounts( string state, string name, string OID, string count ){
+
+	if ( GetGlobalNetInt( "FSDM_GameState" ) == eTDMState.IN_PROGRESS || GetNumHumanPlayers() == 1 )
+	{
+		_STATSHOOK_UpdatePlayerCount(state, name, OID, count, DISCORD_PLAYERS_WEBHOOK )
+	}
+
+}
+
+
+void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
+
+	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_matches_enabled", false ) )
+	{
+		_STATSHOOK_EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK )
+	}
+
+}
+
+
+	//client command: show
+	bool function ClientCommand_mkos_test_return_data(entity player, array<string> args){
+		
+		if ( args.len() < 1){
+			
+			Message( player, "\n\n\nUsage: ", " showdata argument \n\n\n Arguments:\n map - Shows current map name \n round - Shows current round number \n input - Shows a list of players and their current input", 5 )
+			return true;
+			
+		}
+		
+		string requestedData = args[0];
+
+		switch(requestedData){
+
+			case "map":
+				//sqprint( GetMapName() )
+				Message( player, "Mapname:", GetMapName(), 5 )
+				return true;
+			case "round":
+				//sqprint( GetCurrentRound().tostring() )
+				Message( player, "Round:", GetCurrentRound().tostring(), 5 )
+				return true;
+			case "input":
+					
+					string data = "";
+					string inputmsg = "Current Player Inputs";
+					
+					try 
+					{
+					
+						foreach ( active_player in GetPlayerArray() ){
+							
+							string handicap = active_player.p.p_damage == 2 ? "On" : "Off";
+							string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
+							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
+				
+						}
+						
+						
+						if( (inputmsg.len() + data.len()) > 599 ){
+						
+							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+							return true;
+						
+						}
+						
+						Message( player, inputmsg, data, 20);
+					
+					} 
+					catch (show_err) 
+					{
+	
+						Message(player, "Failed", "Command failed because of: \n\n " + show_err )
+						return false
+								
+					}
+					
+					
+					return true;
+					
+			case "stats":
+					
+					string data = "";
+					string inputmsg = "Current Player Global Stats";
+					
+					try 
+					{
+					
+						foreach ( active_player in GetPlayerArray() ){
+							
+							float kd = 0.0
+							string kd_string = "";
+							
+							int kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
+							int deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
+							
+							if (deaths > 0) 
+							{
+								kd = getkd( kills, deaths )
+							}
+							
+							kd_string = kd != 0.0 ? kd.tostring() : "N/A";
+							
+							data += "Player: " + active_player.GetPlayerName() + " Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
+				
+						}
+						
+						
+						if( (inputmsg.len() + data.len()) > 599 ){
+						
+							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+							return true;
+						
+						}
+						
+						Message( player, inputmsg, data, 20);
+					
+					} 
+					catch (show_err2) 
+					{
+	
+						Message(player, "Failed", "Command failed because of: \n\n " + show_err2 )
+						return false
+								
+					}
+					
+					
+					return true;
+				
+			default:
+				//sqprint ( "Usage: show argument \n" )
+				Message( player, "Failed: ", "Usage: show argument \n", 5 )
+				return true;
+		}
+		return false;
+	}
+	
+	
+	
+	string function LineBreak(string str, int interval = 80) {
+		string output = "";
+
+		// Iterate over the string and add line breaks
+		for (int i = 0; i < str.len(); i += interval) {
+			int end = i + interval;
+			if (end > str.len()) {
+				end = str.len();
+			}
+			output += str.slice(i, end) + "\n";
+		}
+
+		return output;
+	}
+	
+	
+	bool function Is_Bool(string str)
+	{
+		int num = 0;
+		string a_str = str; 
+		
+		if (a_str.len() == 0 || (a_str[0] < '0' || a_str[0] > '9') && a_str[0] != '-') return false;
+		
+		try { num = a_str.tointeger(); } catch (outofrange) { return false; }
+		
+		return (num >= 0 && num <= 1);
+	}
+	
+	entity function GetPlayerEntityByName( string name )
+	{
+
+		foreach ( player in GetPlayerArray() ){
+		
+			if ( player.GetPlayerName() == name ){
+				
+				return player;
+			
+			}
+		
+		}
+		
+		unreachable	
+	}
+	
+	
+	bool function IsAdmin( string CheckPlayer ){
+	
+		if ( CheckPlayer in lg_admins ) {	
+				return true;	
+		}
+		
+		foreach ( Player, OID in lg_admins) {
+		
+			if ( Player == CheckPlayer || OID == CheckPlayer) 
+			{
+				return true;
+			}
+		
+		}
+		
+		return false;
+		
+	}
+	
+
+	bool function ClientCommand_mkos_admin(entity player, array<string> args){
+		
+		
+		if ( !IsValid( player ) ) return false;
+		string PlayerName = player.GetPlayerName();
+		string PlayerUID = player.GetPlatformUID();
+
+  
+		if (PlayerName in lg_admins) {
+		
+			if (lg_admins[PlayerName] != PlayerUID) {
+				return false;
+			}
+			
+		} else { return false }
+
+
+		
+		
+		string command = "";
+		string param = "";
+		
+		if (args.len() > 0){
+			command = args[0];
+		}
+		
+		if (args.len() > 1){
+			param = args[1];
+		}
+		
+		switch(command){  
+			
+			case "help":	
+			
+			
+							try 
+							{
+							
+								Message( player, "Commands:", "A command is entered as: \n cc command param. \n Repalce the #param with your query. \n\n cc kick #uid    - Kicks a player by uid \n cc afk #0/1    - disabled or enables afk to rest mode \n cc playself audiofile    - Plays audiofile to self \n cc playall audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration    - Says a message with a title for specifieed duration \n cc banplayer #name #reason    - Bans a player by name \n cc banplayerid #uid    - Bans a player by uid \n cc unban #uid    - unbans a player by uid", 20)
+							
+							} catch (err) { return false }
+					
+							return true
+				
+				
+			case "kick":	
+			
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot kick admin")
+								return false
+							}
+			
+							try 
+							{		
+								KickPlayerById( args[1], "Kicking..." )
+								Message( player, "Kicked player", "PUID: " + args[1] + " was kicked" )
+								return true
+							} catch (erraaarg)
+							{
+								Message( player, "Error", "Invalid player or argument missing" )
+								return false
+							}
+							
+							return true;
+				
+				
+			case "afk":
+					
+							try {
+							
+								if ( args[1] == "1" )
+								{
+									afk_to_rest_enabled = true;
+									Message( player, "Command sent", "Afk to rest was ENABLED" )
+									return true
+								} 
+								else if ( args[1] == "0" )
+								{
+									afk_to_rest_enabled = false;
+									Message( player, "Command sent", "Afk to rest was disabled" )
+									return true
+								} 
+							} catch (erroreo){
+							
+								Message( player, "Error", "argument missing" )
+								return false
+							}
+							
+							return true
+							
+			case "playonself": 
+			
+								
+							if ( args.len() < 2 ){
+							
+								Message( player, "Failed", "playself requires param of audiofile as string")
+								return false
+							
+							} 
+								
+							try {
+							
+								EmitSoundOnEntity( player, args[1] )
+								
+							} catch ( erra ){
+									
+										Message(player, "Failed", "Command failed because of: \n\n " + erra )
+										return false
+									
+									}
+							
+							return true
+				
+				
+			case "playself": 
+			
+								
+							if ( args.len() < 2 ){
+							
+								Message( player, "Failed", "playself requires param of audiofile as string")
+								return false
+							
+							} 
+								
+							try {
+							
+								EmitSoundOnEntityOnlyToPlayer( player, player, args[1] )
+								
+							} catch ( erra ){
+									
+										Message(player, "Failed", "Command failed because of: \n\n " + erra )
+										return false
+									
+									}
+							
+							return true
+							
+							
+			case "playall":
+						
+							
+							foreach (connected_player in GetPlayerArray()){
+							
+								try {
+						
+									EmitSoundOnEntityOnlyToPlayer( connected_player, connected_player, args[1] )
+									return true
+									
+								} catch ( errb ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errb )
+									return false
+								
+								}
+							
+							}
+
+							return true
+			
+							
+							
+			case "stopplayall":
+						
+							
+							foreach (connected_player in GetPlayerArray()){
+							
+								try {
+						
+									StopSoundOnEntity( connected_player, args[1] )
+									return true
+									
+								} catch ( errb ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errb )
+									return false
+								
+								}
+							
+							}
+
+							return true
+							
+							
+					
+					
+			case "sayall": 
+					
+							if ( args.len() < 4 ){
+							
+								Message( player, "Failed", "sayall requires duration for third param of command as float")
+								return false
+							
+							} 
+							
+							foreach ( say_to_player in GetPlayerArray()){
+							
+								try	{
+								
+									Message( say_to_player, args[1], args[2], args[3].tofloat())
+									return true
+									
+								} catch ( errc ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errc )
+									return false
+								
+								}
+							}
+					
+							return true
+					
+					
+			case "banplayer":
+					  
+						
+							if ( args.len() < 3 ){
+							
+								Message( player, "Failed", "banplayer requires reason for second param of command as string")
+								return false
+							
+							}
+							
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot ban admin")
+								return false
+							}
+							
+							try {
+									BanPlayerByName( args[1], args[2] );
+									Message( player, "Success", "Player: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
+									return true
+									
+								} catch ( errd ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + errd )
+									return false
+								
+								}
+						
+					
+					
+							return true
+					
+					
+					
+			case "banplayerid":
+			
+						
+					
+							if ( args.len() < 3 ){
+							
+								Message( player, "Failed", "banplayerid requires reason for second param of command as string")
+								return false
+							
+							}
+							
+							if ( IsAdmin(args[1]) ){
+								Message( player, "Cannot ban admin")
+								return false
+							}
+							
+							try {
+							
+									BanPlayerById( args[1], args[2])
+									Message( player, "Success", "ID: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
+									return true
+									
+								} catch ( erre ){
+								
+									Message(player, "Failed", "Command failed because of: \n\n " + erre )
+									return false
+								
+								}
+						
+					
+					
+							return true
+					
+			case "unban":
+			
+					
+					
+						if ( args.len() < 2 ){
+						
+							Message( player, "Failed", "unban requires id for 1st param of command as string")
+							return false
+						
+						}
+						
+						try {
+						
+								UnbanPlayer( args[1])
+								
+								Message( player, "Success", "ID: " + args[1] + " was unbanned")
+								
+								return true
+								
+							} catch ( erre ){
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + erre )
+								return false
+							}
+					
+						
+					
+						return true;
+						
+						
+						
+			case "playerinfo":
+			
+						try {
+						
+							string info = PrintAllPlayerMetrics(true);
+							Message( player, "Current Stats: ", LineBreak(info), 20);
+							return true;
+						
+						} catch (errf){
+							
+							Message( player, "Failed", "Command failed because of: \n\n " + errf )
+							return false;
+						}
+						
+			//for testing
+			case "zero":
+			
+						if ( args.len() < 1){
+						
+							Message( player, "Failed", "Param 1 of command 'zero' requires playername string.")
+							return false;
+							
+						}
+			
+						try {
+							
+							entity z_player = GetPlayerEntityByName(args[1])
+							string playeroid = z_player.GetPlatformUID()
+							
+							int index = GetPlayerMetricsIndex( playeroid )
+							
+							if ( index != -1 ){
+							
+								foreach ( playerMetrics in PlayerMetricsArray ) {
+									if ( playerMetrics.playerID == args[1] ) {
+									
+										PlayerMetricsArray.removebyvalue(playerMetrics);
+										
+									}
+								}
+								
+								Message( player, "Success", "Player " + args[1] + " stats were zeroed. Does not effect kill/death/damage. ")
+								return true;
+								
+							}
+						
+						} catch (errg) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errg )
+							return false;
+							
+						}
+						
+			case "debug":
+			
+						try {
+						
+							sqprint( format("Current mode:  %s", player.p.inputmode) ); 
+							Message( player, "Success: ", "Current inputmode: " + player.p.inputmode );
+							return true;
+							
+						} catch (errh) {
+							
+							Message( player, "Failed", "Command failed because of: \n\n " + errh )
+							return false;
+							
+						}
+		
+						
+			case "changeinput":
+								
+								
+						try {	
+								int uid = args[1].tointeger();
+								//string name = args[1]
+								string str = args[2]
+								string a_str = str;
+								
+								if (str == "false"){ a_str = "0" }
+								if (str == "true"){ a_str = "1" }
+								if (str == "mnk" ){ a_str = "0" }
+								if (str == "controller" ) { a_str = "1" }
+								
+								if ( !Is_Bool(a_str) ){
+								
+									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
+									return false;
+								
+								}
+								
+								entity select_player = GetEntityFromEncodedEHandle( uid )
+								//entity select_player = GetPlayerEHandleByName( name )
+								select_player.p.input = a_str.tointeger();
+								
+								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
+								
+								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
+								return true;
+						
+						} catch (errj) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errj )
+							return false;
+						
+						}
+						
+			case "input":					
+								
+						try {	
+						
+								string name = args[1]
+								string str = args[2]
+								string a_str = str;
+								
+								if (str == "false"){ a_str = "0" }
+								if (str == "true"){ a_str = "1" }
+								if (str == "mnk" ){ a_str = "0" }
+								if (str == "controller" ) { a_str = "1" }
+								
+								if ( !Is_Bool(a_str) ){
+								
+									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
+									return false;
+								
+								}
+								
+								entity select_player =  GetPlayerEntityByName( name )
+								select_player.p.input = a_str.tointeger();
+								
+								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
+								
+								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
+								return true;
+						
+						} catch (errj) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errj )
+							return false;
+						
+						}
+						
+			case "listhandles":
+						
+						try {
+						
+							string statement = "\n ";
+							
+							foreach ( list_player in GetPlayerArray() )
+							{
+								int handle = list_player.GetEncodedEHandle()
+								string p_name = list_player.GetPlayerName()
+								
+								statement += " Player: " + p_name + "   Handle: " + handle + "\n";
+								
+							}
+							
+							sqprint(statement);
+							Message( player, "Handles:", statement, 20)
+							
+							return true;
+						
+						} catch (errk) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errk )
+							return false;
+						
+						}
+						
+			default:
+			
+						//sqprint ( "Usage: cc commmand param \n" )
+						return true;
+		}
+		
+		
+		return true;
+	}
+
 
 
 //START KILL RECAP
@@ -1027,14 +1799,6 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
     }
 	*/
 }
-	/*
-	bool function EA_Verify( string test ){
-
-		return false;
-
-	}
-	*/
-
 
 
 	bool function ClientCommand_mkos_ea_verify(entity player, array<string> args)
@@ -1146,678 +1910,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 /*****************************************************************************************************************************/
 
 
-
-	//client command: show
-	bool function ClientCommand_mkos_test_return_data(entity player, array<string> args){
-		
-		if ( args.len() < 1){
-			
-			Message( player, "\n\n\nUsage: ", " showdata argument \n\n\n Arguments:\n map - Shows current map name \n round - Shows current round number \n input - Shows a list of players and their current input", 5 )
-			return true;
-			
-		}
-		
-		string requestedData = args[0];
-
-		switch(requestedData){
-
-			case "map":
-				//sqprint( GetMapName() )
-				Message( player, "Mapname:", GetMapName(), 5 )
-				return true;
-			case "round":
-				//sqprint( GetCurrentRound().tostring() )
-				Message( player, "Round:", GetCurrentRound().tostring(), 5 )
-				return true;
-			case "input":
-					
-					string data = "";
-					string inputmsg = "Current Player Inputs";
-					
-					try 
-					{
-					
-						foreach ( active_player in GetPlayerArray() ){
-							
-							string handicap = active_player.p.p_damage == 2 ? "On" : "Off";
-							string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
-							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
-				
-						}
-						
-						
-						if( (inputmsg.len() + data.len()) > 599 ){
-						
-							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
-							return true;
-						
-						}
-						
-						Message( player, inputmsg, data, 20);
-					
-					} 
-					catch (show_err) 
-					{
 	
-						Message(player, "Failed", "Command failed because of: \n\n " + show_err )
-						return false
-								
-					}
-					
-					
-					return true;
-					
-			case "stats":
-					
-					string data = "";
-					string inputmsg = "Current Player Global Stats";
-					
-					try 
-					{
-					
-						foreach ( active_player in GetPlayerArray() ){
-							
-							float kd = 0.0
-							string kd_string = "";
-							
-							int kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
-							int deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
-							
-							if (deaths > 0) 
-							{
-								kd = getkd( kills, deaths )
-							}
-							
-							kd_string = kd != 0.0 ? kd.tostring() : "N/A";
-							
-							data += "Player: " + active_player.GetPlayerName() + " Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
-				
-						}
-						
-						
-						if( (inputmsg.len() + data.len()) > 599 ){
-						
-							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
-							return true;
-						
-						}
-						
-						Message( player, inputmsg, data, 20);
-					
-					} 
-					catch (show_err2) 
-					{
-	
-						Message(player, "Failed", "Command failed because of: \n\n " + show_err2 )
-						return false
-								
-					}
-					
-					
-					return true;
-				
-			default:
-				//sqprint ( "Usage: show argument \n" )
-				Message( player, "Failed: ", "Usage: show argument \n", 5 )
-				return true;
-		}
-		return false;
-	}
-	
-	
-	
-	string function LineBreak(string str, int interval = 80) {
-		string output = "";
-
-		// Iterate over the string and add line breaks
-		for (int i = 0; i < str.len(); i += interval) {
-			int end = i + interval;
-			if (end > str.len()) {
-				end = str.len();
-			}
-			output += str.slice(i, end) + "\n";
-		}
-
-		return output;
-	}
-	
-	
-	bool function Is_Bool(string str)
-	{
-		int num = 0;
-		string a_str = str; 
-		
-		if (a_str.len() == 0 || (a_str[0] < '0' || a_str[0] > '9') && a_str[0] != '-') return false;
-		
-		try { num = a_str.tointeger(); } catch (outofrange) { return false; }
-		
-		return (num >= 0 && num <= 1);
-	}
-	
-	entity function GetPlayerEntityByName( string name )
-	{
-
-		foreach ( player in GetPlayerArray() ){
-		
-			if ( player.GetPlayerName() == name ){
-				
-				return player;
-			
-			}
-		
-		}
-		
-		unreachable	
-	}
-	
-	
-	bool function IsAdmin( string CheckPlayer ){
-	
-		if ( CheckPlayer in lg_admins ) {	
-				return true;	
-		}
-		
-		foreach ( Player, OID in lg_admins) {
-		
-			if ( Player == CheckPlayer || OID == CheckPlayer) 
-			{
-				return true;
-			}
-		
-		}
-		
-		return false;
-		
-	}
-	
-
-	bool function ClientCommand_mkos_admin(entity player, array<string> args){
-		
-		
-		if ( !IsValid( player ) ) return false;
-		string PlayerName = player.GetPlayerName();
-		string PlayerUID = player.GetPlatformUID();
-
-  
-		if (PlayerName in lg_admins) {
-		
-			if (lg_admins[PlayerName] != PlayerUID) {
-				return false;
-			}
-			
-		} else { return false }
-
-
-		
-		
-		string command = "";
-		string param = "";
-		
-		if (args.len() > 0){
-			command = args[0];
-		}
-		
-		if (args.len() > 1){
-			param = args[1];
-		}
-		
-		switch(command){  
-			
-			case "help":	
-			
-			
-							try 
-							{
-							
-								Message( player, "Commands:", "A command is entered as: \n cc command param. \n Repalce the #param with your query. \n\n cc kick #uid    - Kicks a player by uid \n cc afk #0/1    - disabled or enables afk to rest mode \n cc playself audiofile    - Plays audiofile to self \n cc playall audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration    - Says a message with a title for specifieed duration \n cc banplayer #name #reason    - Bans a player by name \n cc banplayerid #uid    - Bans a player by uid \n cc unban #uid    - unbans a player by uid", 20)
-							
-							} catch (err) { return false }
-					
-							return true
-				
-				
-			case "kick":	
-			
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot kick admin")
-								return false
-							}
-			
-							try 
-							{		
-								KickPlayerById( args[1], "Kicking..." )
-								Message( player, "Kicked player", "PUID: " + args[1] + " was kicked" )
-								return true
-							} catch (erraaarg)
-							{
-								Message( player, "Error", "Invalid player or argument missing" )
-								return false
-							}
-							
-							return true;
-				
-				
-			case "afk":
-					
-							try {
-							
-								if ( args[1] == "1" )
-								{
-									afk_to_rest_enabled = true;
-									Message( player, "Command sent", "Afk to rest was ENABLED" )
-									return true
-								} 
-								else if ( args[1] == "0" )
-								{
-									afk_to_rest_enabled = false;
-									Message( player, "Command sent", "Afk to rest was disabled" )
-									return true
-								} 
-							} catch (erroreo){
-							
-								Message( player, "Error", "argument missing" )
-								return false
-							}
-							
-							return true
-							
-			case "playonself": 
-			
-								
-							if ( args.len() < 2 ){
-							
-								Message( player, "Failed", "playself requires param of audiofile as string")
-								return false
-							
-							} 
-								
-							try {
-							
-								EmitSoundOnEntity( player, args[1] )
-								
-							} catch ( erra ){
-									
-										Message(player, "Failed", "Command failed because of: \n\n " + erra )
-										return false
-									
-									}
-							
-							return true
-				
-				
-			case "playself": 
-			
-								
-							if ( args.len() < 2 ){
-							
-								Message( player, "Failed", "playself requires param of audiofile as string")
-								return false
-							
-							} 
-								
-							try {
-							
-								EmitSoundOnEntityOnlyToPlayer( player, player, args[1] )
-								
-							} catch ( erra ){
-									
-										Message(player, "Failed", "Command failed because of: \n\n " + erra )
-										return false
-									
-									}
-							
-							return true
-							
-							
-			case "playall":
-						
-							
-							foreach (connected_player in GetPlayerArray()){
-							
-								try {
-						
-									EmitSoundOnEntityOnlyToPlayer( connected_player, connected_player, args[1] )
-									return true
-									
-								} catch ( errb ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + errb )
-									return false
-								
-								}
-							
-							}
-
-							return true
-			
-							
-							
-			case "stopplayall":
-						
-							
-							foreach (connected_player in GetPlayerArray()){
-							
-								try {
-						
-									StopSoundOnEntity( connected_player, args[1] )
-									return true
-									
-								} catch ( errb ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + errb )
-									return false
-								
-								}
-							
-							}
-
-							return true
-							
-							
-					
-					
-			case "sayall": 
-					
-							if ( args.len() < 4 ){
-							
-								Message( player, "Failed", "sayall requires duration for third param of command as float")
-								return false
-							
-							} 
-							
-							foreach ( say_to_player in GetPlayerArray()){
-							
-								try	{
-								
-									Message( say_to_player, args[1], args[2], args[3].tofloat())
-									return true
-									
-								} catch ( errc ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + errc )
-									return false
-								
-								}
-							}
-					
-							return true
-					
-					
-			case "banplayer":
-					  
-						
-							if ( args.len() < 3 ){
-							
-								Message( player, "Failed", "banplayer requires reason for second param of command as string")
-								return false
-							
-							}
-							
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot ban admin")
-								return false
-							}
-							
-							try {
-									BanPlayerByName( args[1], args[2] );
-									Message( player, "Success", "Player: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
-									return true
-									
-								} catch ( errd ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + errd )
-									return false
-								
-								}
-						
-					
-					
-							return true
-					
-					
-					
-			case "banplayerid":
-			
-						
-					
-							if ( args.len() < 3 ){
-							
-								Message( player, "Failed", "banplayerid requires reason for second param of command as string")
-								return false
-							
-							}
-							
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot ban admin")
-								return false
-							}
-							
-							try {
-							
-									BanPlayerById( args[1], args[2])
-									Message( player, "Success", "ID: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
-									return true
-									
-								} catch ( erre ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + erre )
-									return false
-								
-								}
-						
-					
-					
-							return true
-					
-			case "unban":
-			
-					
-					
-						if ( args.len() < 2 ){
-						
-							Message( player, "Failed", "unban requires id for 1st param of command as string")
-							return false
-						
-						}
-						
-						try {
-						
-								UnbanPlayer( args[1])
-								
-								Message( player, "Success", "ID: " + args[1] + " was unbanned")
-								
-								return true
-								
-							} catch ( erre ){
-							
-								Message(player, "Failed", "Command failed because of: \n\n " + erre )
-								return false
-							}
-					
-						
-					
-						return true;
-						
-						
-						
-			case "playerinfo":
-			
-						try {
-						
-							string info = PrintAllPlayerMetrics(true);
-							Message( player, "Current Stats: ", LineBreak(info), 20);
-							return true;
-						
-						} catch (errf){
-							
-							Message( player, "Failed", "Command failed because of: \n\n " + errf )
-							return false;
-						}
-						
-			//for testing
-			case "zero":
-			
-						if ( args.len() < 1){
-						
-							Message( player, "Failed", "Param 1 of command 'zero' requires playername string.")
-							return false;
-							
-						}
-			
-						try {
-							
-							entity z_player = GetPlayerEntityByName(args[1])
-							string playeroid = z_player.GetPlatformUID()
-							
-							int index = GetPlayerMetricsIndex( playeroid )
-							
-							if ( index != -1 ){
-							
-								foreach ( playerMetrics in PlayerMetricsArray ) {
-									if ( playerMetrics.playerID == args[1] ) {
-									
-										PlayerMetricsArray.removebyvalue(playerMetrics);
-										
-									}
-								}
-								
-								Message( player, "Success", "Player " + args[1] + " stats were zeroed. Does not effect kill/death/damage. ")
-								return true;
-								
-							}
-						
-						} catch (errg) {
-						
-							Message( player, "Failed", "Command failed because of: \n\n " + errg )
-							return false;
-							
-						}
-						
-			case "debug":
-			
-						try {
-						
-							sqprint( format("Current mode:  %s", player.p.inputmode) ); 
-							Message( player, "Success: ", "Current inputmode: " + player.p.inputmode );
-							return true;
-							
-						} catch (errh) {
-							
-							Message( player, "Failed", "Command failed because of: \n\n " + errh )
-							return false;
-							
-						}
-		
-						
-			case "changeinput":
-								
-								
-						try {	
-								int uid = args[1].tointeger();
-								//string name = args[1]
-								string str = args[2]
-								string a_str = str;
-								
-								if (str == "false"){ a_str = "0" }
-								if (str == "true"){ a_str = "1" }
-								if (str == "mnk" ){ a_str = "0" }
-								if (str == "controller" ) { a_str = "1" }
-								
-								if ( !Is_Bool(a_str) ){
-								
-									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
-									return false;
-								
-								}
-								
-								entity select_player = GetEntityFromEncodedEHandle( uid )
-								//entity select_player = GetPlayerEHandleByName( name )
-								select_player.p.input = a_str.tointeger();
-								
-								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
-								
-								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
-								return true;
-						
-						} catch (errj) {
-						
-							Message( player, "Failed", "Command failed because of: \n\n " + errj )
-							return false;
-						
-						}
-						
-			case "input":					
-								
-						try {	
-						
-								string name = args[1]
-								string str = args[2]
-								string a_str = str;
-								
-								if (str == "false"){ a_str = "0" }
-								if (str == "true"){ a_str = "1" }
-								if (str == "mnk" ){ a_str = "0" }
-								if (str == "controller" ) { a_str = "1" }
-								
-								if ( !Is_Bool(a_str) ){
-								
-									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
-									return false;
-								
-								}
-								
-								entity select_player =  GetPlayerEntityByName( name )
-								select_player.p.input = a_str.tointeger();
-								
-								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
-								
-								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
-								return true;
-						
-						} catch (errj) {
-						
-							Message( player, "Failed", "Command failed because of: \n\n " + errj )
-							return false;
-						
-						}
-						
-			case "listhandles":
-						
-						try {
-						
-							string statement = "\n ";
-							
-							foreach ( list_player in GetPlayerArray() )
-							{
-								int handle = list_player.GetEncodedEHandle()
-								string p_name = list_player.GetPlayerName()
-								
-								statement += " Player: " + p_name + "   Handle: " + handle + "\n";
-								
-							}
-							
-							sqprint(statement);
-							Message( player, "Handles:", statement, 20)
-							
-							return true;
-						
-						} catch (errk) {
-						
-							Message( player, "Failed", "Command failed because of: \n\n " + errk )
-							return false;
-						
-						}
-						
-			default:
-			
-						//sqprint ( "Usage: cc commmand param \n" )
-						return true;
-		}
-		
-		
-		return true;
-	}
-
 
 	/* TODO: implement
 	bool function AddEntityCallback_OnAttack( entity player )
@@ -1829,96 +1922,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
 	}
 	*/
-	
-//declare table to store admins
-table<string, string> lg_admins
 
-void function PIN_Init()
-{	
-	
-		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
-			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
-			sqprint(message)
-			
-			AddCallback_OnClientConnected(PlayerConnectedCallback);
-			AddCallback_OnClientDisconnected(PlayerDisconnectedCallback);	
-			if (Master_Server()){ 
-				AddClientCommandCallback( "ea_verify", ClientCommand_mkos_ea_verify ) 
-				AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
-			}
-			AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data ) 
-			AddCallback_OnWeaponAttack(WeaponAttack);
-			RegisterSignal( "SuperglideDetectionResetStats" )
-			
-			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
-		}
-	
-	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
-	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
-	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
-	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
-	lg_admins["R5mkos"] <- "1007946891142";
-	//lg_admins["apex3rdpartier"] <- "1012544928175";
-	
-	//fetch global STATS
-	thread INIT_BATCH_FETCH()
-	
-}
-
-
-
-void function PlayerConnectedCallback(entity player) 
-{	
-	
-	while(IsDisconnected( player )) WaitFrame()
-	
-	if ( !IsValid( player ) ) return
-	
-	AddEntityCallback_OnDamaged( player, R5R_OnPlayerDamaged )
-    thread PIN_AddPlayer(player);
-	AddPlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, OnJumped);
-	AddPlayerMovementEventCallback( player, ePlayerMovementEvents.MANTLE, Flowstate_TrackingVision_SuperglideDetection_Stats ) //credit cafe
-	
-	string count = GetNumHumanPlayers().tostring();
-	string OID = player.GetPlatformUID();
-	string name = player.GetPlayerName();
-	
-	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
-		thread PlayerCounts("Connected", name, OID, count )
-	}
-	
-	bool global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
-	
-	if ( global_stats && FETCH_BATCH_COMPLETE )
-	{
-		SQ_LoadPlayerKD( player )
-	}
-	
-	if ( global_stats )
-	{
-		thread SetPlayerKD( player )
-	}
-	
-}
-
-void function PlayerCounts( string state, string name, string OID, string count ){
-
-	if ( GetGlobalNetInt( "FSDM_GameState" ) == eTDMState.IN_PROGRESS || GetNumHumanPlayers() == 1 )
-	{
-		_STATSHOOK_UpdatePlayerCount(state, name, OID, count, DISCORD_PLAYERS_WEBHOOK )
-	}
-
-}
-
-
-void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
-
-	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_matches_enabled", false ) )
-	{
-		_STATSHOOK_EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK )
-	}
-
-}
 
 /***************************# JUMPS / SHOTS / SuperGlides #******************************************/
 

@@ -756,7 +756,7 @@ global struct ServerPlayerStruct
 	int lifetime_kills = 0
 	int lifetime_deaths = 0
 	int lifetime_glides = 0
-	
+	float last_input_time
 	
 	//MovementGym
 	bool isTimerActive = false

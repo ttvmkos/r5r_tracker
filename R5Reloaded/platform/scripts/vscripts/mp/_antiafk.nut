@@ -1,4 +1,5 @@
 global function Flowstate_InitAFKThreadForPlayer
+global function AfkThread_PlayerMoved
 
 enum eAntiAfkPlayerState
 {
@@ -16,7 +17,7 @@ void function Flowstate_InitAFKThreadForPlayer(entity player)
 	if ( !IsValid(player) || IsAdmin(player) || !GetCurrentPlaylistVarBool( "flowstate_afk_kick_enable", true ) )
 		return
 
-	AfkThread_AddPlayerCallbacks( player )
+	//AfkThread_AddPlayerCallbacks( player )
 	AfkThread_PlayerMoved( player )
 	
 	thread CheckAfkKickThread(player)
@@ -123,6 +124,7 @@ void function AfkThread_PlayerMoved( entity player )
 
 void function AfkThread_AddPlayerCallbacks( entity player )
 {	
+	/*
 	AddButtonPressedPlayerInputCallback( player, IN_ATTACK, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_JUMP, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, AfkThread_PlayerMoved )
@@ -132,4 +134,5 @@ void function AfkThread_AddPlayerCallbacks( entity player )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_LEFT, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_RIGHT, AfkThread_PlayerMoved )
+	*/
 }

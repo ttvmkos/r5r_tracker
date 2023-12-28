@@ -43,10 +43,14 @@ global array <soloPlayerStruct> soloPlayersWaiting = [] //waiting player stored 
 global array <soloGroupStruct> soloPlayersInProgress = [] //playing player stored here
 global array <entity> soloPlayersResting = []
 
+// arrays to store loaded custom weapons from playlist once in init -- mkos
+global array <string> custom_weapons_primary = [] 
+global array <string> custom_weapons_secondary = [] 
+
 // float for waiting to switch input matching to OPEN
 global float grace_period = 15.0
 
-bool function Fetch_IBMM_Bool_For_Player( entity player ) {
+bool function Fetch_IBMM_Timeout_For_Player( entity player ) {
 
 if ( !IsValid( player ) ) return false
 if ( soloPlayersWaiting.len() <= 0 ) return false
@@ -367,7 +371,7 @@ entity function getRandomOpponentOfPlayer(entity player)
 	foreach (eachPlayerStruct in soloPlayersWaiting)
 	{
 		if(IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player)
-			if (eachPlayerStruct.player.p.input == player.p.input || ( eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Bool_For_Player( player ) == true ) )
+			if (eachPlayerStruct.player.p.input == player.p.input || ( eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player( player ) == true ) )
 			{
 				return eachPlayerStruct.player
 			}
@@ -778,7 +782,7 @@ void function giveWeaponInRandomWeaponPool(entity player)
 	{}
 }
 
-bool function isGroupVaild(soloGroupStruct group)
+bool function isGroupValid(soloGroupStruct group)
 {
 	if(!IsValid(group)) return false
 	if(!IsValid(group.player1) || !IsValid(group.player2)) return false
@@ -837,7 +841,7 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 
 	soloGroupStruct group = returnSoloGroupOfPlayer(player)
 
-	if(!isGroupVaild(group)) return //Is this group is available
+	if(!isGroupValid(group)) return //Is this group is available
 	if (respawnSlotIndex == -1) return
 
 	try
@@ -906,6 +910,39 @@ void function GivePlayerCustomPlayerModel( entity ent )
 
 void function _soloModeInit(string mapName)
 {	
+	
+	//convert strings from playlist into array and add to array memory structure -- mkos
+	if ( Playlist_1v1_Primary_Array() != "" )
+	{	
+		
+		string concatenate = Concatenate( Playlist_1v1_Primary_Array(), Playlist_1v1_Primary_Array_continue() )
+	
+		try {
+		
+			custom_weapons_primary = StringToArray( concatenate );
+			
+		} catch ( error ) 
+		{
+			sqprint( "" + error )
+		}
+	
+	}
+		
+	if ( Playlist_1v1_Secondary_Array() != "" )
+	{
+		string concatenate = Concatenate( Playlist_1v1_Secondary_Array(), Playlist_1v1_Secondary_Array_continue() )
+	
+		try {
+		
+			custom_weapons_secondary = StringToArray( concatenate );
+			
+		} catch ( error ) 
+		{
+			sqprint( "" + error )
+		}
+	
+	}
+
 	
 	array<LocPair> allSoloLocations
 	array<LocPair> panelLocations
@@ -1444,7 +1481,7 @@ void function _soloModeInit(string mapName)
 			}
 			soloGroupStruct group = returnSoloGroupOfPlayer(user)
 			// if (!IsValid(group.player1) || !IsValid(group.player2)) return
-			if(!isGroupVaild(group)) return //Is this group is available
+			if(!isGroupValid(group)) return //Is this group is available
 			if (soloLocations[group.slotIndex].Panel != panel) return //有傻逼捣乱
 
 			if( group.IsKeep == false)
@@ -1787,12 +1824,12 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				entity lastOpponent = eachPlayerStruct.lastOpponent
 
 				if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
-				if( (bestOpponent != lastOpponent && Fetch_IBMM_Bool_For_Player( bestOpponent ) == true && Fetch_IBMM_Bool_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Bool_For_Player( playerSelf ) == false && Fetch_IBMM_Bool_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
+				if( (bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == true && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
 				{		
 						
 						bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
 						
-						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Bool_For_Player(bestOpponent), inputresult  ));
+						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(bestOpponent), inputresult  ));
 					
 						// Warning("Best opponent, kd gap: " + lowestKd)
 						newGroup.player1 = playerSelf
@@ -1801,11 +1838,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 						break
 					
 				}
-				else if ( IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == true && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && Fetch_IBMM_Bool_For_Player( playerSelf ) == false && Fetch_IBMM_Bool_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
+				else if ( IsValid(scondBestOpponent) && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
 				{	
 						
 						//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
-						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Bool_For_Player(scondBestOpponent), inputresult  ));
+						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(scondBestOpponent), inputresult  ));
 					
 						// Warning("Secondary opponent, kd gap: " + lowestKd)
 						newGroup.player1 = playerSelf
@@ -1834,7 +1871,8 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		array<entity> players = [newGroup.player1,newGroup.player2]
 	
 		//mkos
-		if ( Fetch_IBMM_Bool_For_Player( newGroup.player1 ) == false || Fetch_IBMM_Bool_For_Player( newGroup.player2 ) == false && newGroup.player1.p.input == newGroup.player2.p.input ){
+		if ( Fetch_IBMM_Timeout_For_Player( newGroup.player1 ) == false || Fetch_IBMM_Timeout_For_Player( newGroup.player2 ) == false && newGroup.player1.p.input == newGroup.player2.p.input )
+		{
 						
 			newGroup.GROUP_INPUT_LOCKED = true;
 			
@@ -1909,44 +1947,37 @@ void function soloModeThread(LocPair waitingRoomLocation)
 }//thread
 
 //mkos input watch
-void function InputWatchdog( entity player, entity opponent, soloGroupStruct group ){
+void function InputWatchdog( entity player, entity opponent, soloGroupStruct group )
+{
 	
-	while ( true ){
+	while ( !group.IsFinished )
+	{
 				
-				if ( group.IsFinished ) break
-				if ( !IsValid ( player ) || !IsValid( opponent ) ) break
-				if ( !IsAlive(player) || !IsAlive( opponent ) ) break
-				if ( isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) break
-				//sqprint("Waiting for input to change");
+		if ( !isGroupValid( group ) ) break
+		//if ( !IsAlive(player) || !IsAlive( opponent ) ) break
+		if ( isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) break
+		//sqprint("Waiting for input to change");
+	
+		if ( player.p.input != opponent.p.input ){
+							
+			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );			
+			Message( player, "INPUT CHANGED", "A player's input changed during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
 			
-				if ( player.p.input != opponent.p.input ){
-					
-					//mkos_Force_Rest( player, [] );
-					//ClientCommand_Maki_SoloModeRest()
-					
-					Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );			
-					Message( player, "INPUT CHANGED", "A player's input changed during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
-					
-					Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
-					Message( opponent, "INPUT CHANGED", "A player's input chanegd during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
-					
-					/*
-					soloModePlayerToWaitingList( player )
-					soloModePlayerToWaitingList( opponent )
-					*/
-					
-					group.IsFinished = true
-					
-					break;
-				
-				}
-				
-				wait 0.01
-			}
+			Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
+			Message( opponent, "INPUT CHANGED", "A player's input chanegd during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
+			
+			group.IsFinished = true
+			
+			break;
+		
+		}
+		
+		wait 0.1
+	}
 	
 	if ( IsValid ( player ) ) player.p.inputmode = "OPEN";
 	if ( IsValid ( opponent ) ) opponent.p.inputmode = "OPEN";
-	//sqprint( format("THREAD FOR %s ENDED", player.GetPlayerName() ))
+	//sqprint( format("THREAD FOR GROUP ENDED" ))
 	
 }
 
@@ -2046,48 +2077,31 @@ string function ReturnRandomPrimaryMetagame_1v1()
 {	
 		
 		array<string> Weapons = []
-	
-		if ( GetCurrentPlaylistVarBool("karma_server", false) )
-		{
 		
-			Weapons = [
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_r97 laser_sight_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-				"mp_weapon_volt_smg laser_sight_l2 optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2",
-				"mp_weapon_energy_shotgun optic_cq_threat shotgun_bolt_l2 stock_tactical_l2",
-				"mp_weapon_mastiff optic_cq_threat shotgun_bolt_l2 stock_tactical_l2",
-				"mp_weapon_shotgun optic_cq_threat shotgun_bolt_l2 stock_tactical_l2"
-			]
-		
-		} else if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) {
+		if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) {
 	
 			Weapons = [
 				"mp_weapon_clickweaponauto" //Lg_Duel beta
 			]
 			
 		} else {
+		
+			Weapons = custom_weapons_primary;
+		
+		}
+			
+		
+		if ( Weapons.len() <= 0 )
+		{
 			
 			Weapons = [
-				//default R5R.DEV selection
-				"mp_weapon_r97 optic_cq_hcog_classic stock_tactical_l1 bullets_mag_l2",	
-				"mp_weapon_rspn101 optic_cq_hcog_classic stock_tactical_l1 bullets_mag_l2",
-				"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l1 highcal_mag_l3",
-				"mp_weapon_energy_ar optic_cq_hcog_classic stock_tactical_l1 hopup_turbocharger",
-				"mp_weapon_volt_smg optic_cq_hcog_classic energy_mag_l1 stock_tactical_l1"
-			]
+					//default R5R.DEV selection
+					"mp_weapon_r97 optic_cq_hcog_classic stock_tactical_l1 bullets_mag_l2",	
+					"mp_weapon_rspn101 optic_cq_hcog_classic stock_tactical_l1 bullets_mag_l2",
+					"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l1 highcal_mag_l3",
+					"mp_weapon_energy_ar optic_cq_hcog_classic stock_tactical_l1 hopup_turbocharger",
+					"mp_weapon_volt_smg optic_cq_hcog_classic energy_mag_l1 stock_tactical_l1"
+				]
 		
 		}
 
@@ -2105,44 +2119,35 @@ string function ReturnRandomPrimaryMetagame_1v1()
 string function ReturnRandomSecondaryMetagame_1v1()
 {	
 	
-	 array<string> Weapons = []
-	
-	if ( GetCurrentPlaylistVarBool("karma_server", false) )
-	{
-	
-		Weapons = [
-			"mp_weapon_rspn101 barrel_stabilizer_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-			"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l2 highcal_mag_l2",
-			"mp_weapon_rspn101 barrel_stabilizer_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-			"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l2 highcal_mag_l2",
-			"mp_weapon_rspn101 barrel_stabilizer_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-			"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l2 highcal_mag_l2",
-			"mp_weapon_rspn101 barrel_stabilizer_l2 optic_cq_hcog_classic stock_tactical_l2 bullets_mag_l2",
-			"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l2 highcal_mag_l2",
-			"mp_weapon_wingman optic_cq_hcog_classic sniper_mag_l2 hopup_headshot_dmg",
-			"mp_weapon_wingman optic_cq_hcog_classic sniper_mag_l2 hopup_headshot_dmg",
-			"mp_weapon_energy_ar optic_cq_hcog_classic energy_mag_l2 stock_tactical_l2 hopup_turbocharger"
-		]
-	
-	} else if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) {
+	array<string> Weapons = []
+		
+		if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) {
 	
 			Weapons = [
 				"mp_weapon_clickweaponauto" //Lg_Duel beta
 			]
 			
-	} else {
-	
-		Weapons = [
-		
-			//default flowstate
-			"mp_weapon_wingman optic_cq_hcog_classic sniper_mag_l1",
-			"mp_weapon_energy_shotgun shotgun_bolt_l1",
-			"mp_weapon_mastiff shotgun_bolt_l2",
-			"mp_weapon_doubletake energy_mag_l3 stock_sniper_l3",
+		} else
+		{
 			
-		]
+			Weapons = custom_weapons_secondary;
+		
+		}
+		
+		if ( Weapons.len() <= 0 )
+		{
 	
-	}
+			Weapons = [
+			
+				//default flowstate
+				"mp_weapon_wingman optic_cq_hcog_classic sniper_mag_l1",
+				"mp_weapon_energy_shotgun shotgun_bolt_l1",
+				"mp_weapon_mastiff shotgun_bolt_l2",
+				"mp_weapon_doubletake energy_mag_l3 stock_sniper_l3",
+				
+			]
+		
+		}
 
 	foreach(weapon in Weapons)
 	{

@@ -61,6 +61,9 @@ global function GetBlackListedWeapons
 global function GetCurrentRound 
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
+global function StringToArray
+global function trim
+global function Concatenate
 global bool input_monitor_running = false;
 
 //LGDuels
@@ -217,7 +220,7 @@ void function INIT_LGDuels( entity player )
 
 void function Init_IBMM( entity player )
 {
-	
+	player.SetSendInputCallbacks( true )
 	thread notify_thread( player )
 	player.p.IBMM_grace_period = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
 	player.p.messagetime = 0
@@ -305,8 +308,10 @@ void function Thread_CheckInput( entity player )
 		*/
     }
 }
+//ty cafe for fixed thread
 
-bool function InvalidInput( int input_type, int movevalue ){
+bool function InvalidInput( int input_type, int movevalue )
+{
 
 	if ( movevalue == 0 && input_type == 0 )
 	{
@@ -317,7 +322,8 @@ bool function InvalidInput( int input_type, int movevalue ){
 	
 }
 
-void function HandlePlayer( entity player ){
+void function HandlePlayer( entity player )
+{
 	
 	string id = player.GetPlatformUID()
 	int action = GetCurrentPlaylistVarInt( "invalid_input_action", 1 )
@@ -602,6 +608,134 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> 
 }
 
 
+//php my beloved
+//trims leading and trialing whitespace from a string
+string function trim( string str ) 
+{
+
+    int start = 0;
+    int end = str.len() - 1;
+    string whitespace = " \t\n\r";
+
+    while ( start <= end && whitespace.find( str.slice( start, start + 1 )) != -1 ) 
+	{
+        start++;
+    }
+
+    while (end >= start && whitespace.find( str.slice( end, end + 1 )) != -1 ) 
+	{
+        end--;
+    }
+
+    return str.slice(start, end + 1);
+	
+}
+
+
+//////////////////////////////////////////////////
+//												//
+//				string to array			 		//
+//												//
+//	format of:									//												
+//					"string1, also string"		//
+// 												//
+//	into an array:  							//
+//					['string1','also string']	//
+//												//
+//												//
+// CALLING FUNCTION responsible for error catch //
+//////////////////////////////////////////////////
+
+array<string> function StringToArray( string str ) 
+{	
+	
+	int item_index = 0;
+	int length_check;
+	string t_str = trim( str )
+	
+    if ( t_str == "" )
+	{
+        throw "Cannot convert empty string to array.";
+	}
+	
+    array<string> arr = split( str, "," )
+	array<string> valid = []
+	
+	//debug
+	foreach (index, item in arr) 
+	{
+		sqprint("Item #" + (index + 1) + ": '" + item + "'\n");
+	}
+	
+    foreach ( item in arr ) 
+	{	
+	
+		item_index++
+		item = trim( item )
+		length_check = item.len()
+	
+        if ( item == "" ) 
+		{   
+		
+            sqprint( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
+			
+        } else if ( length_check >= 128 ){
+
+			sqprint( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: 128 bytes" )	
+		
+		} else {
+			
+			valid.append( item )
+			
+		}
+		
+    }
+	
+	if ( valid.len() <= 0 ) 
+	{
+        throw "Array empty after conversion";
+    }
+
+    return valid;
+}
+
+
+string function Concatenate( string str1, string str2 ) 
+{
+	
+	int str1_length = str1.len()
+	int str2_length = str2.len()
+	int dif;
+	string error;
+	
+    if ( str1 == "" && str2 == "" ) 
+	{
+        return "";
+    }
+
+    if ( str1 != "" && str1_length > 1000 ) 
+	{
+		dif = ( str1_length - 1000 )
+		throw ("Error: First string exceeds length limit of 1000 by " + dif.tostring() + " bytes");
+		return "";
+    }
+	
+    if ( str2 != "" && str2_length > 1000 ) 
+	{	
+		dif = ( str2_length - 1000 )
+        throw ("Error: Second string exceeds length limit of 1000 by " + dif.tostring() + " bytes");
+		return "";
+    }
+	
+	if ( str2 != ""  ){
+	
+		str2 = "," + str2;
+	
+	}
+	
+    return str1 + str2;
+}
+
 
 //////////////////////////////////////////////////// 
 ///////////////////  END R5R.DEV  /////////////////////////////////////////////////////////////////////////
@@ -609,7 +743,7 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> 
 
 
 void function _CustomTDM_Init()
-{
+{	
 	file.scriptversion = FLOWSTATE_VERSION
 
 	RegisterSignal( "EndScriptedPropsThread" )
@@ -3663,9 +3797,13 @@ void function SimpleChampionUI()
 	{
 		// foreach( player in GetPlayerArray() )
 			// Message( player, "We have reached the round to change levels.", "Total Round: " + file.currentRound, 6.0 )
-
+		
+		string matchEndingTitle = GetCurrentPlaylistVarString( "custom_match_ending_title", "Server clean up incoming" )
+		string matchEndingMessage = GetCurrentPlaylistVarString( "custom_match_ending_message", "Don't leave. Server is going to reload to avoid lag." )
+		
+	
 		foreach( player in GetPlayerArray() )
-			Message( player, "Server clean up incoming", "Don't leave. Server is going to reload to avoid lag.", 6.0 )
+			Message( player, matchEndingTitle, matchEndingMessage, 6.0 )
 
 		wait 6.0
 
