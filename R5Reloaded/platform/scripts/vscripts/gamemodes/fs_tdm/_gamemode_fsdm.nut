@@ -661,11 +661,11 @@ array<string> function StringToArray( string str )
     array<string> arr = split( str, "," )
 	array<string> valid = []
 	
-	//debug
+	/*debug
 	foreach (index, item in arr) 
 	{
 		sqprint("Item #" + (index + 1) + ": '" + item + "'\n");
-	}
+	}*/
 	
     foreach ( item in arr ) 
 	{	
