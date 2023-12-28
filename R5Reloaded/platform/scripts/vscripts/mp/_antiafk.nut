@@ -18,8 +18,8 @@ void function Flowstate_InitAFKThreadForPlayer(entity player)
 		return
 
 	//AfkThread_AddPlayerCallbacks( player )
+	player.SetSendInputCallbacks( true )
 	AfkThread_PlayerMoved( player )
-	
 	thread CheckAfkKickThread(player)
 }
 

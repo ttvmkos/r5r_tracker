@@ -220,7 +220,7 @@ void function INIT_LGDuels( entity player )
 
 void function Init_IBMM( entity player )
 {
-	player.SetSendInputCallbacks( true )
+
 	thread notify_thread( player )
 	player.p.IBMM_grace_period = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
 	player.p.messagetime = 0
@@ -665,7 +665,8 @@ array<string> function StringToArray( string str )
 	foreach (index, item in arr) 
 	{
 		sqprint("Item #" + (index + 1) + ": '" + item + "'\n");
-	}*/
+	}
+	*/
 	
     foreach ( item in arr ) 
 	{	
