@@ -229,10 +229,6 @@ void function SQ_LoadPlayerKD( entity player )
 void function SetPlayerKD( entity player )
 {	
 	
-	if( !IsValid( player )) 
-			return
-	
-	
 	while ( FETCH_BATCH_COMPLETE == false )
 	{
 		//sqprint("waiting for batch fetch to complete")
@@ -246,6 +242,9 @@ void function SetPlayerKD( entity player )
 	string OID;
 	int attempts = 0;
 	
+	if( !IsValid( player )) 
+			return
+			
 	OID = player.GetPlatformUID()
 	
 	int player_lifetime_kills = 0;
@@ -342,6 +341,7 @@ void function PIN_Init()
 	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	lg_admins["R5mkos"] <- "1007946891142";
+	//lg_admins["apex3rdpartier"] <- "1012544928175";
 	
 	//fetch global STATS
 	thread INIT_BATCH_FETCH()
