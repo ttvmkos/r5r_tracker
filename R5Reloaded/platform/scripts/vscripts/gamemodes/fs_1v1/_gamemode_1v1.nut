@@ -1964,7 +1964,7 @@ void function InputWatchdog( entity player, entity opponent, soloGroupStruct gro
 			Message( player, "INPUT CHANGED", "A player's input changed during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
 			
 			Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
-			Message( opponent, "INPUT CHANGED", "A player's input chanegd during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
+			Message( opponent, "INPUT CHANGED", "A player's input changed during the fight", 10, "weapon_vortex_gun_explosivewarningbeep" )
 			
 			group.IsFinished = true
 			
