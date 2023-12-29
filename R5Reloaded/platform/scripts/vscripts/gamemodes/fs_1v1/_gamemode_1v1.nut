@@ -1566,11 +1566,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			}
 
 			//标记超时玩家
-			if(playerInWatingSctruct.waitingTime < Time() && !playerInWatingSctruct.IsTimeOut && IsValid(playerInWatingSctruct.player && playerInWatingSctruct.IBMM_Timeout_Reached == true ))
+			if(playerInWatingSctruct.waitingTime < Time() && !playerInWatingSctruct.IsTimeOut && IsValid(playerInWatingSctruct.player )) // && playerInWatingSctruct.IBMM_Timeout_Reached == true ))
 			{	
 				
 				//if ( playerInWatingSctruct.IBMM_Timeout_Reached == true ) {
-				//printt("mark time out player: " + playerInWatingSctruct.player.GetPlayerName() + " waitingTime: " + playerInWatingSctruct.waitingTime)
+				//sqprint("mark time out player: " + playerInWatingSctruct.player.GetPlayerName() + " waitingTime: " + playerInWatingSctruct.waitingTime)
 					playerInWatingSctruct.IsTimeOut = true
 				//}
 			}
@@ -1775,7 +1775,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			{	
 				
 				entity playerSelf = eachPlayerStruct.player
-				bool player_IBMM = eachPlayerStruct.IBMM_Timeout_Reached
+				bool player_IBMM_timeout = eachPlayerStruct.IBMM_Timeout_Reached
 				float selfKd = eachPlayerStruct.kd
 				table <entity,float> properOpponentTable
 				
@@ -1785,14 +1785,14 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					
 					entity eachOpponent = eachOpponentPlayerStruct.player
 					float opponentKd = eachOpponentPlayerStruct.kd
-					bool opponent_IBMM = eachOpponentPlayerStruct.IBMM_Timeout_Reached
+					bool opponent_IBMM_timeout = eachOpponentPlayerStruct.IBMM_Timeout_Reached
 					
-					//this makes sure we don't compare same player to opponent during MM -- mkos clarification
+					//this makes sure we don't compare same player as opponent during MM -- mkos clarification
 					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
 						continue
 					
 					//mkos - keep building a list of candidates who are not timed out with same input
-					if( playerSelf.p.input != eachOpponent.p.input && player_IBMM == false && opponent_IBMM == false )
+					if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
 					{
 						//sqprint("Waiting for input match...");
 						continue		
@@ -1800,10 +1800,10 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					
 					//else
 					
-					if(fabs(selfKd - opponentKd) > 3.0) { //过滤kd差值
+					if(fabs(selfKd - opponentKd) > 3.0) //过滤kd差值
 						continue
-						properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
-					}
+					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
+					
 					
 				}
 
