@@ -259,7 +259,7 @@ void function SetPlayerKD( entity player )
 		
 		//sqprint("p_kd = " + p_kd )
 		
-		if ( attempts > 3 )
+		if ( attempts > 6 )
 			break
 			
 		if ( p_kd == "NA" )
