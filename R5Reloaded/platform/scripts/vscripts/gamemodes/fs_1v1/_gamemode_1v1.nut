@@ -369,7 +369,7 @@ entity function getRandomOpponentOfPlayer(entity player)
 	
 	
 	foreach (eachPlayerStruct in soloPlayersWaiting)
-	{
+	{	
 		if(IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player)
 			if (eachPlayerStruct.player.p.input == player.p.input || ( eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player( player ) == true ) )
 			{
@@ -1790,6 +1790,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					//this makes sure we don't compare same player as opponent during MM -- mkos clarification
 					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
 						continue
+						
+					if(fabs(selfKd - opponentKd) > .5 ) //过滤kd差值
+						continue
+						
+					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
 					
 					//mkos - keep building a list of candidates who are not timed out with same input
 					if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
@@ -1798,11 +1803,6 @@ void function soloModeThread(LocPair waitingRoomLocation)
 						continue		
 					} 
 					
-					//else
-					
-					if(fabs(selfKd - opponentKd) > 3.0) //过滤kd差值
-						continue
-					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
 					
 					
 				}
@@ -1838,7 +1838,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 						break
 					
 				}
-				else if ( IsValid(scondBestOpponent) && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
+				else if ( IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
 				{	
 						
 						//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
