@@ -62,9 +62,11 @@ global function LineBreak
 global function PIN_WinnerByKillsAndDamage
 global function IsNumeric
 global function IsNum
-
-//TODO: GetCurrentRound() needs to be implemented in a
-//global uniform way instead of injecting a function into fs_dm
+global function GetPlayer
+global function GetPlayerEntityByOID
+global function GetPlayerEntityByName
+global function IsValidOID
+global function Is_Bool
 
 global int fightIdCounter = 0
 global bool SHOULD_SHIP = false
@@ -84,12 +86,10 @@ global bool sg_counter_msg
 global string superglide_msg
 global string superglidetitle
 
-
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
 const SQ_MAX_INT_32 = 2147483647;
 
-
-//respawns gamesummary
+//(respawns) game summary
 
 global struct GameSummarySquadData
 {
@@ -449,7 +449,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						}
 						
 						
-						if( (inputmsg.len() + data.len()) > 599 ){
+						if( ( inputmsg.len() + data.len()) > 599 ){
 						
 							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
 							return true;
@@ -562,15 +562,19 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	}
 	
 	
-	string function LineBreak(string str, int interval = 80) 
+	string function LineBreak( string str, int interval = 80 ) 
 	{
 		string output = "";
 		
-		for (int i = 0; i < str.len(); i += interval) {
+		for ( int i = 0; i < str.len(); i += interval ) 
+		{
+		
 			int end = i + interval;
-			if (end > str.len()) {
+			if (end > str.len()) 
+			{
 				end = str.len();
 			}
+			
 			output += str.slice(i, end) + "\n";
 		}
 
@@ -611,7 +615,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	
 	bool function IsAdmin( string CheckPlayer ){
 		
-		foreach ( Player, OID in player_admins) {
+		foreach ( Player, OID in player_admins) 
+		{
 		
 			if ( Player == CheckPlayer || OID == CheckPlayer) 
 			{
