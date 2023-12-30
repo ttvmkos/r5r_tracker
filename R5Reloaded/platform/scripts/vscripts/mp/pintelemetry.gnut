@@ -61,17 +61,7 @@ global function DestroyStats
 global function LineBreak
 global function PIN_WinnerByKillsAndDamage
 global function IsNumeric
-
-global struct GameSummarySquadData
-{
-	int kills
-	int damageDealt
-	int survivalTime
-	int revivesGiven
-	int respawnsGiven
-	int deaths
-}
-
+global function IsNum
 
 //TODO: GetCurrentRound() needs to be implemented in a
 //global uniform way instead of injecting a function into fs_dm
@@ -83,13 +73,33 @@ global bool PROCESS_THIS = true;
 global bool PIN_GameState_Start = false;
 global table PlayerSupergliding
 global table < string, bool > PlayerDidJump
-global bool afk_to_rest_enabled = true;// bool to reflect state of cc (chat command)
+global bool afk_to_rest_enabled = true;// bool to reflect state of cc (chat command) cc afk 1/0
 global float FS_MaxHealth;
 global string DISCORD_PLAYERS_WEBHOOK;
 global string DISCORD_MATCHES_WEBHOOK;
 global bool FETCH_BATCH_COMPLETE = false;
+
+global bool global_stats
+global bool sg_counter_msg
+global string superglide_msg
+global string superglidetitle
+
+
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
 const SQ_MAX_INT_32 = 2147483647;
+
+
+//respawns gamesummary
+
+global struct GameSummarySquadData
+{
+	int kills
+	int damageDealt
+	int survivalTime
+	int revivesGiven
+	int respawnsGiven
+	int deaths
+}
 
 //verify struct
 
@@ -130,8 +140,15 @@ struct PlayerMetrics {
 	string playername
 };
 
-array<PlayerMetrics> PlayerMetricsArray
+//tables
+table<string, string> player_admins
 
+//script arrays
+array<PlayerMetrics> PlayerMetricsArray
+array<PlayerVerifyCount> playerVerifyCounts
+array<DamageEvent> allDamageEvents
+array< array< string > > list_maps
+array< array< string > > list_gamemodes
 
 #if SERVER   
 bool function Logging_Enabled() 				{ return GetCurrentPlaylistVarBool("logging_enabled", false) }
@@ -140,22 +157,6 @@ bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("loggin
 bool function Enable_CC_Administration() 		{ return GetCurrentPlaylistVarBool("cc_administration", false) }
 bool function Ea_Verify_Server()				{ return GetCurrentPlaylistVarBool("ea_verify_server", false) }
 #endif
-
-
-array<PlayerVerifyCount> playerVerifyCounts
-array<DamageEvent> allDamageEvents
-
-
-bool function IsNumeric(string str, int limit = 16 )
-{
-
-    if (str.len() == 0 || (str[0] < '0' || str[0] > '9') && str[0] != '-') return false;
-	
-    int num = 0;
-    try { num = str.tointeger(); } catch (outofrange) { return false; }
-	
-    return (num >= 0 && num <= limit );
-}
 
 
 void function INIT_BATCH_FETCH() {
@@ -235,9 +236,7 @@ void function SetPlayerKD( entity player )
 		wait 1
 	}
 	
-	
-	wait 5.0; //fixes potential timing issue
-	
+	wait 2; //allows batch to fetch without needing to loop multiple times
 	
 	string OID;
 	int attempts = 0;
@@ -254,22 +253,26 @@ void function SetPlayerKD( entity player )
 	while ( IsValid( player ) )
 	{
 		
+		wait 1; //IMPORTANT
+		
 		string p_kd = GetKDString( OID )
 		
 		//sqprint("p_kd = " + p_kd )
 		
-		if ( p_kd == "" )
-			continue
+		if ( attempts > 3 )
+			break
 			
 		if ( p_kd == "NA" )
 			break
 			
-		if ( attempts > 3 )
-			break
+		if ( p_kd == "" )
+			continue
 		
 		if ( p_kd != "" || p_kd != "NA" )
 		{
 			array<string> KD_Data = split( p_kd , ",")
+			
+			if ( KD_Data.len() != 3 ) { return; }
 			string kills = KD_Data[0]
 			string deaths = KD_Data[1]
 			string glides = KD_Data[2]
@@ -289,8 +292,7 @@ void function SetPlayerKD( entity player )
 			break
 		}
 		
-		attempts++
-		wait 1;
+		attempts++;
 		
 	}
 	
@@ -310,9 +312,6 @@ void function DestroyStats(){
 }
 
 
-
-//declare table to store admins
-table<string, string> lg_admins
 
 void function PIN_Init()
 {	
@@ -336,18 +335,26 @@ void function PIN_Init()
 			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
 	
-	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
-	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
 	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
-	lg_admins["R5mkos"] <- "1007946891142";
-	//lg_admins["apex3rdpartier"] <- "1012544928175";
+	
+	//initialize array/table values
+	INIT_GameTypes()
+	INIT_MapNames()
+	INIT_playeradmins()
+	
+	//init bools (must be before string inits)
+	global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
+	
+	//init strings
+	sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false)
+	superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
+	superglidetitle = global_stats ? "Lifetime Glides" : "Glides";
 	
 	//fetch global STATS
 	thread INIT_BATCH_FETCH()
 	
 }
-
 
 
 void function PlayerConnectedCallback(entity player) 
@@ -370,7 +377,6 @@ void function PlayerConnectedCallback(entity player)
 		thread PlayerCounts("Connected", name, OID, count )
 	}
 	
-	bool global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
 	
 	if ( global_stats && FETCH_BATCH_COMPLETE )
 	{
@@ -522,11 +528,44 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	}
 	
 	
-	
-	string function LineBreak(string str, int interval = 80) {
-		string output = "";
+	bool function IsNum( string str ) 
+	{
 
-		// Iterate over the string and add line breaks
+		if ( str.len() == 0 )
+			return false
+		
+		int i;
+		var char;
+		for ( i = 0; i < str.len(); i++ ) 
+		{
+			char = str[i];
+			if ( char < '0' || char > '9' ) 
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+
+
+	bool function IsNumeric(string str, int limit = 16 )
+	{
+
+		if ( !IsNum( str ) ) return false;
+		
+		int num = 0;
+		try { num = str.tointeger(); } catch (outofrange) { return false; }
+		
+		return ( num >= 0 && num <= limit );
+		
+	}
+	
+	
+	string function LineBreak(string str, int interval = 80) 
+	{
+		string output = "";
+		
 		for (int i = 0; i < str.len(); i += interval) {
 			int end = i + interval;
 			if (end > str.len()) {
@@ -551,8 +590,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		return (num >= 0 && num <= 1);
 	}
 	
+	
 	entity function GetPlayerEntityByName( string name )
-	{
+	{	
+		entity p;
 
 		foreach ( player in GetPlayerArray() ){
 		
@@ -564,17 +605,13 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 		}
 		
-		unreachable	
+		return p;
 	}
 	
 	
 	bool function IsAdmin( string CheckPlayer ){
-	
-		if ( CheckPlayer in lg_admins ) {	
-				return true;	
-		}
 		
-		foreach ( Player, OID in lg_admins) {
+		foreach ( Player, OID in player_admins) {
 		
 			if ( Player == CheckPlayer || OID == CheckPlayer) 
 			{
@@ -587,6 +624,179 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 	}
 	
+	
+	bool function IsValidOID( string str )
+	{
+	
+		if ( !IsNum( str ) )
+			return false
+		
+		string oid;
+			
+		foreach ( player in GetPlayerArray() )
+		{
+			if ( !IsValid( player ) )
+				continue
+				
+			oid = player.GetPlatformUID()
+			
+			if ( oid == str )
+				return true
+		
+		}
+		
+		return false
+	}
+	
+	
+	entity function GetPlayerEntityByOID( string str )
+	{
+	
+		entity r_player;
+		string oid;
+		
+		if ( !IsNum( str ) )
+			return r_player
+			
+		foreach ( player in GetPlayerArray() )
+		{
+			if ( !IsValid( player ) )
+				continue
+				
+			oid = player.GetPlatformUID()
+			
+			if ( oid == str )
+				r_player = player;
+				break
+		
+		}
+		
+		return r_player;
+	}
+	
+	
+	entity function GetPlayer( string str ) 
+	{
+
+		entity player;
+		
+		if ( IsValidOID( str) )
+		{
+		
+			return GetPlayerEntityByOID( str )
+		
+		}
+		else
+		{
+		
+			return GetPlayerEntityByName( str )
+		
+		}
+		
+		return player
+
+	}
+	
+	
+	void function INIT_MapNames()
+	{
+	
+		list_maps = [
+			["dropoff", "mp_rr_arena_composite"],
+			["overflow", "mp_rr_aqueduct"],
+			["firingrange", "mp_rr_canyonlands_staging"],
+			["kingscanyon", "mp_rr_canyonlands_64k_x_64k"],
+			["kingscanyons2", "mp_rr_canyonlands_mu1"],
+			["kingscanyonafterdark", "mp_rr_canyonlands_mu1_night"],
+			["worldsedge", "mp_rr_desertlands_64k_x_64k"],
+			["worldsedgeafterdark", "mp_rr_desertlands_64k_x_64k_nx"],
+			["miragevoyage", "mp_rr_desertlands_64k_x_64k_tt"],
+			["partycrasher", "mp_rr_party_crasher"],
+			["skygarden", "mp_rr_arena_skygarden"],
+			["ashsredemption", "mp_rr_ashs_redemption"],
+			["overflownight", "mp_rr_aqueduct_night"]
+		];
+	
+	}
+	
+	
+	void function INIT_GameTypes()
+	{
+	
+		list_gamemodes = [
+			["1v1", "fs_1v1"],
+			["dm", "fs_dm"],
+			["tdm", "fs_tdm"],
+			["prophunt", "fs_prophunt"],
+			["duckhunt", "fs_duckhunt"],
+			["solobr", "fs_survival_solos"],
+			["duobr", "fs_survival_duos"],
+			["triobr", "fs_survival_trios"],
+			["surf", "fs_surf"],
+			["gym", "fs_movementgym"],
+			["infected", "fs_infected"],
+			["survival", "fs_survival"],
+			["survivaldev", "survival_dev"]
+		];
+	}
+	
+	void function INIT_playeradmins()
+	{	
+		string admins_list = GetCurrentPlaylistVarString( "admins_list","" )
+		string pair;
+		
+		if ( admins_list == "" ){ return }
+		
+		
+		try {
+		
+			array<string> list = StringToArray( admins_list )
+		
+			foreach ( admin_pair in list )
+			{	
+				pair = admin_pair
+				array<string> a_format = split( admin_pair, "-")
+				player_admins[a_format[0]] <- a_format[1];
+			}
+			
+		}
+		catch(erradmin)
+		{
+			sqprint("Error with adminpair: " + pair + " Error: " + erradmin )
+		}
+	
+	}
+	
+	
+	string function GetMap( string str ) 
+	{
+	
+		foreach ( map in list_maps ) 
+		{
+			if ( map[0] == str || map[1] == str ) 
+			{
+				return map[1];
+			}
+		}
+		
+		return GetMapName()
+	}
+	
+	
+	string function GetMode( string str ) 
+	{
+	
+		foreach ( mode in list_gamemodes ) 
+		{
+			if ( mode[0] == str || mode[1] == str ) 
+			{
+				return mode[1];
+			}
+		}
+		
+		return GameRules_GetGameMode()
+	}
+	
 
 	bool function ClientCommand_mkos_admin(entity player, array<string> args){
 		
@@ -596,9 +806,9 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		string PlayerUID = player.GetPlatformUID();
 
   
-		if (PlayerName in lg_admins) {
+		if (PlayerName in player_admins) {
 		
-			if (lg_admins[PlayerName] != PlayerUID) {
+			if ( player_admins[PlayerName] != PlayerUID ) {
 				return false;
 			}
 			
@@ -609,6 +819,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 		string command = "";
 		string param = "";
+		string param2 = "";
+		string param3 = "";
 		
 		if (args.len() > 0){
 			command = args[0];
@@ -616,6 +828,14 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 		if (args.len() > 1){
 			param = args[1];
+		}
+		
+		if (args.len() > 2){
+			param2 = args[2];
+		}
+		
+		if (args.len() > 3){
+			param3 = args[3];
 		}
 		
 		switch(command){  
@@ -626,7 +846,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							try 
 							{
 							
-								Message( player, "Commands:", "A command is entered as: \n cc command param. \n Repalce the #param with your query. \n\n cc kick #uid    - Kicks a player by uid \n cc afk #0/1    - disabled or enables afk to rest mode \n cc playself audiofile    - Plays audiofile to self \n cc playall audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration    - Says a message with a title for specifieed duration \n cc banplayer #name #reason    - Bans a player by name \n cc banplayerid #uid    - Bans a player by uid \n cc unban #uid    - unbans a player by uid", 20)
+								Message( player, "Commands:", "A command is entered as: \n\n cc command #param #param2.  \n\n cc kick #name/oid   - Kicks a player by name/oid \n cc afk #0/1   - disabled or enables afk to rest mode \n cc playself #audiofile   - Plays audiofile to self \n cc playall #audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration   - says to all \n cc ban #name/oid #reason    - Bans a player \n cc unban #oid   - attempts to unban a player by OID \n cc map #name #mode   - reloads map \n cc playerinput #name/oid   - shows players input \n cc playerinfo  - some stats", 20)
 							
 							} catch (err) { return false }
 					
@@ -634,21 +854,43 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 				
 				
 			case "kick":	
-			
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot kick admin")
+							
+							if ( args.len() < 2 ){
+						
+								Message( player, "Failed", "kick requires name/id for 1st param of command")
 								return false
+						
 							}
 			
 							try 
 							{		
-								KickPlayerById( args[1], "Kicking..." )
-								Message( player, "Kicked player", "PUID: " + args[1] + " was kicked" )
+								entity k_player;
+								string k_playeroid;
+								string reason = param2;	
+								
+								k_player = GetPlayer( param );
+								
+								if ( !IsValid(k_player) )
+								{
+									Message( player, "Failed", "Player: " + param + " - is invalid. ")
+									return true;
+								}
+									
+								k_playeroid = k_player.GetPlatformUID()	
+								
+								if ( IsAdmin(k_playeroid) ){
+									Message( player, "Cannot kick admin")
+									return true
+								}
+							
+								KickPlayerById( k_playeroid, reason )
+								Message( player, "Kicked player", "PUID: " + param + " was kicked" )
 								return true
+								
 							} catch (erraaarg)
 							{
 								Message( player, "Error", "Invalid player or argument missing" )
-								return false
+								return true
 							}
 							
 							return true;
@@ -707,7 +949,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								
 							if ( args.len() < 2 ){
 							
-								Message( player, "Failed", "playself requires param of audiofile as string")
+								Message( player, "Failed", "Command 'playself' requires param of audiofile as string")
 								return false
 							
 							} 
@@ -729,7 +971,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			case "playall":
 						
 							
-							foreach (connected_player in GetPlayerArray()){
+							foreach (connected_player in GetPlayerArray())
+							{
 							
 								try {
 						
@@ -777,94 +1020,76 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 							if ( args.len() < 4 ){
 							
-								Message( player, "Failed", "sayall requires duration for third param of command as float")
+								Message( player, "Failed", "Command 'sayall' requires duration for third param of command as float")
 								return false
 							
 							} 
 							
-							foreach ( say_to_player in GetPlayerArray()){
+							foreach ( say_to_player in GetPlayerArray())
+							{
 							
-								try	{
+								try	
+								{
 								
-									Message( say_to_player, args[1], args[2], args[3].tofloat())
-									return true
+									Message( say_to_player, param, param2, param3.tofloat())
 									
 								} catch ( errc ){
 								
 									Message(player, "Failed", "Command failed because of: \n\n " + errc )
-									return false
-								
-								}
-							}
-					
-							return true
-					
-					
-			case "banplayer":
-					  
-						
-							if ( args.len() < 3 ){
-							
-								Message( player, "Failed", "banplayer requires reason for second param of command as string")
-								return false
-							
-							}
-							
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot ban admin")
-								return false
-							}
-							
-							try {
-									BanPlayerByName( args[1], args[2] );
-									Message( player, "Success", "Player: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
 									return true
-									
-								} catch ( errd ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + errd )
-									return false
 								
 								}
-						
-					
+							}
 					
 							return true
-					
-					
-					
-			case "banplayerid":
-			
+			case "ban":
+							
+							
+							if ( args.len() < 2 ){
 						
-					
-							if ( args.len() < 3 ){
-							
-								Message( player, "Failed", "banplayerid requires reason for second param of command as string")
+								Message( player, "Failed", "Command 'ban' requires name/id for 1st param of command")
 								return false
-							
+						
 							}
 							
-							if ( IsAdmin(args[1]) ){
-								Message( player, "Cannot ban admin")
-								return false
-							}
 							
-							try {
+							try 
+							{		
 							
-									BanPlayerById( args[1], args[2])
-									Message( player, "Success", "ID: " + args[1] + "\n\n was banned for: \n\n" + args[2] )
+								entity b_player;
+								string b_playeroid;
+								string b_reason = param2;	
+								
+								b_player = GetPlayer( param )
+							
+								if ( !IsValid( b_player ) )
+								{
+									Message( player, "Failed", "Player: " + param + " - is invalid. ")
+									return true;
+								}
+								
+								b_playeroid = b_player.GetPlatformUID()	
+									
+								
+								if ( IsAdmin( b_playeroid ) ){
+									Message( player, "Cannot ban admin")
 									return true
-									
-								} catch ( erre ){
-								
-									Message(player, "Failed", "Command failed because of: \n\n " + erre )
-									return false
-								
 								}
+							
+								BanPlayerById( b_playeroid, b_reason )
+								Message( player, "Success", "Player: " + param + "\n\n was banned for: \n\n" + b_reason )
+								return true
+								
+							} catch ( erre )
+							{
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + erre )
+								return false
+							}
+							
+						return true;
 						
-					
-					
-							return true
+						
 					
 			case "unban":
 			
@@ -872,7 +1097,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 						if ( args.len() < 2 ){
 						
-							Message( player, "Failed", "unban requires id for 1st param of command as string")
+							Message( player, "Failed", "Command 'unban' requires id for 1st param of command as string")
 							return false
 						
 						}
@@ -881,7 +1106,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						
 								UnbanPlayer( args[1])
 								
-								Message( player, "Success", "ID: " + args[1] + " was unbanned")
+								Message( player, "Success", "ID: " + args[1] + " was supposedly unbanned")
 								
 								return true
 								
@@ -900,9 +1125,20 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			case "playerinfo":
 			
 						try {
-						
+							
+							string nputmsg = "Current Stats:"
+							
 							string info = PrintAllPlayerMetrics(true);
-							Message( player, "Current Stats: ", LineBreak(info), 20);
+							
+							if( (nputmsg.len() + info.len()) > 599 )
+							{
+						
+								Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+								return true;
+						
+							}
+							
+							Message( player, nputmsg, LineBreak(info), 20);
 							return true;
 						
 						} catch (errf){
@@ -924,6 +1160,13 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						try {
 							
 							entity z_player = GetPlayerEntityByName(args[1])
+							
+							if ( !IsValid(z_player) )
+							{
+								Message( player, "Failed", "Player: " + args[1] + " - is invalid. ")
+								return true;
+							}
+							
 							string playeroid = z_player.GetPlatformUID()
 							
 							int index = GetPlayerMetricsIndex( playeroid )
@@ -946,68 +1189,67 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						} catch (errg) {
 						
 							Message( player, "Failed", "Command failed because of: \n\n " + errg )
-							return false;
+							return true;
 							
 						}
 						
-			case "debug":
-			
-						try {
+			case "playerinput":
 						
-							sqprint( format("Current mode:  %s", player.p.inputmode) ); 
-							Message( player, "Success: ", "Current inputmode: " + player.p.inputmode );
-							return true;
+						if ( args.len() < 1){
+						
+							Message( player, "Failed", "Param 1 of command 'playerinput' requires player name/oid.")
+							return true
+							
+						}
+						
+						try {
+							
+							entity a_player;
+							string mode;
+							
+							a_player = GetPlayer( param )
+							
+							if ( !IsValid( a_player ) )
+							{	
+								Message( player, "Failed", "Player: " + param + " -- is invalid" );
+								return true
+							}
+					
+							
+							mode = a_player.p.input == 0 ? "Mouse and keyboard" : "Controller";
+							
+							Message( player, "Success: ", "Current inputmode: " + mode );
+							return true
 							
 						} catch (errh) {
 							
 							Message( player, "Failed", "Command failed because of: \n\n " + errh )
-							return false;
+							return true
 							
 						}
+					
+					return true
 		
 						
-			case "changeinput":
-								
-								
-						try {	
-								int uid = args[1].tointeger();
-								//string name = args[1]
-								string str = args[2]
-								string a_str = str;
-								
-								if (str == "false"){ a_str = "0" }
-								if (str == "true"){ a_str = "1" }
-								if (str == "mnk" ){ a_str = "0" }
-								if (str == "controller" ) { a_str = "1" }
-								
-								if ( !Is_Bool(a_str) ){
-								
-									Message( player, "Failed", "Incorrect usage, setting input using: " + a_str )
-									return false;
-								
-								}
-								
-								entity select_player = GetEntityFromEncodedEHandle( uid )
-								//entity select_player = GetPlayerEHandleByName( name )
-								select_player.p.input = a_str.tointeger();
-								
-								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
-								
-								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
-								return true;
+			case "input":	
+
+						if ( args.len() < 1){
 						
-						} catch (errj) {
-						
-							Message( player, "Failed", "Command failed because of: \n\n " + errj )
-							return false;
-						
+							Message( player, "Failed", "Param 1 of command 'input' requires player name/oid.")
+							return true
+							
 						}
 						
-			case "input":					
+						
+						if ( args.len() < 2){
+						
+							Message( player, "Failed", "Param 2 of command 'input' requires type 0/1.")
+							return true
+							
+						}
 								
 						try {	
 						
-								string name = args[1]
 								string str = args[2]
 								string a_str = str;
 								
@@ -1023,7 +1265,14 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								
 								}
 								
-								entity select_player =  GetPlayerEntityByName( name )
+								entity select_player =  GetPlayer( param )
+								
+								if ( !IsValid(select_player) )
+								{
+									Message( player, "Failed", "Player: " + param + " - is invalid. ")
+									return true;
+								}
+								
 								select_player.p.input = a_str.tointeger();
 								
 								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
@@ -1061,9 +1310,17 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						} catch (errk) {
 						
 							Message( player, "Failed", "Command failed because of: \n\n " + errk )
-							return false;
+							return true;
 						
 						}
+						
+					return true
+						
+			case "map":
+					
+		
+					GameRules_ChangeMap( GetMap(param) , GetMode(param2) )
+					return true
 						
 			default:
 			
@@ -1910,18 +2167,6 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 /*****************************************************************************************************************************/
 
 
-	
-
-	/* TODO: implement
-	bool function AddEntityCallback_OnAttack( entity player )
-	{
-
-		string who = player.GetPlayerName()
-		sqprint(format("%s attacked", who.tostring))
-		return true
-
-	}
-	*/
 
 
 /***************************# JUMPS / SHOTS / SuperGlides #******************************************/
@@ -2048,10 +2293,9 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
 				AttemptingSuperGlide = false;
 				RecordPlayerSuperglides( playerID )
-				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				if ( sg_counter_msg )
 				{	
-					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
+					Message ( player, format("%s: %d", superglidetitle, ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 
@@ -2061,10 +2305,9 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
 				AttemptingSuperGlide = false;
 				RecordPlayerSuperglides( playerID )
-				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				if ( sg_counter_msg )
 				{	
-					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
+					Message ( player, format("%s: %d", superglidetitle, ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 
@@ -2074,10 +2317,9 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 				//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
 				AttemptingSuperGlide = false;
 				RecordPlayerSuperglides( playerID )
-				if ( GetCurrentPlaylistVarBool("superglide_counter_msg", false) )
+				if ( sg_counter_msg )
 				{	
-					string superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-					Message ( player, format("Lifetime Glides: %d", ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
+					Message ( player, format("%s: %d", superglidetitle, ( GetGlides(playerID) + player.p.lifetime_glides ) ), superglide_msg )
 				}
 				break;	
 			} 

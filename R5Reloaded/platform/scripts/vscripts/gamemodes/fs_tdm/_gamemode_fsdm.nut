@@ -225,6 +225,8 @@ void function Init_IBMM( entity player )
 	player.p.IBMM_grace_period = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
 	player.p.messagetime = 0
 	thread Thread_CheckInput( player )
+	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
+	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
@@ -915,12 +917,26 @@ void function __OnEntitiesDidLoad()
     	case "mp_rr_canyonlands_staging": SpawnLGProps(); break //SpawnMapPropsFR(); break
     	case "mp_rr_arena_composite":
 		{	
-			if( GetCurrentPlaylistVarBool( "patch_for_dropoff", false ) ) Patch_Dropoff();
+			if( GetCurrentPlaylistVarBool( "patch_waiting_area", false ) )
+			{
+				Patch_Barrier_Dropoff()
+			} 
+			else if( GetCurrentPlaylistVarBool( "patch_for_dropoff", false ) )
+			{			
+				Patch_Dropoff();
+			}
+			
 			array<entity> badMovers = GetEntArrayByClass_Expensive( "script_mover" )
 			foreach(mover in badMovers)
 				if( IsValid(mover) ) mover.Destroy()
 			break
 		}
+		
+		case "mp_rr_aqueduct":
+			if( GetCurrentPlaylistVarBool( "patch_waiting_area", false ) )
+			{
+				Patch_Barrier_Overflow()
+			} 
 
 		case "mp_flowstate":
 			entity skyboxCamera = GetEnt( "skybox_cam_level" )

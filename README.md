@@ -8,7 +8,6 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 
 
 	// mkos systems
-	cc_administration						1 // enables client command administration	
 
 	logging_enabled 						1 //enables logging system
 	logging_encryption						1 //encrypts data for transfer (reccomended)
@@ -24,9 +23,17 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 	superglide_counter_msg					1 // Shows players' superglide counts
 	custom_superglide_msg					"Kewl beans" //shows custom msg under counter.
 	patch_for_dropoff						1 // enables extra locations for dropoff allowing for 32 max players
-		
+	patch_waiting_area						1 //makes a barrier between waiting and fighting areas
+	
+	
+	//ADMINS for cc command
+	cc_administration						1 // enables client command administration	
+	
+	// usage: "adminname-oid,anotheradmin-oid,thirdadmin-01010101010"
+	admins_list "R5mkos-1007946891142"
 
-	use_global_stats						1 //loads global stats, uses global player stats for matchmaking
+	//stats system hooks
+	use_global_stats						1 //loads players global stats, uses global player stats for matchmaking in 1v1
 		
 	// DISCORD WEBHOOKS:
 	// For Discord webhooks help:  https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
@@ -39,7 +46,7 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 	// extra
 	karma_server	                  1          // for karma servers
 	custom_match_ending_title		"Match complete"	 //custom title before map reload/cycle
-	custom_match_ending_message	"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle		
+	custom_match_ending_message		"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle		
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 
