@@ -43,12 +43,15 @@ global array <soloPlayerStruct> soloPlayersWaiting = [] //waiting player stored 
 global array <soloGroupStruct> soloPlayersInProgress = [] //playing player stored here
 global array <entity> soloPlayersResting = []
 
-// arrays to store loaded custom weapons from playlist once in init -- mkos
+// arrays to store loaded custom weapons from playlist once in init -- mkos //########
 global array <string> custom_weapons_primary = [] 
 global array <string> custom_weapons_secondary = [] 
 
-// float for waiting to switch input matching to OPEN
-global float grace_period = 15.0
+// SBMM vars
+global float lifetime_kd_weight
+global float current_kd_weight 
+global float SBMM_kd_difference
+
 
 bool function Fetch_IBMM_Timeout_For_Player( entity player ) {
 
@@ -97,6 +100,22 @@ string function FetchInputName( entity player ){
 
 }
 
+string function GetScore( entity player )
+{	
+	if ( !IsValid( player ) ) 
+	{
+		return "INVALID_PLAYER";
+	}
+	
+	float lt_kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
+	float cur_kd = getkd( player.GetPlayerNetInt( "kills" ) , player.GetPlayerNetInt( "deaths" )  )
+	float score = (  ( lt_kd * lifetime_kd_weight ) + ( cur_kd * current_kd_weight ) )
+	string name = player.GetPlayerName()	
+	
+	return format("Player: %s, Lifetime KD: %.2f, Current KD: %.2f, Score: %.2f ", name, lt_kd, cur_kd, score )
+	
+}
+
 int function getTimeOutPlayerAmount()
 {
 	int timeOutPlayerAmount = 0
@@ -133,6 +152,8 @@ void function soloModeWaitingPrompt(entity player)
 	}
 
 }
+
+//############################################################################ 
 
 LocPair function getWaitingRoomLocation(string mapName)
 {
@@ -427,12 +448,19 @@ void function soloModePlayerToWaitingList(entity player)
 	//sqprint(format("Queue time set for %s AT: %f ", playerStruct.player.GetPlayerName(), playerStruct.queue_time ))
 	//sqprint(format("Setting player %s inputmode to: %s", player.GetPlayerName(), player.p.inputmode ))
 	
-	
+	float lifetime_kd;
+	float current_kd;
 	
 	if(IsValid(player))
-		playerStruct.kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
+	{// weighted scoring
+		lifetime_kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
+		current_kd = getkd( player.GetPlayerNetInt( "kills" ) , player.GetPlayerNetInt( "deaths" )  )	
+		playerStruct.kd = (  ( lifetime_kd * lifetime_kd_weight ) + ( current_kd * current_kd_weight ) )
+	}
 	else
+	{
 		playerStruct.kd = 0
+	}
 	playerStruct.lastOpponent = player.p.lastKiller
 
 	if(!IsAlreadyExist) //如果waiting list里没有这个玩家
@@ -942,7 +970,12 @@ void function _soloModeInit(string mapName)
 		}
 	
 	}
-
+	
+	//initialize defaults for SBMM
+	
+	lifetime_kd_weight = GetCurrentPlaylistVarFloat( "lifetime_kd_weight", 0.70 )
+	current_kd_weight = GetCurrentPlaylistVarFloat( "current_kd_weight", 1.0 )
+	SBMM_kd_difference = GetCurrentPlaylistVarFloat( "kd_difference", 2.2 )
 	
 	array<LocPair> allSoloLocations
 	array<LocPair> panelLocations
@@ -1791,7 +1824,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
 						continue
 						
-					if(fabs(selfKd - opponentKd) > .5 ) //过滤kd差值
+					if(fabs(selfKd - opponentKd) > SBMM_kd_difference ) //过滤kd差值
 						continue
 						
 					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)

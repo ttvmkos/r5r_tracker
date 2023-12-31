@@ -55,3 +55,9 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 
 	custom_1v1_weapons_secondary "" //comma separated weapons list for 1v1
 	custom_1v1_weapons_secondary_continue "" 
+	
+	//SBMM  score =  ( lifetime kd * lifetime_kd_weight ) + ( current match kd * current_kd_weight )
+
+	lifetime_kd_weight 	0.9  // multiplies global kd stat
+	current_kd_weight 	1.3	 // multiples current kd stat
+	kd_difference		1.5  // threshold matchmaking excludes by (differnce of 1.5 = score of 4 wont match with score of 2.4 )

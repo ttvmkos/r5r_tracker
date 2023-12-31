@@ -88,6 +88,7 @@ global string superglidetitle
 
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
 const SQ_MAX_INT_32 = 2147483647;
+const SQ_MIN_INT_32 = -2147483647;
 
 //(respawns) game summary
 
@@ -561,6 +562,28 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 	}
 	
+	bool function IsFloat( string str, float min = SQ_MIN_INT_32, float limit = SQ_MAX_INT_32 ) 
+	{
+		if (str.len() == 0) 
+		{
+			return false;
+		}
+		
+		for (int i = 0; i < str.len(); i++) 
+		{
+			var c = str[i];
+			if (!((c >= '0' && c <= '9') || (c == '.' && i != 0) || (c == '-' && i == 0))) 
+			{
+				return false;
+			}
+		}
+		
+		float num = 0.0;
+		try { num = str.tofloat(); } catch (outofrange) { return false; }
+		
+		return ( num >= min && num <= limit );
+	}
+
 	
 	string function LineBreak( string str, int interval = 80 ) 
 	{
@@ -591,7 +614,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 		try { num = a_str.tointeger(); } catch (outofrange) { return false; }
 		
-		return (num >= 0 && num <= 1);
+		return ( abs(num) >= 0 && abs(num) <= 1);
 	}
 	
 	
@@ -1324,12 +1347,169 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			case "map":
 					
 		
-					GameRules_ChangeMap( GetMap(param) , GetMode(param2) )
+						GameRules_ChangeMap( GetMap(param) , GetMode(param2) )
+						
+					return true
+					
+			case "score":
+			
+						if ( args.len() < 1){
+							
+								Message( player, "Info", "Param 1 of command 'score' requires player name/oid/*/current/lifetime/difference. \n\n Usage: score player | score * | score current")
+								return true
+								
+						}
+						
+						if ( param == "current" )
+						{
+							
+							Message( player, "Success", "'Current KD' server weight setting is:   " + current_kd_weight )
+							return true
+							
+						}
+						else if ( param == "lifetime" )
+						{
+							
+							Message( player, "Success", "'lifetime KD' server weight setting is:   " + lifetime_kd_weight )
+							return true
+						
+						}
+						else if ( param == "difference" )
+						{
+							
+							Message( player, "Success", "'KD matchmaking difference' server setting is:   " + SBMM_kd_difference )
+							return true
+						
+						}
+					
+						if ( param == "*")
+						{
+							
+							
+							try 
+							{
+							
+								string putmsg = "Success";
+								string s_data;
+								
+								foreach ( score_player in GetPlayerArray() )
+								{
+									if ( !IsValid( score_player ) ) continue
+									
+									s_data += GetScore( score_player ) + "\n";
+							
+								}
+								
+								if( ( putmsg.len() + s_data.len() ) > 599 )
+								{
+							
+									Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+									return true;
+							
+								}
+							
+							
+								Message( player, putmsg, s_data );
+							
+							} catch (errallscore) {
+							
+								Message( player, "Failed", "Command failed because of: \n\n " + errallscore )
+								return true;
+							
+							}
+						
+						}
+						else
+						{
+						
+						entity s_player;
+								
+						s_player = GetPlayer( param )
+						
+						if ( !IsValid( s_player ) )
+						{	
+							Message( player, "Failed", "Player: " + param + " -- is invalid" );
+							return true
+						}
+						
+							try {
+							
+								Message( player, "Success", GetScore( s_player ) );
+							
+							} catch (errscore) {
+							
+								Message( player, "Failed", "Command failed because of: \n\n " + errscore )
+								return true;
+							
+							}
+						
+						}
+						
+					return true
+					
+			case "scoreconfig":
+			
+						if ( args.len() < 2)
+						{
+							Message( player, "Failed", "Param 1 of command 'scoreconfig' requires type: current/lifetime/difference.")
+							return true
+						}
+						
+						if ( args.len() < 3)
+						{	
+							Message( player, "Failed", "Param 2 of command 'scoreconfig' requires float")
+							return true	
+						}
+						
+						
+						
+						try {
+						
+							if ( !IsFloat( param2 ) )
+							{
+								Message( player, "Failed", "param 3 of command 'scoreconfig' must be numeric type float, \n\n example: 0.8 --            '" + param2 + "' was provided" )
+								return true
+							}
+							
+							if ( param == "current" )
+							{
+							
+								current_kd_weight = param2.tofloat();
+							
+							}
+							else if ( param == "lifetime" )
+							{
+							
+								lifetime_kd_weight = param2.tofloat();
+							
+							}
+							else if ( param == "difference" )
+							{
+							
+								SBMM_kd_difference = param2.tofloat();
+							
+							}
+							else
+							{
+								Message( player, "Failed", "Invalid scoreconfig type: " + param )
+								return true
+							}
+							
+							
+							Message( player, "Success", "Weight for " + param + " KD -- was set to: " + param2 , 5 );
+						
+						} catch (errsetweight) {
+						
+							Message( player, "Failed", "Command failed because of: \n\n " + errsetweight )
+							return true;
+						
+						}
+						
 					return true
 						
 			default:
 			
-						//sqprint ( "Usage: cc commmand param \n" )
+						Message( player, "Usage", "cc #command #param1 #param2 #para...." )
 						return true;
 		}
 		
