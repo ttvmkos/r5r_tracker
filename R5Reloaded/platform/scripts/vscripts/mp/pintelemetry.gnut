@@ -623,7 +623,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	{	
 		entity p;
 
-		foreach ( player in GetPlayerArray() ){
+		foreach ( player in GetPlayerArray() )
+		{
 		
 			if ( player.GetPlayerName() == name ){
 				
@@ -637,7 +638,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	}
 	
 	
-	bool function IsAdmin( string CheckPlayer ){
+	bool function IsAdmin( string CheckPlayer )
+	{
 		
 		foreach ( Player, OID in player_admins) 
 		{
@@ -695,9 +697,9 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			oid = player.GetPlatformUID()
 			
 			if ( oid == str )
-				r_player = player;
-				break
-		
+			{
+				return player;
+			}
 		}
 		
 		return r_player;
@@ -709,7 +711,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 
 		entity player;
 		
-		if ( IsValidOID( str) )
+		if ( IsValidOID( str ) )
 		{
 		
 			return GetPlayerEntityByOID( str )
@@ -717,9 +719,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		}
 		else
 		{
-		
-			return GetPlayerEntityByName( str )
-		
+			return GetPlayerEntityByName( str )	
 		}
 		
 		return player
@@ -1423,21 +1423,24 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						else
 						{
 						
-						entity s_player;
-								
-						s_player = GetPlayer( param )
-						
-						if ( !IsValid( s_player ) )
-						{	
-							Message( player, "Failed", "Player: " + param + " -- is invalid" );
-							return true
-						}
-						
-							try {
+							entity s_player;
+									
+							s_player = GetPlayer( param )
+							
+							if ( !IsValid( s_player ) )
+							{	
+								Message( player, "Failed", "Player: " + param + " -- is invalid" );
+								return true
+							}
+							
+							try 
+							{
 							
 								Message( player, "Success", GetScore( s_player ) );
 							
-							} catch (errscore) {
+							} 
+							catch (errscore) 
+							{
 							
 								Message( player, "Failed", "Command failed because of: \n\n " + errscore )
 								return true;
