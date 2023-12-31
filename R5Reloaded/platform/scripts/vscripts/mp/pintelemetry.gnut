@@ -174,15 +174,15 @@ void function INIT_BATCH_FETCH() {
 	
 		bool next_player = false;
 
-        while ( !player.p.isConnected ) 
+        while ( IsDisconnected( player ) ) 
 		{
-            if ( !IsValid( player ) || IsDisconnected( player )) 
+            if ( !IsValid( player ) ) 
 			{
                 next_player = true
                 break;
             }
-
-            wait 0.1
+			
+			wait 0.01
 			//sqprint("waiting for connection")
         }
 
@@ -211,8 +211,6 @@ void function INIT_BATCH_FETCH() {
         }
 	
         LoadBatchKDStrings( oid_list )
-		
-		wait 1
 		
     }
 	
@@ -254,21 +252,24 @@ void function SetPlayerKD( entity player )
 	while ( IsValid( player ) )
 	{
 		
-		wait 1; //IMPORTANT
+		wait 1.2 + ( attempts * 0.09 ); //IMPORTANT
 		
 		string p_kd = GetKDString( OID )
 		
 		//sqprint("p_kd = " + p_kd )
 		
-		if ( attempts > 6 )
+		if ( attempts > 10 )
 			break
 			
 		if ( p_kd == "NA" )
+		{	
 			break
-			
+		}
 		if ( p_kd == "" )
+		{	
+			attempts++;
 			continue
-		
+		}
 		if ( p_kd != "" || p_kd != "NA" )
 		{
 			array<string> KD_Data = split( p_kd , ",")
@@ -1409,7 +1410,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								}
 							
 							
-								Message( player, putmsg, s_data );
+								Message( player, putmsg, s_data, 20 );
 							
 							} catch (errallscore) {
 							
