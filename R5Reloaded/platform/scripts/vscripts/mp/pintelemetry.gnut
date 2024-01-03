@@ -166,7 +166,7 @@ void function INIT_BATCH_FETCH() {
 	array<string> oids
 	string oid_list = "";
 	
-	wait 5 //allow players to load
+	wait 9 //allow players to load
 	//sqprint("Calling init batch")
 	
 	foreach ( player in GetPlayerArray() )
@@ -667,8 +667,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		foreach ( player in GetPlayerArray() )
 		{
 			if ( !IsValid( player ) )
+			{
 				continue
-				
+			}
+			
 			oid = player.GetPlatformUID()
 			
 			if ( oid == str )
@@ -692,8 +694,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		foreach ( player in GetPlayerArray() )
 		{
 			if ( !IsValid( player ) )
+			{
 				continue
-				
+			}
+			
 			oid = player.GetPlatformUID()
 			
 			if ( oid == str )

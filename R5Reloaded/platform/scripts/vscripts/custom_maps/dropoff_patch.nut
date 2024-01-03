@@ -3,6 +3,9 @@ globalize_all_functions
 
 void function Patch_Barrier_Dropoff() 
 {
+	
+	if( !is1v1EnabledAndAllowed() ) 
+		return
 
     // Props
     entity prop
@@ -20,7 +23,10 @@ void function Patch_Barrier_Dropoff()
 }
 
 void function Patch_Barrier_Overflow()
-{
+{	
+	
+	if( !is1v1EnabledAndAllowed() ) 
+		return
 
 	// Props
     entity prop
@@ -39,7 +45,10 @@ void function Patch_Barrier_Overflow()
 }
 
 void function Patch_Dropoff() {
-  
+	
+	if( !is1v1EnabledAndAllowed() ) 
+		return
+	
     // Props
     entity prop
     prop = MapEditor_CreateProp( $"mdl/desertlands/highrise_square_top_01.rmdl", < -456.6969, 639.2582, 425.146 >, < -89.1734, -41.7255, -179.174 >, true, 0.0001, -1, 1 )

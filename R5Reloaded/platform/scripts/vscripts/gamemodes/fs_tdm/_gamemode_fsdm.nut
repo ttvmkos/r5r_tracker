@@ -917,14 +917,15 @@ void function __OnEntitiesDidLoad()
     	case "mp_rr_canyonlands_staging": SpawnLGProps(); break //SpawnMapPropsFR(); break
     	case "mp_rr_arena_composite":
 		{	
-			if( GetCurrentPlaylistVarBool( "patch_waiting_area", false ) )
+		
+			if( GetCurrentPlaylistVarBool( "patch_for_dropoff", false ) )
+			{			
+				Patch_Dropoff();
+			} 
+			else if( GetCurrentPlaylistVarBool( "patch_waiting_area", false ) )
 			{
 				Patch_Barrier_Dropoff()
 			} 
-			else if( GetCurrentPlaylistVarBool( "patch_for_dropoff", false ) )
-			{			
-				Patch_Dropoff();
-			}
 			
 			array<entity> badMovers = GetEntArrayByClass_Expensive( "script_mover" )
 			foreach(mover in badMovers)
@@ -4494,6 +4495,7 @@ void function Message( entity player, string text, string subText = "", float du
 	if( !IsValid( player )) return
 	if( !player.IsPlayer() ) return //mkos
 	if ( !player.p.isConnected ) return
+	if ( ( text.len() + subText.len() ) >= 599 ) return //mkos
 
 	string sendMessage
 	for ( int textType = 0 ; textType < 2 ; textType++ )
