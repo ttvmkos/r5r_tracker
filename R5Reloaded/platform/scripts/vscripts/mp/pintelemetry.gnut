@@ -383,7 +383,7 @@ void function PlayerConnectedCallback(entity player)
 	
 	if ( global_stats && FETCH_BATCH_COMPLETE )
 	{
-		SQ_LoadPlayerKD( player )
+		thread SQ_LoadPlayerKD( player )
 	}
 	
 	if ( global_stats )
@@ -3063,7 +3063,6 @@ void function PIN_AddPlayer( entity player )
 void function PIN_PlayerLeft( entity player, string reason )
 {
 	
-	string pname = player.GetPlatformUID()
 	string p_ea_name = player.GetPlayerName()
 	string OID = player.GetPlatformUID()
 	//string message = format("%s disconnected ", pname )
@@ -3112,7 +3111,7 @@ void function PIN_PlayerLeft( entity player, string reason )
 
 			LogEvent(
 				format("|&,%s,%i,%d,%s",
-					   pname,
+					   OID,
 					   timeRemaining,
 					   GetUnixTimestamp(),
 					   p_ea_name
@@ -3333,7 +3332,7 @@ string function PIN_WinnerByKillsAndDamage()
 
     if (winner != "") 
 	{
-        string json = "{ \"winner\": \"" + sanitize( winner ) + "\", \"winner_oid\": \"" + winner_oid + "\", \"winner_kills\": " + winner_kills.tostring() + ", \"winner_damage\": " + format("%.2f", winner_damage) + " }";
+        string json = "{\"winner\":\"" + sanitize(winner) + "\",\"winner_oid\":\"" + winner_oid + "\",\"winner_kills\":" + winner_kills.tostring() + ",\"winner_damage\":" + format("%.2f", winner_damage) + "}";
         return json;
     }
 
