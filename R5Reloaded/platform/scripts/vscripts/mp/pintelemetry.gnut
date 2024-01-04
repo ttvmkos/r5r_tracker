@@ -67,6 +67,7 @@ global function GetPlayerEntityByOID
 global function GetPlayerEntityByName
 global function IsValidOID
 global function Is_Bool
+global function sanitize
 
 global int fightIdCounter = 0
 global bool SHOULD_SHIP = false
@@ -373,7 +374,7 @@ void function PlayerConnectedCallback(entity player)
 	
 	string count = GetNumHumanPlayers().tostring();
 	string OID = player.GetPlatformUID();
-	string name = player.GetPlayerName();
+	string name = sanitize( player.GetPlayerName() );
 	
 	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) ){
 		thread PlayerCounts("Connected", name, OID, count )
@@ -830,6 +831,39 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		return GameRules_GetGameMode()
 	}
 	
+
+	bool function IsControlCharacter(string c) 
+	{
+
+		var byte = c[0];
+		return (byte >= 0 && byte <= 31) || byte == 127;
+		
+	}
+
+	string function sanitize(string str) 
+	{
+
+		string sanitized = "";
+
+		for (int i = 0; i < str.len(); i++) {
+			string c = str.slice(i, i + 1);
+
+			if ( IsControlCharacter(c) ) 
+			{
+				continue	
+			} 
+			else 
+			{
+				sanitized += c;
+			}
+		}
+
+		return sanitized;
+		
+	}
+
+
+
 
 	bool function ClientCommand_mkos_admin(entity player, array<string> args){
 		
@@ -3270,7 +3304,8 @@ void function PIN_PlayerOutResource( entity player, string ref )
 
 }
 
-string function PIN_WinnerByKillsAndDamage() {
+string function PIN_WinnerByKillsAndDamage() 
+{
 
     int Most_Kills = -1;
     float Most_Damage = -1.0;
@@ -3279,11 +3314,13 @@ string function PIN_WinnerByKillsAndDamage() {
     int winner_kills;
     string winner_oid = "";
 
-    foreach (player in PlayerMetricsArray) {
+    foreach (player in PlayerMetricsArray) 
+	{
         int kills = player.kills;
         float damage = player.damage;
 
-        if (kills > Most_Kills || (kills == Most_Kills && damage > Most_Damage)) {
+        if (kills > Most_Kills || (kills == Most_Kills && damage > Most_Damage)) 
+		{
             Most_Kills = kills;
             Most_Damage = damage;
 
@@ -3294,8 +3331,9 @@ string function PIN_WinnerByKillsAndDamage() {
         }
     }
 
-    if (winner != "") {
-        string json = "{ \"winner\": \"" + winner + "\", \"winner_oid\": \"" + winner_oid + "\", \"winner_kills\": " + winner_kills.tostring() + ", \"winner_damage\": " + format("%.2f", winner_damage) + " }";
+    if (winner != "") 
+	{
+        string json = "{ \"winner\": \"" + sanitize( winner ) + "\", \"winner_oid\": \"" + winner_oid + "\", \"winner_kills\": " + winner_kills.tostring() + ", \"winner_damage\": " + format("%.2f", winner_damage) + " }";
         return json;
     }
 
