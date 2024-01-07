@@ -116,6 +116,59 @@ string function GetScore( entity player )
 	
 }
 
+void function INIT_1v1_sbmm()
+{
+
+	//convert strings from playlist into array and add to array memory structure -- mkos
+	if ( Playlist_1v1_Primary_Array() != "" )
+	{	
+		
+		string concatenate = Concatenate( Playlist_1v1_Primary_Array(), Playlist_1v1_Primary_Array_continue() )
+	
+		try {
+		
+			custom_weapons_primary = StringToArray( concatenate );
+			
+		} catch ( error ) 
+		{
+			sqerror( "" + error )
+		}
+	
+	}
+		
+	if ( Playlist_1v1_Secondary_Array() != "" )
+	{
+		string concatenate = Concatenate( Playlist_1v1_Secondary_Array(), Playlist_1v1_Secondary_Array_continue() )
+	
+		try {
+		
+			custom_weapons_secondary = StringToArray( concatenate );
+			
+		} catch ( error ) 
+		{
+			sqerror( "" + error )
+		}
+	
+	}
+	
+	//initialize defaults for SBMM
+	if (global_stats)
+	{
+		lifetime_kd_weight = GetCurrentPlaylistVarFloat( "lifetime_kd_weight", 0.90 )
+		current_kd_weight = GetCurrentPlaylistVarFloat( "current_kd_weight", 1.3 )
+		SBMM_kd_difference = GetCurrentPlaylistVarFloat( "kd_difference", 1.5 )
+	} 
+	else
+	{
+		//base values
+		lifetime_kd_weight = 1
+		current_kd_weight = 1
+		SBMM_kd_difference = 3
+	
+	}
+
+}
+
 int function getTimeOutPlayerAmount()
 {
 	int timeOutPlayerAmount = 0
@@ -939,43 +992,7 @@ void function GivePlayerCustomPlayerModel( entity ent )
 void function _soloModeInit(string mapName)
 {	
 	
-	//convert strings from playlist into array and add to array memory structure -- mkos
-	if ( Playlist_1v1_Primary_Array() != "" )
-	{	
-		
-		string concatenate = Concatenate( Playlist_1v1_Primary_Array(), Playlist_1v1_Primary_Array_continue() )
-	
-		try {
-		
-			custom_weapons_primary = StringToArray( concatenate );
-			
-		} catch ( error ) 
-		{
-			sqprint( "" + error )
-		}
-	
-	}
-		
-	if ( Playlist_1v1_Secondary_Array() != "" )
-	{
-		string concatenate = Concatenate( Playlist_1v1_Secondary_Array(), Playlist_1v1_Secondary_Array_continue() )
-	
-		try {
-		
-			custom_weapons_secondary = StringToArray( concatenate );
-			
-		} catch ( error ) 
-		{
-			sqprint( "" + error )
-		}
-	
-	}
-	
-	//initialize defaults for SBMM
-	
-	lifetime_kd_weight = GetCurrentPlaylistVarFloat( "lifetime_kd_weight", 0.70 )
-	current_kd_weight = GetCurrentPlaylistVarFloat( "current_kd_weight", 1.0 )
-	SBMM_kd_difference = GetCurrentPlaylistVarFloat( "kd_difference", 2.2 )
+	INIT_1v1_sbmm();
 	
 	array<LocPair> allSoloLocations
 	array<LocPair> panelLocations

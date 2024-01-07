@@ -318,7 +318,6 @@ void function DestroyStats(){
 
 void function PIN_Init()
 {	
-	
 		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)
@@ -355,7 +354,10 @@ void function PIN_Init()
 	superglidetitle = global_stats ? "Lifetime Glides" : "Glides";
 	
 	//fetch global STATS
-	thread INIT_BATCH_FETCH()
+	if ( global_stats )
+	{
+		thread INIT_BATCH_FETCH()
+	}
 	
 }
 
@@ -424,6 +426,12 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		}
 		
 		string requestedData = args[0];
+		string param = "";
+		
+		if ( args.len() >= 2 )
+		{
+			param = args[1]
+		}
 
 		switch(requestedData){
 
@@ -435,8 +443,82 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 				//sqprint( GetCurrentRound().tostring() )
 				Message( player, "Round:", GetCurrentRound().tostring(), 5 )
 				return true;
+			case "player":
+				
+					string handicap = "";
+					string p_input = "";
+					string data = "";
+					string inputmsg = "";
+					float kd = 0.0
+					string kd_string = "";
+					int kills = 0;
+					int deaths = 0;
+					string l_oid = "";
+					string l_name = "";
+					
+					if ( param == "" )
+					{
+					
+						Message( player, "Failed", " Command 'player' requires playername/oid as first param. ")
+						return true;
+					
+					}
+						
+						try
+						{	
+							
+							entity l_player = GetPlayer( param )
+							
+							if ( !IsValid( l_player ) )
+							{
+								Message( player, "Failed", "Player: " + param + " - is invalid. ")
+								return true;
+							}
+							
+							handicap = l_player.p.p_damage == 2 ? "On" : "Off";
+							p_input = l_player.p.input > 0 ? "Controller" : "MnK"; 
+							kills = l_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
+							deaths = l_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
+							l_name = l_player.GetPlayerName()
+							l_oid = l_player.GetPlatformUID()
+							inputmsg = "Player: " + l_name + " OID: " + l_oid;
+							
+							if (deaths > 0) 
+							{
+								kd = getkd( kills, deaths )
+							}
+							
+							data += "Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
+							data += "Player's Input:  " + p_input + " ---- Handicap: " + handicap + "\n"; 
+							
+							if( (inputmsg.len() + data.len()) > 599 )
+							{
+						
+								Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+								return true;
+						
+							}
+							
+							Message( player, inputmsg, data, 5);
+							
+						} catch (errlookup) 
+						{
+	
+							Message(player, "Failed", "Command failed because of: \n\n " + errlookup )
+							return false
+						
+						}
+						
+						
+						return true;
+					
+				
+			
 			case "input":
 					
+					
+					string handicap = "";
+					string p_input = "";					
 					string data = "";
 					string inputmsg = "Current Player Inputs";
 					
@@ -445,8 +527,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 						foreach ( active_player in GetPlayerArray() ){
 							
-							string handicap = active_player.p.p_damage == 2 ? "On" : "Off";
-							string p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
+							handicap = active_player.p.p_damage == 2 ? "On" : "Off";
+							p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
 							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
 				
 						}
@@ -476,18 +558,21 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			case "stats":
 					
 					string data = "";
-					string inputmsg = "Current Player Global Stats";
+					string inputmsg = global_stats ? "Current Player Global Stats" : "Current Player Round Stats";
+					float kd = 0.0
+					string kd_string = "";
+					int kills = 0;
+					int deaths = 0;
+					string global_stats_msg = global_stats ? " Lifetime Stats:" : " Current Round Stats:";
 					
 					try 
 					{
 					
-						foreach ( active_player in GetPlayerArray() ){
+						foreach ( active_player in GetPlayerArray() )
+						{
 							
-							float kd = 0.0
-							string kd_string = "";
-							
-							int kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
-							int deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
+							kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
+							deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
 							
 							if (deaths > 0) 
 							{
@@ -496,7 +581,9 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							
 							kd_string = kd != 0.0 ? kd.tostring() : "N/A";
 							
-							data += "Player: " + active_player.GetPlayerName() + " Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
+							
+							
+							data += "Player: " + active_player.GetPlayerName() + global_stats_msg + " Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
 				
 						}
 						
@@ -796,7 +883,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		}
 		catch(erradmin)
 		{
-			sqprint("Error with adminpair: " + pair + " Error: " + erradmin )
+			sqerror("Error with adminpair: " + pair + " Error: " + erradmin )
 		}
 	
 	}
@@ -913,7 +1000,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							try 
 							{
 							
-								Message( player, "Commands:", "A command is entered as: \n\n cc command #param #param2.  \n\n cc kick #name/oid   - Kicks a player by name/oid \n cc afk #0/1   - disabled or enables afk to rest mode \n cc playself #audiofile   - Plays audiofile to self \n cc playall #audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration   - says to all \n cc ban #name/oid #reason    - Bans a player \n cc unban #oid   - attempts to unban a player by OID \n cc map #name #mode   - reloads map \n cc playerinput #name/oid   - shows players input \n cc playerinfo  - some stats", 20)
+								Message( player, "Commands:", "A command is entered as: \n\n cc command #param #param2.  \n\n cc kick #name/oid   - Kicks a player by name/oid \n cc afk #0/1   - disabled or enables afk to rest mode \n cc playself #audiofile   - Plays audiofile to self \n cc playall #audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration   - says to all \n cc ban #name/oid #reason    - Bans a player \n cc unban #oid   - attempts to unban a player by OID \n cc map #name #mode   - reloads map \n cc playerinput #name/oid   - shows players input \n cc playerinfo  - some stats", 20 )
 							
 							} catch (err) { return false }
 					
@@ -924,7 +1011,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							
 							if ( args.len() < 2 ){
 						
-								Message( player, "Failed", "kick requires name/id for 1st param of command")
+								Message( player, "Failed", "kick requires name/id for 1st param of command" )
 								return false
 						
 							}
@@ -992,7 +1079,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								
 							if ( args.len() < 2 ){
 							
-								Message( player, "Failed", "playself requires param of audiofile as string")
+								Message( player, "Failed", "playself requires param of audiofile as string" )
 								return false
 							
 							} 
@@ -1016,7 +1103,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								
 							if ( args.len() < 2 ){
 							
-								Message( player, "Failed", "Command 'playself' requires param of audiofile as string")
+								Message( player, "Failed", "Command 'playself' requires param of audiofile as string" )
 								return false
 							
 							} 
@@ -1087,7 +1174,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 							if ( args.len() < 4 ){
 							
-								Message( player, "Failed", "Command 'sayall' requires duration for third param of command as float")
+								Message( player, "Failed", "Command 'sayall' requires duration for third param of command as float" )
 								return false
 							
 							} 
@@ -1114,7 +1201,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							
 							if ( args.len() < 2 ){
 						
-								Message( player, "Failed", "Command 'ban' requires name/id for 1st param of command")
+								Message( player, "Failed", "Command 'ban' requires name/id for 1st param of command" )
 								return false
 						
 							}
@@ -1155,8 +1242,62 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							}
 							
 						return true;
+			
+			case "banid":
+			
+						if ( args.len() < 2 ){
 						
+								Message( player, "Failed", "Command 'banid' requires oid for 1st param of command")
+								return false
 						
+							}	
+
+							try 
+							{
+								
+								if ( IsAdmin(param) )
+								{
+								
+									Message( player, "Failed", param + " is an admin. Ban rejected.", 10 )
+									return false
+								
+								}
+								
+								if ( !IsNum(param) )
+								{
+									
+									Message( player, "Failed", param + " is not a valid oid format.", 10 )
+									return false
+								
+								}
+								
+								if ( param2 == "")
+								{
+								
+									param2 = "0";
+									
+								}
+								
+								if ( AddBanByID( param2, param ) )
+								{
+								
+									Message( player, "Success", param + " was added to the banlist.", 10 )
+									return true
+								
+								} else 
+								{
+									
+									Message( player, "Failed", "Failed to add player oid: " + param + " to the banlist.", 10 )
+									return true
+									
+								}
+								
+							} catch ( errbanid )
+							{
+							
+								Message(player, "Failed", "Command failed because of: \n\n " + errbanid )
+								return false
+							}
 					
 			case "unban":
 			
@@ -1164,7 +1305,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 						if ( args.len() < 2 ){
 						
-							Message( player, "Failed", "Command 'unban' requires id for 1st param of command as string")
+							Message( player, "Failed", "Command 'unban' requires id for 1st param of command as string" )
 							return false
 						
 						}
@@ -1173,7 +1314,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						
 								UnbanPlayer( args[1])
 								
-								Message( player, "Success", "ID: " + args[1] + " was supposedly unbanned")
+								Message( player, "Success", "ID: " + args[1] + " was supposedly unbanned" )
 								
 								return true
 								
@@ -1964,7 +2105,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
                 timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
             }
 
-            int placeM = (GetNumTeamsRemaining() == 0) ? 0 : GetNumTeamsRemaining();
+            int placeM = GetNumTeamsRemaining() //ty ida
 
 			string attName = "";
 			string aController = "";
@@ -2649,11 +2790,23 @@ void function RecordPlayerJump(string playerID)
 	float time = Time();
  
     int index = GetPlayerMetricsIndex(playerID);
-    if (index == -1) {
+	
+    if (index == -1) 
+	{
         PlayerMetrics NewMetrics;
+		
+		entity p = GetPlayerEntityByOID(playerID)
+		string s_pname = "";
+		if ( IsValid(p) )
+		{
+			s_pname = p.GetPlayerName()
+		}
+		NewMetrics.playername = s_pname;
+		
         NewMetrics.playerID = playerID;
         NewMetrics.JumpTimestamps = [time];
         PlayerMetricsArray.append(NewMetrics);
+		
     } else {
         PlayerMetricsArray[index].JumpTimestamps.append(time);
     }
@@ -2665,8 +2818,18 @@ void function RecordPlayerSuperglides(string playerID)
 	float time = Time();
  
     int index = GetPlayerMetricsIndex(playerID);
-    if (index == -1) {
+    if (index == -1) 
+	{
         PlayerMetrics NewMetrics;
+		
+		entity p = GetPlayerEntityByOID(playerID)
+		string s_pname = "";
+		if ( IsValid(p) )
+		{
+			s_pname = p.GetPlayerName()
+		}
+		NewMetrics.playername = s_pname;
+		
         NewMetrics.playerID = playerID;
         NewMetrics.SuperglideTimestamps = [time];
         PlayerMetricsArray.append(NewMetrics);
@@ -2682,6 +2845,15 @@ void function RecordPlayerShot(string playerID, string weaponName)
 	float time = Time();
     if (index == -1) {
         PlayerMetrics NewMetrics;
+		
+		entity p = GetPlayerEntityByOID(playerID)
+		string s_pname = "";
+		if ( IsValid(p) )
+		{
+			s_pname = p.GetPlayerName()
+		}
+		NewMetrics.playername = s_pname;
+		
         NewMetrics.playerID = playerID;
         NewMetrics.WeaponShotsTimestamps = {[weaponName] = [time]};
         PlayerMetricsArray.append(NewMetrics);
@@ -2744,25 +2916,24 @@ void function AddToPlayerDeaths( string playerID, string playername )
 
 }
 
-int function GetPlayerKills( string playerID ) 
-{
-    foreach (playerMetrics in PlayerMetricsArray) {
-        if (playerMetrics.playerID == playerID) {
-            return playerMetrics.kills;
-        }
-    }
-    return 0;
-}
-
-
 void function AddToPlayerDamage( string playerID, float damage )
 {
 
 	int index = GetPlayerMetricsIndex(playerID);
 	float time = Time();
 	
-    if (index == -1) {
+    if (index == -1) 
+	{
         PlayerMetrics NewMetrics;
+		
+		entity p = GetPlayerEntityByOID(playerID)
+		string s_pname = "";
+		if ( IsValid(p) )
+		{
+			s_pname = p.GetPlayerName()
+		}
+		NewMetrics.playername = s_pname;
+		
         NewMetrics.playerID = playerID;
         NewMetrics.damage = damage;
         PlayerMetricsArray.append(NewMetrics);
@@ -2774,6 +2945,17 @@ void function AddToPlayerDamage( string playerID, float damage )
     }
 
 }
+
+int function GetPlayerKills( string playerID ) 
+{
+    foreach (playerMetrics in PlayerMetricsArray) {
+        if (playerMetrics.playerID == playerID) {
+            return playerMetrics.kills;
+        }
+    }
+    return 0;
+}
+
 
 float function GetPlayerDamage(string playerID) 
 {

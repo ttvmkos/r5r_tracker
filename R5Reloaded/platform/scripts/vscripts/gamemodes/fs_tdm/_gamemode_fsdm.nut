@@ -222,7 +222,8 @@ void function Init_IBMM( entity player )
 {
 
 	thread notify_thread( player )
-	player.p.IBMM_grace_period = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
+	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
+	player.p.IBMM_grace_period = f_wait > 0.0 && f_wait < 3.0 ? 3.0 : f_wait;
 	player.p.messagetime = 0
 	thread Thread_CheckInput( player )
 	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
@@ -471,13 +472,13 @@ bool function ClientCommand_mkos_LGDuel_hitsound( entity player, array<string> a
 	
 		if (args.len() < 1){
 			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Hitsounds:", " Type into console: hitsound # \n replacing # with a number below\n\n\n\n 0 = Default \n  1 = CountDown \n 2 = None \n 3 = Click \n 4 = Armed \n 5 = Chime \n 6 = Beep \n 7 = Menu \n 8 = Ping \n 9 = Downed \n 10 = Ping2 \n 11 = Ping3 \n 12 = Ping4 \n 13 = Ping5  \n 14 = Countdown2 \n 15 = Shotgun \n 16 = Pickup ", 15)
-			return false
+			return true
 		}				
 					
 		if ( args.len() > 0 && !IsNumeric( param ) ){
 		
 			Message( player, "Failed", "hitsound must be number 0-16.", 5)
-			return false
+			return true
 
 		} 
 		
@@ -493,7 +494,7 @@ bool function ClientCommand_mkos_LGDuel_hitsound( entity player, array<string> a
 		} catch ( hiterr ){
 				
 					Message(player, "Failed", "Command failed because of: \n\n " + hiterr )
-					return false
+					return true
 				
 				}
 				
@@ -516,12 +517,12 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 		if (args.len() < 1)
 		{
 			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n handicap:", " Type into console: handicap # \n replacing # with 'on' or 'off'.  \n\n On: Deal and recieve 2 damage per hit. \n\n Off: Deal and recieve 3 damage per hit.", 15)
-			return false
+			return true
 		}				
 		
 		if ( param == "")
 		{
-			return false; 
+			return true; 
 		}
 		
 		
@@ -540,7 +541,7 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 					} catch ( handicap_err_1 ){
 							
 								Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_1 )
-								return false
+								return true
 							
 					}
 		
@@ -556,7 +557,7 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 					} catch ( handicap_err_2 ){
 							
 								Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_2 )
-								return false
+								return true
 							
 					}
 				
@@ -579,30 +580,43 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> 
 	
 	
 		if (args.len() < 1){
-			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Usage", "In console, type:    wait # \n replacing # with a number (seconds) between 0 - " + limit.tostring() + " . \n\n Your current wait time\n before matching with opposite input is: \n\n                             " + player.p.IBMM_grace_period + " seconds.", 15)
+			
+			string status = "";
+			if (player.p.IBMM_grace_period == 0)
+			{
+				status = " (disabled)";
+			}
+		
+			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Usage", "In console, type:    wait # \n replacing # with a number (seconds) between 3 - " + limit.tostring() + " or 0 for disabled. \n\n Your current wait time\n before matching with opposite input is: \n\n                             " + player.p.IBMM_grace_period + " seconds. " + status, 15)
 			return true
 		}				
 					
 		if ( args.len() > 0 && !IsNumeric( param, limit ) ){
 		
 			Message( player, "Failed", "wait must specify a number as seconds 0 - " + limit.tostring() + ".", 5)
-			return false
+			return true
 
 		} 
 		
 		
 		try
-		{
+		{	
+			float user_value = float(param);
 			
-			player.p.IBMM_grace_period = float(param);
+			if ( user_value > 0.0 && user_value < 3.0 )
+			{
+				user_value = 3;
+			}
+			
+			player.p.IBMM_grace_period = user_value;
 			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
-			Message( player, "Success", "Your wait to match inputs was changed to " + param + " seconds", 3);
+			Message( player, "Success", "Your wait to match inputs was changed to " + user_value.tostring() + " seconds", 3);
 			return true
 		
 		} catch ( hiterr ){
 				
 					Message(player, "Failed", "Command failed because of: \n\n " + hiterr )
-					return false
+					return true
 				
 				}
 	
@@ -680,11 +694,11 @@ array<string> function StringToArray( string str )
         if ( item == "" ) 
 		{   
 		
-            sqprint( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
+            sqerror( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
 			
         } else if ( length_check >= 128 ){
 
-			sqprint( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: 128 bytes" )	
+			sqerror( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: 128 bytes" )	
 		
 		} else {
 			
@@ -906,6 +920,12 @@ void function _CustomTDM_Init()
 	if( GetCurrentPlaylistVarBool( "enable_oddball_gamemode", false ) )
 	{
 		FsOddballInit()
+	}
+	
+	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
+	if ( f_wait > 0.0 && f_wait < 3.0 )
+	{
+		sqerror(format("Default wait time was set as '%.2f' ; must be either 0 or >= 3. Resetting to 3.", f_wait ));
 	}
 	
 }
