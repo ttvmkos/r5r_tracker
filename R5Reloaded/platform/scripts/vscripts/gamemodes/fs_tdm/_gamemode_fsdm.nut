@@ -722,29 +722,28 @@ string function Concatenate( string str1, string str2 )
 	
 	int str1_length = str1.len()
 	int str2_length = str2.len()
-	int dif;
-	string error;
+	int dif
+	string error
 	
     if ( str1 == "" && str2 == "" ) 
 	{
         return "";
     }
 
-    if ( str1 != "" && str1_length > 1000 ) 
+    if ( str1_length > 1000 ) 
 	{
 		dif = ( str1_length - 1000 )
-		throw ("Error: First string exceeds length limit of 1000 by " + dif.tostring() + " bytes");
-		return "";
+		throw ("Error: First string exceeds length limit of 1000 by " + dif.tostring() + " chars")
     }
 	
-    if ( str2 != "" && str2_length > 1000 ) 
+    if ( str2_length > 1000 ) 
 	{	
 		dif = ( str2_length - 1000 )
-        throw ("Error: Second string exceeds length limit of 1000 by " + dif.tostring() + " bytes");
-		return "";
+        throw ("Error: Second string exceeds length limit of 1000 by " + dif.tostring() + " chars")
     }
 	
-	if ( str2 != ""  ){
+	if ( str2 != ""  )
+	{
 	
 		str2 = "," + str2;
 	
@@ -3857,16 +3856,26 @@ void function SimpleChampionUI()
 			to_map = "mp_rr_canyonlands_staging";
 			
 		} else {
-			
-			string rotate_map = GetMapName();
-			
-			if ( rotate_map == "mp_rr_arena_composite" )
+		
+			if ( GetCurrentPlaylistVarBool ( "rotate_map", false ) )
 			{
-				to_map = "mp_rr_aqueduct";
-				
-			}else{
 			
-				to_map = "mp_rr_arena_composite"
+				string rotate_map = GetMapName();
+				
+				if ( rotate_map == "mp_rr_arena_composite" )
+				{
+					to_map = "mp_rr_aqueduct";
+					
+				}else{
+				
+					to_map = "mp_rr_arena_composite"
+				}
+				
+			} else {
+				
+				//rotate_map false
+				to_map = GetMapName();
+				
 			}
 			
 		}
