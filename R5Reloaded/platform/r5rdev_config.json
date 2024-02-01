@@ -1,7 +1,7 @@
 {
     "apikey": "exampleg5g504g5g85b8w4354",
     "identifier": "server1",
-    "logfolder": "logevents",
+    "logfolder": "eventlogs",
     "webhooks": {
         "PLAYERS_WEBHOOK": "url",
         "MATCHES_WEBHOOK": "url"
