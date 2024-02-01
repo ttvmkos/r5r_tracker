@@ -4,7 +4,77 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 
+NEW 2/1/2024:
+
+Webhook urls can still be placed in the readme file, 
+but due to security concerns, it is highly reccomended
+to use the config file in platform/r5rdev_config.JSON
+
+
+THE CONFIG FILE:
+
+apikey 
+	
+	will be used for special requests for future features that is tied to each host provider
+
+identifier 
+
+	is a label used to differentiate your servers from the same ip. This is crucial for making sure 
+persistence settings a player saved goes to the correct server.  If your different servers share the same setup
+you could in theory use the same identifier. NOTE: must be alpha-numeric, hyphen - and underscore only _
+
+
+logfolder
+
+	by default, logevents is where the match data is saved. You can change this here.
+
+
+PLAYERS_WEBHOOK
+
+	discord webhook url to a channel to display player join/leave updates (not reccomendedon busy servers)
+
+
+MATCHES_WEBHOOK
+
+	discord webhook url to a channel for displaying match winner recaps
+
+MAX_LOGFILE_DIR_SIZE
+
+	size in MB a log folder can be before the oldest are considered for deletion (applies to manual cc command as well)
+
+AUTO_DELETE_STATLOGS
+
+	if set to true, will delete oldest after MB threshold has been reached at match end during transition. 
+
+
+You may also add your own key values, and they will be parsed into an unordered map in the sdk. 
+You can access these via the scripts as well using SQ_GetSetting("name_of_your_key") for example.
+If a key contains another key, it is parsed into an object style syntax.
+
+For example, in the below settings SQ_GetSetting("server.MAX_LOGFILE_DIR_SIZE") would access the value "20"
+
+There will be an automatic file generator on r5r.dev for creating these files with ease. 
+
+{
+    "apikey": "exampleg5g504g5g85b8w4354",
+    "identifier": "server1",
+    "logfolder": "logevents",
+    "webhooks": {
+        "PLAYERS_WEBHOOK": "url",
+        "MATCHES_WEBHOOK": "url"
+    },
+    "server": {
+        "MAX_LOGFILE_DIR_SIZE": "20",
+        "AUTO_DELETE_STATLOGS": "true"
+    }
+}
+
+
+
+______________________________________________________________________
+As normal, 
 The following settings can be placed in your playlists_r5_patch.txt file (within fs_1v1)
+______________________________________________________________________
 
 
 	// mkos systems
@@ -38,10 +108,8 @@ The following settings can be placed in your playlists_r5_patch.txt file (within
 	// DISCORD WEBHOOKS:
 	// For Discord webhooks help:  https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
         
-	stats_discord_webhook_player_count		0	   // 1 Sends player join and disconnect data to a discord channel
-	DISCORD_PLAYERS_WEBHOOK					""         //player count discord webhook link ( see help above
-	stats_discord_webhook_matches_enabled	0    // 1 sends match recap data to a discord webhook channel
-	DISCORD_MATCHES_WEBHOOK					""         //matches discord webhook link
+	stats_discord_webhook_player_count		0 		// 1 Sends player join and disconnect data to a discord channel // CONFIGURE URL IN platform/r5rdev_config.JSON
+	stats_discord_webhook_matches_enabled	0 		// 1 sends match recap data to a discord webhook channel // CONFIGURE URL IN platform/r5rdev_config.JSON
 
 	// extra
 	karma_server	                  1          // for karma servers

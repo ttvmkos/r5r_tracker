@@ -1,0 +1,223 @@
+
+
+____________________________________________________________________________________________________________________________________________________________
+
+List of some public command:
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+
+
+
+
+
+wait [number]
+
+	0-2 disables input based matchmaking.  3+ enables looking for same input for [number] amount of seconds 
+
+
+show map
+
+	returns current map name
+
+
+show round
+
+	returns current round
+
+
+show player [name/oid]
+
+	returns info about specific player (stats, input, etc)
+
+
+show input
+
+	returns list of players and their input devices
+
+
+show stats
+	
+	returns a list of players and their (global) stats if connected
+
+
+  (lg duels):
+handicap [0/1]
+
+	enables /disables handicap
+
+hitsound [0/16]
+
+	sets hitsound to available hitsounds
+
+	
+
+
+
+
+____________________________________________________________________________________________________________________________________________________________
+
+list of some cc administrationc commands:
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+____________________________________________________________________________________________________________________________________________________________
+
+Feedback is displayed as an on screen message (currently)
+You wont be able to see feedback if you are in the fighting queue, as it hides the overlays.
+
+Usage: cc [command] [param] [param2] [param3]
+
+cc help
+
+	Shows a message on screen with some commands and their syntax.
+
+
+cc cleanuplogs
+
+	manually deletes logs in your configured log folder, at your configured threshold.  default: 20mb, 
+
+
+cc setting [key]
+
+	returns the value currently set in the map for that key
+
+
+cc kick [playername/oid]
+
+	Kicks a player by name or oid. // Player must be in server 
+
+
+cc afk [0/1]
+
+	1 enables afk to rest, 0 disables afk to rest (only applies to current rounds (map change will reset it))
+
+
+cc sayall [title] [message] [duration]
+
+	Says a message to all clients. Use quotes if a param has spaces.  "for example"
+
+
+cc ban [playername/oid]
+
+	Bans a player by name or oid //player MUST be in server. ip/oid/handle ban
+
+
+cc banid [oid] [ip-address]
+
+	Adds an oid to the banlist even if the player isn't in the server
+
+
+cc unban [oid]
+
+	Removes a ban from the playlist by oid.
+
+
+cc playerinfo
+
+	Prints json player stats struct 
+
+
+cc zero [playername]
+
+	Removes a player's current metrics array (doesn't effect already recorded kills/deaths/damage struct) -- used for testing
+
+
+cc playerinput [playername/oid]
+
+	Prints specific player's current input
+
+
+cc input [playername/oid] [0/1]
+
+	For testing: Changes player's input type to 0 = MnK, 1 = Controller
+
+
+cc listhandles
+
+	Lists all player's handles in the server
+
+
+____________________________________________________________________________________________________________________________________________________________
+
+cc map [mapname] [gametype]
+
+	Changes map. Can use short name for both, or long name.  If invalid,uses current gamemode or current map or both. i.e. entering cc map will reset reload current map and game mode.
+
+____________________________________________________________________________________________________________________________________________________________
+
+Current maps:
+____________________________________________________________________________________________________________________________________________________________
+
+["dropoff", "mp_rr_arena_composite"],
+["overflow", "mp_rr_aqueduct"],
+["firingrange", "mp_rr_canyonlands_staging"],
+["kingscanyon", "mp_rr_canyonlands_64k_x_64k"],
+["kingscanyons2", "mp_rr_canyonlands_mu1"],
+["kingscanyonafterdark", "mp_rr_canyonlands_mu1_night"],
+["worldsedge", "mp_rr_desertlands_64k_x_64k"],
+["worldsedgeafterdark", "mp_rr_desertlands_64k_x_64k_nx"],
+["miragevoyage", "mp_rr_desertlands_64k_x_64k_tt"],
+["partycrasher", "mp_rr_party_crasher"],
+["skygarden", "mp_rr_arena_skygarden"],
+["ashsredemption", "mp_rr_ashs_redemption"],
+["overflownight", "mp_rr_aqueduct_night"]
+
+____________________________________________________________________________________________________________________________________________________________
+
+Current Game modes:
+____________________________________________________________________________________________________________________________________________________________
+
+["1v1", "fs_1v1"],
+["dm", "fs_dm"],
+["tdm", "fs_tdm"],
+["prophunt", "fs_prophunt"],
+["duckhunt", "fs_duckhunt"],
+["solobr", "fs_survival_solos"],
+["duobr", "fs_survival_duos"],
+["triobr", "fs_survival_trios"],
+["surf", "fs_surf"],
+["gym", "fs_movementgym"],
+["infected", "fs_infected"],
+["survival", "fs_survival"],
+["survivaldev", "survival_dev"]
+
+
+
+cc score [name/oid/ */current/lifetime/difference]
+
+	Shows score informaiton for player by name/oid, or * for all players.  current/lifetime/difference shows current server settings.
+
+
+- cc scoreconfig [current/lifetime/difference] [value]
+
+	Sets components of score for current rounds. value must be a float. 
+
+
+
+-----------------------------------------------------------------------------------------------------------------
+
+cc playonself [audiofile]
+
+	Emits sound from your player entity
+
+
+cc playself [audiofile]
+
+	Emits sound on your entity only to you
+
+
+cc playall [audiofile]
+
+	Emits sound on all players
+
+
+cc stopplayall [audiofile]
+
+	Stops sound for all players (edited)
+
+
+
+
+

@@ -1603,6 +1603,7 @@ void function _OnPlayerDied(entity victim, entity attacker, var damageInfo)
 					thread function () : ( victim )
 					{
 						wait Deathmatch_GetRespawnDelay()
+						if (!IsValid(victim)) return 
 
 						if(file.tdmState != eTDMState.IN_PROGRESS)
 							return

@@ -455,6 +455,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					int deaths = 0;
 					string l_oid = "";
 					string l_name = "";
+					float l_wait = 0.0
 					
 					if ( param == "" )
 					{
@@ -481,6 +482,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							deaths = l_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
 							l_name = l_player.GetPlayerName()
 							l_oid = l_player.GetPlatformUID()
+							l_wait = l_player.p.IBMM_grace_period
 							inputmsg = "Player: " + l_name + " OID: " + l_oid;
 							
 							if (deaths > 0) 
@@ -490,6 +492,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							
 							data += "Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
 							data += "Player's Input:  " + p_input + " ---- Handicap: " + handicap + "\n"; 
+							data += "Player's wait time:  " + l_wait.tostring() + "\n"; 
+							data += GetScore(l_player)
 							
 							if( (inputmsg.len() + data.len()) > 599 )
 							{
@@ -608,6 +612,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 					
 					return true;
+					
 				
 			default:
 				//sqprint ( "Usage: show argument \n" )
@@ -1689,6 +1694,40 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						}
 						
 					return true
+					
+			case "cleanuplogs":
+				
+						CleanupLogs(); //sdk function 
+							
+						return true
+						
+			case "setting":
+						
+			
+						if ( args.len() < 2)
+						{
+							Message( player, "Failed", "Param 1 of command 'setting' requires key name")
+							return true
+						}
+						
+						
+						try 
+						{	
+							string return_str = "";
+							return_str = SQ_GetSetting(param);	
+							
+							Message( player, param + ":", return_str)
+							return true
+						} 
+						catch (errset) 
+						{
+							
+							Message( player, "Failed", "Command failed because of: \n\n " + errset )
+							return true
+							
+						}
+						
+					break;
 						
 			default:
 			
@@ -2041,7 +2080,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 			
 		//*move to gametype specific in future or set playlist bool
 		if ( GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
-								{
+		{
 			if ( IsValid( victim ) )
 			{	
 				for (int i = 0; i < playerIDs.len(); ++i) 
@@ -2136,7 +2175,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				pingAttacker = attacker.GetLatency() * 1000 - 40;
 				a_OID = attacker.GetPlatformUID()
 				
-				if (REPORT_STATS){
+				if (REPORT_STATS && attacker != victim){
 					AddToPlayerKills( a_OID, attName )
 				}
 				
