@@ -2522,10 +2522,21 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 			playerVerifyCounts[index].verifyCount += 1;
 
 			string token = args[0];
-			int VERIFY = EA_Verify( token, OID, ea_acc );
-			//int VERIFY = EA_Verify( token, ea_acc )
+			thread Player_EA_Verify( player, token, OID, ea_acc );
 
-			switch (VERIFY) {
+			return;
+		
+	}
+	
+	void function Player_EA_Verify (entity player, string token, string OID, string ea_acc)
+	{	
+		SetConVarInt( "net_processTimeBudget", 3000 )
+		WaitFrame();
+		int VERIFY = EA_Verify( token, OID, ea_acc );
+		SetConVarInt( "net_processTimeBudget", 200 )
+
+			switch (VERIFY) 
+			{
 				case 10:
 					Message(player, "Failed: Expired Token", "Please request a new one");
 					return;
@@ -2563,9 +2574,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 					Message(player, "Failed", "Could not verify EA Account.");
 					return;
 			}
-
-			return;
-		
+			
 	}
 
 	//END.DEV
