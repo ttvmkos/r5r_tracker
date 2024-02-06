@@ -433,7 +433,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 			param = args[1]
 		}
 
-		switch(requestedData){
+		switch(requestedData)
+		{
 
 			case "map":
 				//sqprint( GetMapName() )
@@ -1744,15 +1745,19 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 //START KILL RECAP
 /*****************************************************************************************************************************/
 
-int function GetUniqueFightId() {
+int function GetUniqueFightId() 
+{
     return fightIdCounter++;
 }
 
 //endfight function to count from global metrics struct
-int function CountEventsWithinTimeframe(array< float > timestamps, float startTime, float endTime) {
+int function CountEventsWithinTimeframe(array< float > timestamps, float startTime, float endTime) 
+{
     int count = 0;
-    foreach (timestamp in timestamps) {
-        if (timestamp >= startTime && timestamp <= endTime) {
+    foreach (timestamp in timestamps) 
+	{
+        if (timestamp >= startTime && timestamp <= endTime) 
+		{
             count++;
         }
     }
@@ -1786,7 +1791,8 @@ void function RecapStats(entity player, float damage, float hits, float shots, s
 
 
 
-DamageEvent function CreateDamageEvent( string weaponSource, float damage, string attackerName, string attackerDISPLAYNAME, string victimName, string victimDISPLAYNAME, string shotIdentifier = "" ) {
+DamageEvent function CreateDamageEvent( string weaponSource, float damage, string attackerName, string attackerDISPLAYNAME, string victimName, string victimDISPLAYNAME, float actionTimestamp, string shotIdentifier = "" ) 
+{
     DamageEvent event;
 	event.isNew = true;
 	event.attackerName = attackerName;
@@ -1798,7 +1804,7 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
     event.hitCount = 0;
     event.bulletsHit = 0.0;
 	event.headshots = 0;
-	event.actionTimestamp = Time();
+	event.actionTimestamp = (actionTimestamp - .0900);
 	event.lastWeaponSource = weaponSource;
 	event.lastHitTimestamp = 0;
 	event.shotIdentifier = shotIdentifier;
@@ -1808,7 +1814,6 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 
 
 	void function EndFight(entity victim, entity attacker, var damageInfo, float deathtime)
-
 	{	
 		if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer()){
 		//sqprint("skip");
@@ -1817,8 +1822,8 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				return;
 			}
 		}
-		if ( attacker.IsPlayer() && !IsValid(attacker) ){
-			return; }
+		
+		if ( attacker.IsPlayer() && !IsValid(attacker) ){ return; }
 
 		//Increment fightid
 		int id = GetUniqueFightId();
@@ -1867,43 +1872,60 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 		
 		
 		// collect all DamageEvents for victim and calculate total damage
-		foreach (DamageEvent event in allDamageEvents) {
-			if (event.victimName == victim.GetPlatformUID()) {
+		foreach (DamageEvent event in allDamageEvents) 
+		{
+			if (event.victimName == victim.GetPlatformUID()) 
+			{
+			
 				totalDamageToVictim += event.damage;
 				relevantDamageEvents.append(event);
 				
 				//sqprint(format("Event timestamp: %d",event.actionTimestamp))
 				//sqprint(format("Event lasthit: %d",event.lastHitTimestamp))
 				
-				if (event.actionTimestamp < fightStartTime) {
+				if (event.actionTimestamp <= fightStartTime) 
+				{
 					fightStartTime = event.actionTimestamp;
-				}
-				if (event.lastHitTimestamp > fightEndTime) {
-					fightEndTime = event.lastHitTimestamp;
-				}
+				}		
+				
+				if (event.lastHitTimestamp >= fightEndTime) 
+				{
+					fightEndTime = (event.lastHitTimestamp + 0.0500);
+				}			
+				
 			}
 		}
 		
 		//sqprint(format("\n Fight start time: %d, end time: %d",fightStartTime, fightEndTime));
 		
 		// set should ship to true
-		if ( totalDamageToVictim >= 50 ){
-		SHOULD_SHIP = true;
+		if ( totalDamageToVictim >= 50 )
+		{
+			SHOULD_SHIP = true;
 		}
-		if ( totalDamageToVictim <= 0 ){
-		REPORT_STATS = false;
+		
+		if ( totalDamageToVictim <= 0 )
+		{
+			REPORT_STATS = false;
 		}
 
-		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1") {
+		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1") 
+		{
 			timeWindow = DAMAGE_LOOKBACK_TIME_WINDOW;
 		}
 
 		// Reset totalDamageToVictim for the second pass
 		totalDamageToVictim = 0.0;
-
+		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////// 		attackers of victim		/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
 		// log DamageEvents that fall within the time window if damages are less than full health
-		foreach (DamageEvent event in relevantDamageEvents) {
-			if (deathtime - event.actionTimestamp <= timeWindow) {
+		foreach (DamageEvent event in relevantDamageEvents) 
+		{	
+			
+			if (deathtime - event.actionTimestamp <= timeWindow) 
+			{
 			
 				totalDamageToVictim += event.damage;
 
@@ -1914,30 +1936,25 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 
 				logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
 
-				if (IsSpecialWeapon(weaponSource)) {
+				if (IsSpecialWeapon(weaponSource)) 
+				{
 					int bulletsPerShot = GetBulletsPerShot(weaponSource);
 					int totalBulletsFired = event.hitCount * bulletsPerShot;
 					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s {%d/%d} bullets with weapon {%s} headshots: {%d};",
 										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, event.bulletsHit, totalBulletsFired, weaponSource, event.headshots);
-				} else {
+				} 
+				else 
+				{
 					logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s with weapon {%s} headshots: {%d};",
 										event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, weaponSource, event.headshots);
 				}
 				
-				
-				//attackers jumps & total shots for fight
-				int attackerIndex = GetPlayerMetricsIndex(currentAttacker);
-				if (attackerIndex != -1) {
-					attackerJumps = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
-					attackerSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
-					foreach (weapon, timestamps in PlayerMetricsArray[attackerIndex].WeaponShotsTimestamps) {
-						attackerShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
-					}
-				}
 
 				// attackers totals
 				int playerIndex = playerIDs.find(currentAttacker);
-				if (playerIndex == -1) {
+				
+				if (playerIndex == -1) 
+				{
 					// new attacker
 					playerIDs.append(currentAttacker);
 					playerDISPLAYNAME.append(currentAttackerDISPLAYNAME);
@@ -1949,21 +1966,26 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 					playerSuperglides.append(0);
 					playerIndex = playerIDs.len() - 1;
 				}
+				
 					playerTotalDamages[playerIndex] += event.damage;
 					playerTotalHits[playerIndex] += event.hitCount;
 					playerTotalHeadshots[playerIndex] += event.headshots;
-					playerTotalJumps[playerIndex] += attackerJumps;
-					playerTotalShots[playerIndex] += attackerShots;
-					playerSuperglides[playerIndex] += attackerSuperglides;
 			}
 		}
-
-
+		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////	 	extended time based damage events		/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
 		// if total damage to victim is less than max health, extend time frame
-		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1" ) {
-			foreach (DamageEvent event in allDamageEvents) {
-				if (event.victimName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow ) {
-					if (totalDamageToVictim + event.damage <= FS_MaxHealth) {
+		if (totalDamageToVictim < FS_MaxHealth && GetCurrentPlaylistName() != "fs_1v1" ) 
+		{
+			foreach (DamageEvent event in allDamageEvents) 
+			{	
+
+				if (event.victimName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow ) 
+				{
+					if (totalDamageToVictim + event.damage <= FS_MaxHealth) 
+					{
 						totalDamageToVictim += event.damage;
 
 						string currentAttacker = event.attackerName;
@@ -1973,30 +1995,24 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 
 						logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
 
-						if (IsSpecialWeapon(weaponSource)) {
+						if (IsSpecialWeapon(weaponSource)) 
+						{
 							int bulletsPerShot = GetBulletsPerShot(weaponSource);
 							int totalBulletsFired = event.hitCount * bulletsPerShot;
 							logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s {%d/%d} bullets with weapon {%s} headshots: {%d};",
 												event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, event.bulletsHit, totalBulletsFired, weaponSource, event.headshots);
-						} else {
+						} 
+						else 
+						{
 							logString += format("Entry: {%.2f} damage ON {%s}{%s} at time {%.2f} in {%d} hit%s with weapon {%s} headshots: {%d};",
 												event.damage, event.victimName, event.victimDISPLAYNAME, event.actionTimestamp, event.hitCount, mul, weaponSource, event.headshots);
 						}
 						
 						
 						//attackers jumps & total shots for fight
-						int attackerIndex = GetPlayerMetricsIndex(currentAttacker);
-						if (attackerIndex != -1) {
-							attackerJumps = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
-							attackerSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
-							foreach (weapon, timestamps in PlayerMetricsArray[attackerIndex].WeaponShotsTimestamps) {
-								attackerShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
-							}
-						}
-						
-						//attackers jumps & total shots for fight
 						int playerIndex = playerIDs.find(currentAttacker);
-						if (playerIndex == -1) {
+						if (playerIndex == -1) 
+						{
 							// new attacker
 							playerIDs.append(currentAttacker);
 							playerDISPLAYNAME.append(currentAttackerDISPLAYNAME);
@@ -2008,21 +2024,26 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 							playerSuperglides.append(0);
 							playerIndex = playerIDs.len() - 1;
 						}
+						
 							playerTotalDamages[playerIndex] += event.damage;
 							playerTotalHits[playerIndex] += event.hitCount;
 							playerTotalHeadshots[playerIndex] += event.headshots;
-							playerTotalJumps[playerIndex] += attackerJumps;
-							playerTotalShots[playerIndex] += attackerShots;
-							playerSuperglides[playerIndex] += attackerSuperglides;
+							
 					}
 				}
 			}
 		}
 
 
-		// victim
-		foreach (DamageEvent event in allDamageEvents) {
-			if (event.attackerName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow) {
+		/////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////// 		victim			/////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		
+		foreach (DamageEvent event in allDamageEvents) 
+		{
+			if (event.attackerName == victim.GetPlatformUID() && deathtime - event.actionTimestamp <= timeWindow) 
+			{	
+			
 				victimTotalDamage += event.damage;
 				victimTotalHits += event.hitCount;
 				victimTotalHeadshots += event.headshots;	
@@ -2031,15 +2052,6 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				string currentAttackerDISPLAYNAME = event.attackerDISPLAYNAME;
 				string weaponSource = event.weaponSource;
 				string mul = event.hitCount > 1 ? "s" : "";
-				
-				int victimIndex = GetPlayerMetricsIndex(victim.GetPlatformUID());
-				if (victimIndex != -1) {
-					victimTotalJumps += CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
-					victimSuperglides += CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
-					foreach (weapon, timestamps in PlayerMetricsArray[victimIndex].WeaponShotsTimestamps) {
-						victimTotalShots += CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
-					}
-				}
 				
 				logString += "{" + currentAttacker + "}{" + currentAttackerDISPLAYNAME + "} dealt:";
 
@@ -2055,10 +2067,41 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 			}
 		}
 
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////// 		attackers summary			/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
 		// attackers summary - may change weapon(s) in the future to use cafe's logic for weps
-		for (int i = 0; i < playerIDs.len(); ++i) {
+		for (int i = 0; i < playerIDs.len(); ++i) 
+		{
+		
+			//attackers jumps & total shots for fight
+			int attackerIndex = GetPlayerMetricsIndex(playerIDs[i]);
+			if (attackerIndex != -1) 
+			{
+				attackerJumps = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
+				attackerSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[attackerIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
+				foreach (weapon, timestamps in PlayerMetricsArray[attackerIndex].WeaponShotsTimestamps) 
+				{	
+					int event_hitcount = CountEventsWithinTimeframe(timestamps, fightStartTime, fightEndTime);
+					
+					if(IsSpecialWeapon(weapon))
+					{
+						int event_bullets_per_shot = GetBulletsPerShot(weapon);
+						int total_event_shots = event_hitcount * event_bullets_per_shot;
+						attackerShots += total_event_shots;
+					}
+					else
+					{
+						attackerShots += event_hitcount;
+					}	
+				}
+			}
+		
 			logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
-								playerIDs[i], playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i], playerTotalHeadshots[i], playerTotalJumps[i], playerTotalShots[i], playerSuperglides[i]);
+								playerIDs[i], playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i], playerTotalHeadshots[i], attackerJumps, attackerShots, attackerSuperglides);
+								
+								//DEBUG
+								//sqprint(format("Total shots for fight: %d", attackerShots));
 								
 								AddToPlayerDamage( playerIDs[i], playerTotalDamages[i] )
 								
@@ -2069,10 +2112,35 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 									{
 										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.GetPlayerName(), victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
 									}
-								}
-								
+								}					
 		}
-		// victim summary
+		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////// 			victims summary			/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//vttackers jumps & total shots for fight
+		int victimIndex = GetPlayerMetricsIndex(victim.GetPlatformUID());
+		if (victimIndex != -1) 
+		{
+			victimTotalJumps = CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].JumpTimestamps, fightStartTime - jumpgrace, fightEndTime);
+			victimSuperglides = CountEventsWithinTimeframe(PlayerMetricsArray[victimIndex].SuperglideTimestamps, fightStartTime - glidegrace, fightEndTime);
+			foreach (weapon, timestamps in PlayerMetricsArray[victimIndex].WeaponShotsTimestamps) 
+			{	
+				int event_hitcount = CountEventsWithinTimeframe(timestamps, fightStartTime, (fightEndTime));
+				
+				if(IsSpecialWeapon(weapon))
+				{
+					int event_bullets_per_shot = GetBulletsPerShot(weapon);
+					int total_event_shots = event_hitcount * event_bullets_per_shot;
+					victimTotalShots += total_event_shots;
+				}
+				else
+				{
+					victimTotalShots += event_hitcount;
+				}	
+			}
+		}
+		
 		logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
                     victim.GetPlatformUID(), victim.GetPlayerName(), victimTotalDamage, victimTotalHits, victimTotalHeadshots, victimTotalJumps, victimTotalShots, victimSuperglides);
 			
@@ -2090,47 +2158,63 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 			}
 		}
 			
-
+		
+		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////// 			REMOVE Events			/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		
 		// remove damage events so they are not reused in the next fight
-
 		array<DamageEvent> remainingDamageEvents;
 
-		if (GetCurrentPlaylistName() == "fs_1v1") {
+		if (GetCurrentPlaylistName() == "fs_1v1") 
+		{
 			// Remove all events related to the current fight (both victim and attacker)
-			foreach (DamageEvent event in allDamageEvents) {
-				if (event.victimName != victim.GetPlatformUID() && event.attackerName != victim.GetPlatformUID()) {
+			foreach (DamageEvent event in allDamageEvents) 
+			{
+				if (event.victimName != victim.GetPlatformUID() && event.attackerName != victim.GetPlatformUID()) 
+				{
 					remainingDamageEvents.append(event);
 				}
 			}
 
-		} else {
-
+		} 
+		else 
+		{
 			//only remove attacker -> victim damage events, but leave victim damage events.
 			//these will be invalidated based on timeframe for multi fight scenarios
-			foreach (DamageEvent event in allDamageEvents) {
-				if (event.victimName != victim.GetPlatformUID()) {
+			foreach (DamageEvent event in allDamageEvents) 
+			{
+				if (event.victimName != victim.GetPlatformUID()) 
+				{
 					remainingDamageEvents.append(event);
 				}
 			}
 		}
 
 
-
+		//this resets the global value of damage events which is why these threaded
+		//calls should be in a queue based system with one thread to manage them
 		allDamageEvents = remainingDamageEvents;
 
 
-
-
-
+		
+		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////// 			LOG THE data			/////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
 
             float timeRemaining;
-            if (GetCurrentPlaylistName() == "fs_1v1") {
+            if (GetCurrentPlaylistName() == "fs_1v1") 
+			{
                 const int INITIAL_DELAY = 7;
                 const int DELAY_BETWEEN_ROUNDS = 13;
 
                 int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
                 timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
-            } else if (GameRules_GetGameMode() == "fs_dm") {
+            } 
+			else if (GameRules_GetGameMode() == "fs_dm") 
+			{
                 const int INITIAL_DELAY = 8;
                 int DELAY_BETWEEN_ROUNDS;
 
@@ -2143,6 +2227,10 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
                 int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
                 timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
             }
+			else
+			{
+				//add timeRemaining for survival etc
+			}
 
             int placeM = GetNumTeamsRemaining() //ty ida
 
@@ -2158,7 +2246,6 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 				attTeam = attacker.GetTeam().tostring();
 				aController = attacker.p.input.tostring();
 			}
-
 
 
             string team_of_killer = attTeam;
@@ -2238,24 +2325,28 @@ DamageEvent function CreateDamageEvent( string weaponSource, float damage, strin
 
 // these need replaced with global CONST to make future updates seamless
 
-int function GetBulletsPerShot(string weaponSource) {
-    switch (weaponSource) {
+int function GetBulletsPerShot(string weaponSource) 
+{
+    switch (weaponSource) 
+	{
         case "mp_weapon_shotgun": return 8;
+		case "mp_weapon_energy_shotgun": return 11;
         case "mp_weapon_doubletake": return 3;
         case "mp_weapon_mastiff": return 8;
-        case "mp_weapon_energy_shotgun": return 11;
         case "mp_weapon_shotgun_pistol": return 3;
-
     }
-    return 0; //should return 1 default in case wrong call to function
+	
+    return 1; //should return 1 default in case wrong call to function
 }
 
-float function GetDamagePerBullet(string weaponSource) {
-    switch (weaponSource) {
+float function GetDamagePerBullet(string weaponSource) 
+{
+    switch (weaponSource) 
+	{
         case "mp_weapon_shotgun": return 7.00;
+		case "mp_weapon_energy_shotgun": return 9.00;
         case "mp_weapon_doubletake": return 21.00;
         case "mp_weapon_shotgun_pistol": return 20.25;
-        case "mp_weapon_energy_shotgun": return 9.00;
         case "mp_weapon_mastiff": return 11.00;
     }
     return 0;
@@ -2264,21 +2355,24 @@ float function GetDamagePerBullet(string weaponSource) {
 
 
 
-float function GetHeadshotDamagePerBullet(string weaponSource) {
-    switch (weaponSource) {
+float function GetHeadshotDamagePerBullet(string weaponSource) 
+{
+    switch (weaponSource) 
+	{
         case "mp_weapon_mastiff": return 13.75;
         case "mp_weapon_doubletake": return 36.75;
         case "mp_weapon_shotgun": return 8.75;
         case "mp_weapon_energy_shotgun": return 11.25;
         case "mp_weapon_shotgun_pistol": return 18.75;
-
     }
     return 0;
 }
 
 
-bool function IsSpecialWeapon(string weaponSource) {
-    switch (weaponSource) {
+bool function IsSpecialWeapon(string weaponSource) 
+{
+    switch (weaponSource) 
+	{
 		case "mp_weapon_shotgun":
         case "mp_weapon_mastiff":
 		case "mp_weapon_energy_shotgun":
@@ -2293,20 +2387,25 @@ bool function IsSpecialWeapon(string weaponSource) {
 void function HandleDamage(DamageEvent event, entity attacker, string weaponSource, float damageAmount, var damageInfo, entity victim) {
 	if (!IsValid(victim) || !IsValid(attacker)) return;
 
-	if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer()){
+	if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer())
+	{
 		// sqprint("skip");
-		} else {
-			if (!IsValid(victim) || !attacker.p.isConnected || !victim.p.isConnected) {
-				return;
-			}
+	} 
+	else 
+	{
+		if (!IsValid(victim) || !attacker.p.isConnected || !victim.p.isConnected) 
+		{
+			return;
 		}
-		if ( attacker.IsPlayer() && !IsValid(attacker) ){
-			return; }
+	}
+	
+	if ( attacker.IsPlayer() && !IsValid(attacker) ){ return; }
 
 	float currentHealth = victim.GetHealth().tofloat() + victim.GetShieldHealth().tofloat();
 
 	// negate damage that can't be done (no health to recieve damage)
-	if (damageAmount > currentHealth) {
+	if (damageAmount > currentHealth) 
+	{
 		damageAmount = currentHealth;
 	}
 
@@ -2315,7 +2414,8 @@ void function HandleDamage(DamageEvent event, entity attacker, string weaponSour
 	float bulletsHit = damageAmount / damagePerBullet;
 
 	// headshot count -- damage not used any more
-	if (IsValidHeadShot(damageInfo, victim)) {
+	if (IsValidHeadShot(damageInfo, victim)) 
+	{
 		damagePerBullet = GetHeadshotDamagePerBullet(weaponSource);
 		event.headshots++;
 	}
@@ -2323,12 +2423,17 @@ void function HandleDamage(DamageEvent event, entity attacker, string weaponSour
 	bool multiple = false;
 	// count damageInfo from special weapons as a single shot
 	float currentTime = Time();
-	if (IsSpecialWeapon(weaponSource)) {
-		if (event.lastHitTimestamp == 0 || (currentTime - event.lastHitTimestamp) * 1000 > 100) {
+	
+	if (IsSpecialWeapon(weaponSource)) 
+	{
+		if (event.lastHitTimestamp == 0 || (currentTime - event.lastHitTimestamp) * 1000 > 100) 
+		{
 			event.hitCount++;
 			multiple = true;
 		}
-	} else {
+	} 
+	else 
+	{
 		event.hitCount++;
 	}
 
@@ -2336,17 +2441,24 @@ void function HandleDamage(DamageEvent event, entity attacker, string weaponSour
 	event.lastHitTimestamp = currentTime;
 	event.bulletsHit += bulletsHit;
 
-	if (event.isNew) {
+	if (event.isNew) 
+	{
 		event.damage = damageAmount;
 
-		if (multiple) {
+		if (multiple) 
+		{
 			event.isNew = true;
-		} else {
+		} 
+		else 
+		{
 			event.isNew = false;
 		}
-	} else {
+	} 
+	else 
+	{
 		event.damage += damageAmount;
-		if (multiple) {
+		if (multiple) 
+		{
 			event.isNew = true;
 		}
 	}
@@ -2359,7 +2471,7 @@ void function HandleDamage(DamageEvent event, entity attacker, string weaponSour
 
 void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 {	
-
+	float actionTimestamp = Time();
 	//sqprint("on player damaged called") //DEBUG
     // early exits
     if (!IsValid(victim) || Bleedout_IsBleedingOut(victim)) return;
@@ -2378,14 +2490,18 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
     string attackerName = " ";
 	string attackerDISPLAYNAME = "";
-    if (attacker.IsPlayer() && IsValid(attacker)) {
+    if (attacker.IsPlayer() && IsValid(attacker)) 
+	{
         attackerName = attacker.GetPlatformUID();
 		attackerDISPLAYNAME = attacker.GetPlayerName();
 		//sqprint("Valid attacker is player");
-    } else {
+    } 
+	else 
+	{
         attackerName = DamageInfo_GetDamageSourceIdentifier(damageInfo).tostring();
 		//sqprint("Not player and set to damage");
-        if (attackerName == "172") {
+        if (attackerName == "172") 
+		{
 			//sqprint("Set to ring");
             attackerName = "172";
         }
@@ -2393,7 +2509,8 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
     string victimName = "Unknown";
 	string victimDISPLAYNAME = "Unknown";
-    if (IsValid(victim)) {
+    if (IsValid(victim)) 
+	{
         victimName = victim.GetPlatformUID();
 		victimDISPLAYNAME = victim.GetPlayerName();
     }
@@ -2406,19 +2523,25 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 	float latestTimestamp = -1.0;
 
 	// find most recent event with the same attacker and victim
-	for (int i = 0; i < allDamageEvents.len(); ++i) {
-		if ( allDamageEvents[i].attackerName == attackerName && allDamageEvents[i].victimName == victimName ) {
-			if ( allDamageEvents[i].actionTimestamp > latestTimestamp ) {
+	for (int i = 0; i < allDamageEvents.len(); ++i) 
+	{
+		if ( allDamageEvents[i].attackerName == attackerName && allDamageEvents[i].victimName == victimName ) 
+		{
+			if ( allDamageEvents[i].actionTimestamp > latestTimestamp ) 
+			{
 				mostRecentEventIndex = i;
 				latestTimestamp = allDamageEvents[i].actionTimestamp;
 			}
 		}
 	}
 
-	if (mostRecentEventIndex != -1) {
+	if (mostRecentEventIndex != -1) 
+	{
 		existingEventIndex = mostRecentEventIndex;
 		eventExists = true;
-	} else {
+	} 
+	else 
+	{
 		existingEventIndex = -1;
 		eventExists = false;
 	}
@@ -2426,30 +2549,37 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 	// sqprint(format("Event exists: %s, existing event index: %d\n", eventExists ? "true" : "false", existingEventIndex));
 
  string shotIdentifier = "";
-    if (IsSpecialWeapon(weaponSource)) {
+    if (IsSpecialWeapon(weaponSource)) 
+	{
         shotIdentifier = format("%s_%s_%.2f", attackerName, weaponSource, Time());
     }
 
-    if ( eventExists ) {
+    if ( eventExists ) 
+	{
         // last weapon used from the existing event
         string lastWeaponSource = allDamageEvents[existingEventIndex].weaponOrder[allDamageEvents[existingEventIndex].weaponOrder.len() - 1];
 
         // check if weapon changed or new shot from special weapon
-        if (lastWeaponSource != weaponSource || (IsSpecialWeapon(weaponSource) && allDamageEvents[existingEventIndex].shotIdentifier != shotIdentifier)) {
-            DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, shotIdentifier );
+        if (lastWeaponSource != weaponSource || (IsSpecialWeapon(weaponSource) && allDamageEvents[existingEventIndex].shotIdentifier != shotIdentifier)) 
+		{
+            DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, actionTimestamp, shotIdentifier  );
             newEvent.weaponOrder.append(weaponSource);
             newEvent.shotIdentifier = shotIdentifier;
             HandleDamage(newEvent, attacker, weaponSource, damageAmount, damageInfo, victim);
             allDamageEvents.append(newEvent);
-        } else {
+        } 
+		else 
+		{
             // update existing damage event
             allDamageEvents[existingEventIndex].isNew = false;
             allDamageEvents[existingEventIndex].weaponOrder.append(weaponSource);
             HandleDamage(allDamageEvents[existingEventIndex], attacker, weaponSource, damageAmount, damageInfo, victim);
         }
-    } else {
-        // if not, create new one
-        DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, shotIdentifier );
+    } 
+	else //event doesn't exist
+	{
+        //create new one
+        DamageEvent newEvent = CreateDamageEvent(weaponSource, damageAmount, attackerName, attackerDISPLAYNAME, victimName, victimDISPLAYNAME, actionTimestamp, shotIdentifier );
         newEvent.weaponOrder.append(weaponSource);
         newEvent.shotIdentifier = shotIdentifier;
         HandleDamage(newEvent, attacker, weaponSource, damageAmount, damageInfo, victim);
@@ -2530,7 +2660,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 	
 	void function Player_EA_Verify (entity player, string token, string OID, string ea_acc)
 	{	
-		SetConVarInt( "net_processTimeBudget", 3000 )
+		SetConVarInt( "net_processTimeBudget", 5100 )
 		WaitFrame();
 		int VERIFY = EA_Verify( token, OID, ea_acc );
 		SetConVarInt( "net_processTimeBudget", 200 )
@@ -2891,7 +3021,8 @@ void function RecordPlayerShot(string playerID, string weaponName)
 {
     int index = GetPlayerMetricsIndex(playerID);
 	float time = Time();
-    if (index == -1) {
+    if (index == -1) 
+	{
         PlayerMetrics NewMetrics;
 		
 		entity p = GetPlayerEntityByOID(playerID)
@@ -2905,10 +3036,15 @@ void function RecordPlayerShot(string playerID, string weaponName)
         NewMetrics.playerID = playerID;
         NewMetrics.WeaponShotsTimestamps = {[weaponName] = [time]};
         PlayerMetricsArray.append(NewMetrics);
-    } else {
-        if (!(weaponName in PlayerMetricsArray[index].WeaponShotsTimestamps)) {
+    } 
+	else 
+	{
+        if (!(weaponName in PlayerMetricsArray[index].WeaponShotsTimestamps)) 
+		{
 			PlayerMetricsArray[index].WeaponShotsTimestamps[weaponName] <- [time];
-        } else {
+        } 
+		else 
+		{
             PlayerMetricsArray[index].WeaponShotsTimestamps[weaponName].append(time);
         }
     }
@@ -2920,14 +3056,17 @@ void function AddToPlayerKills( string playerID, string playername )
 	int index = GetPlayerMetricsIndex(playerID);
 	float time = Time();
 	
-    if (index == -1) {
+    if (index == -1) 
+	{
         PlayerMetrics NewMetrics;
         NewMetrics.playerID = playerID;
         NewMetrics.kills = 1;
 		NewMetrics.playername = playername;
         PlayerMetricsArray.append(NewMetrics);
 		
-    } else {
+    } 
+	else 
+	{
 	
 		if ( PlayerMetricsArray[index].playername == "" ){
 			PlayerMetricsArray[index].playername = playername;
@@ -3098,7 +3237,7 @@ void function PIN_GameStart()
 		//mkos -start-log
 		//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
 		LogEvent(
-		format("|#Tracker version:2.0\n|| New match; round %s;  started at: %d\n",GetCurrentRound().tostring(), GetUnixTimestamp()),
+		format("|#Tracker version:2.1\n|| New match; round %s;  started at: %d\n",GetCurrentRound().tostring(), GetUnixTimestamp()),
 		true,
 		Logging_Encryption()
 		);
