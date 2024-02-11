@@ -6,7 +6,7 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 NEW 2/1/2024:
 
-Webhook urls can still be placed in the readme file, 
+Webhook urls can still be placed in the playlists file, 
 but due to security concerns, it is highly reccomended
 to use the config file in platform/r5rdev_config.JSON
 
