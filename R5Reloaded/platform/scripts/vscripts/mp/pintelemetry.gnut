@@ -1729,7 +1729,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						}
 						
 					break;
-						
+					
 			default:
 			
 						Message( player, "Usage", "cc #command #param1 #param2 #para...." )
@@ -3534,13 +3534,13 @@ void function PIN_PlayerKilled( entity victim, entity attacker, var damageInfo )
 
 	if ( isLogging() && Logging_Enabled() && IsValid(victim) && IsValid(attacker) && victim.IsPlayer() && attacker.IsPlayer()) {
     // sqprint("Ending fight via onplayerdied");
-    EndFight( victim, attacker, damageInfo, deathtime ); // IMPORTANT!
+    thread EndFight( victim, attacker, damageInfo, deathtime ); // IMPORTANT!
 
 	} else if ( Logging_Enabled() && isLogging() && IsValid(victim) && victim.IsPlayer() ){
 
 		//TODO: Call function with additional flag
 		// for attackers from non player sources
-		EndFight( victim, attacker, damageInfo, deathtime );
+		thread EndFight( victim, attacker, damageInfo, deathtime );
 
 	}
 }
