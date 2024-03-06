@@ -91,7 +91,10 @@ MAX_LOGFILE_DIR_SIZE
 AUTO_DELETE_STATLOGS
 
 	if set to true, will delete oldest after MB threshold has been reached at match end during transition. 
-
+ 
+PLAYER_WHITELIST
+	
+	comma separated list of user id's to bypass restricted 'elite' servers.
 
 You may also add your own key values, and they will be parsed into an unordered map in the sdk. 
 You can access these via the scripts as well using SQ_GetSetting("name_of_your_key") for example.
@@ -112,6 +115,9 @@ There will be an automatic file generator on r5r.dev for creating these files wi
     "server": {
         "MAX_LOGFILE_DIR_SIZE": "20",
         "AUTO_DELETE_STATLOGS": "true"
+    },
+    "settings": {
+        "PLAYER_WHITELIST": "1007946891142"
     }
 }
 
@@ -156,6 +162,18 @@ ______________________________________________________________________
         
 	stats_discord_webhook_player_count		0 		// 1 Sends player join and disconnect data to a discord channel // CONFIGURE URL IN platform/r5rdev_config.JSON
 	stats_discord_webhook_matches_enabled	0 		// 1 sends match recap data to a discord webhook channel // CONFIGURE URL IN platform/r5rdev_config.JSON
+
+
+	// restricted servers
+	restricted_server 0			// 1 = restrictions enabled
+	
+	restricted_join_message "Welcome to the R5R.DEV elite server. \n\n You meet the minimum requirements to play on this server."
+	restricted_whitelist_message "You're whitelisted for the R5R.DEV elite server"
+	
+	restricted_kills 500			// minimum kills required to play
+	restricted_kd 0.7  			// minimum kd ratio
+	restricted_playtime 10000 		// minimum play time in seconds
+	restricted_gamesplayed 10 		// minimum games played
 
 	// extra
 	karma_server	                  1          // for karma servers
