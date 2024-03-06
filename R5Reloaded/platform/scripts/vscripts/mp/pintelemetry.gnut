@@ -1075,6 +1075,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 				if(IsValid( player ))
 				{
 					KickPlayerById( player.GetPlatformUID(), Player_Access_Message( player, access_status ) )
+					if(GetCurrentPlaylistVarBool("restricted_kick_log",false))
+					{
+						sqprint(format("Player: %s, Kick msg: %s",player.GetPlayerName(), Player_Access_Message( player, access_status )))
+					}
 				}
 			}
 		}

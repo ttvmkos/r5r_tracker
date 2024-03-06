@@ -166,6 +166,7 @@ ______________________________________________________________________
 
 	// restricted servers
 	restricted_server 0			// 1 = restrictions enabled
+	restricted_kick_log 0		// 1 = prints kick msg to console
 	
 	restricted_join_message "Welcome to the R5R.DEV elite server. \n\n You meet the minimum requirements to play on this server."
 	restricted_whitelist_message "You're whitelisted for the R5R.DEV elite server"
