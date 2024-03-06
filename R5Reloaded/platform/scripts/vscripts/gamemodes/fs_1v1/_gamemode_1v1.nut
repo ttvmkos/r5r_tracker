@@ -112,7 +112,7 @@ string function GetScore( entity player )
 	float score = (  ( lt_kd * lifetime_kd_weight ) + ( cur_kd * current_kd_weight ) )
 	string name = player.GetPlayerName()	
 	
-	return format("Player: %s, Lifetime KD: %.2f, Current KD: %.2f, Score: %.2f ", name, lt_kd, cur_kd, score )
+	return format("Player: %s, Lifetime KD: %.2f, Current KD: %.2f, Round Score: %.2f ", name, lt_kd, cur_kd, score )
 	
 }
 

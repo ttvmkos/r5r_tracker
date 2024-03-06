@@ -8,6 +8,9 @@
     },
     "server": {
         "MAX_LOGFILE_DIR_SIZE": "20",
-        "AUTO_DELETE_STATLOGS": "true"
+        "AUTO_DELETE_STATLOGS": true
+    },
+    "settings": {
+        "PLAYER_WHITELIST": "1007946891142"
     }
 }

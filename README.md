@@ -4,7 +4,53 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 
-NEW 2/1/2024:
+NEW 3/6/2024
+
+THE CONFIG FILE TEMPLATE WAS MOVED TO THE EXAMPLE FOLDER. In order for the config file to be used it must be within your platform folder.  This move makes sure future udpates don't overwrite your saved configs.
+
+
+To configure restricted servers, the following lines can be added to your playlist patch file:
+
+// restricted servers
+restricted_server 1			// 1 = restrictions enabled
+
+restricted_join_message "Welcome to the R5R.DEV elite server. \n\n You meet the minimum requirements to play on this server."
+restricted_whitelist_message "You're whitelisted for the R5R.DEV elite server"
+
+restricted_kills 500			// minimum kills required to play
+restricted_kd 0.7  			// minimum kd ratio
+restricted_playtime 10000 		// minimum play time in seconds
+restricted_gamesplayed 10 		// minimum games played
+
+
+// END ########
+Additionally, to include a whitelist of players that will always bypass any requirements, a new setting has been added to the r5rdev_config.json file:
+
+"settings": {
+        "PLAYER_WHITELIST": "1007946891142"
+    }
+
+Add a list of comma-seperated OID (uid) here. For example
+
+"PLAYER_WHITELIST": "1007946891142,12312123,5555555555"
+
+See the config file located in example folder
+I highly reccomend adding your admins to the whitelist. 
+To get a good idea of default settings for your restricted server you can always browse https://r5r.dev/hs
+
+
+
+Commands added:
+
+aa - players can type aa in console to see current aim assist values on server.
+
+cc restricted 0/1 - temporarily disabled/enables restricted mode on server mid-round (wont save on reload)
+cc reload_config - reloads the r5rdev_config.json file  (similar to reload_playlists)
+
+
+
+
+2/1/2024:
 
 Webhook urls can still be placed in the playlists file, 
 but due to security concerns, it is highly reccomended

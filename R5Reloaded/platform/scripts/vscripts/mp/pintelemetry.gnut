@@ -68,6 +68,7 @@ global function GetPlayerEntityByName
 global function IsValidOID
 global function Is_Bool
 global function sanitize
+global function INIT_player_whitelist
 
 global int fightIdCounter = 0
 global bool SHOULD_SHIP = false
@@ -84,6 +85,8 @@ global bool FETCH_BATCH_COMPLETE = false;
 
 global bool global_stats
 global bool sg_counter_msg
+global bool restricted_server
+
 global string superglide_msg
 global string superglidetitle
 
@@ -151,6 +154,7 @@ array<PlayerVerifyCount> playerVerifyCounts
 array<DamageEvent> allDamageEvents
 array< array< string > > list_maps
 array< array< string > > list_gamemodes
+array< string > whitelist
 
 #if SERVER   
 bool function Logging_Enabled() 				{ return GetCurrentPlaylistVarBool("logging_enabled", false) }
@@ -161,7 +165,8 @@ bool function Ea_Verify_Server()				{ return GetCurrentPlaylistVarBool("ea_verif
 #endif
 
 
-void function INIT_BATCH_FETCH() {
+void function INIT_BATCH_FETCH() 
+{
 	
 	FETCH_BATCH_COMPLETE = false
 	array<string> oids
@@ -249,6 +254,8 @@ void function SetPlayerKD( entity player )
 	int player_lifetime_kills = 0;
 	int player_lifetime_deaths = 0;
 	int player_lifetime_glides = 0;
+	int player_lifetime_playtime = 0;
+	int player_lifetime_gamesplayed = 0;
 	
 	while ( IsValid( player ) )
 	{
@@ -260,8 +267,9 @@ void function SetPlayerKD( entity player )
 		//sqprint("p_kd = " + p_kd )
 		
 		if ( attempts > 10 )
+		{	
 			break
-			
+		}	
 		if ( p_kd == "NA" )
 		{	
 			break
@@ -275,22 +283,27 @@ void function SetPlayerKD( entity player )
 		{
 			array<string> KD_Data = split( p_kd , ",")
 			
-			if ( KD_Data.len() != 3 ) { return; }
+			if ( KD_Data.len() != 5 ) { return; }
 			string kills = KD_Data[0]
 			string deaths = KD_Data[1]
 			string glides = KD_Data[2]
+			string playtime = KD_Data[3]
+			string gamesplayed = KD_Data[4]
 			
-			if ( IsNumeric( kills, SQ_MAX_INT_32) && IsNumeric( deaths, SQ_MAX_INT_32) && IsNumeric( glides, SQ_MAX_INT_32)){
-			
+			if ( IsNumeric( kills, SQ_MAX_INT_32) && IsNumeric( deaths, SQ_MAX_INT_32) && IsNumeric( glides, SQ_MAX_INT_32) && IsNumeric( playtime, SQ_MAX_INT_32) && IsNumeric( gamesplayed, SQ_MAX_INT_32))
+			{
 				player_lifetime_kills = kills.tointeger()
 				player_lifetime_deaths = deaths.tointeger()
-				player_lifetime_glides = glides.tointeger()
-			
+				player_lifetime_glides = glides.tointeger()	
+				player_lifetime_playtime = playtime.tointeger()
+				player_lifetime_gamesplayed = gamesplayed.tointeger()
 			}
 			
 			player.p.lifetime_kills = player_lifetime_kills;
 			player.p.lifetime_deaths = player_lifetime_deaths; 
 			player.p.lifetime_glides = player_lifetime_glides;
+			player.p.lifetime_playtime = player_lifetime_playtime;
+			player.p.lifetime_gamesplayed = player_lifetime_gamesplayed;
 			
 			break
 		}
@@ -299,6 +312,8 @@ void function SetPlayerKD( entity player )
 		
 	}
 	
+	player.p.stats_done_loading = true;
+
 	wait 0.2
 	SQ_ResetStats( OID )
 	
@@ -318,7 +333,8 @@ void function DestroyStats(){
 
 void function PIN_Init()
 {	
-		if (GetMapName() != "mp_lobby" && Logging_Enabled()){
+		if (GetMapName() != "mp_lobby" && Logging_Enabled())
+		{
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)
 			
@@ -347,6 +363,12 @@ void function PIN_Init()
 	
 	//init bools (must be before string inits)
 	global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false)
+	restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
+	
+	if (restricted_server)
+	{
+		INIT_player_whitelist()
+	}
 	
 	//init strings
 	sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false)
@@ -492,9 +514,11 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 							}
 							
 							data += "Lifetime Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
-							data += "Player's Input:  " + p_input + " ---- Handicap: " + handicap + "\n"; 
-							data += "Player's wait time:  " + l_wait.tostring() + "\n"; 
-							data += GetScore(l_player)
+							data += "Input:  " + p_input + " ---- Handicap: " + handicap + "\n"; 
+							data += "wait time:  " + l_wait.tostring() + "\n"; 
+							data += GetScore(l_player) + "\n";
+							data += "Season playtime: " + PlayTime(l_player.p.lifetime_playtime) + "\n";
+							data += "season games: " + l_player.p.lifetime_gamesplayed;
 							
 							if( (inputmsg.len() + data.len()) > 599 )
 							{
@@ -504,7 +528,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 						
 							}
 							
-							Message( player, inputmsg, data, 5);
+							Message( player, inputmsg, data, 15);
 							
 						} catch (errlookup) 
 						{
@@ -614,6 +638,37 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 					
 					return true;
 					
+			case "aa":
+				
+					string data = "";
+					string inputmsg = "Server AA values:";
+					
+					try 
+					{
+						
+						data += format("\n Console Aim Assist: %.1f ", GetCurrentPlaylistVarFloat("aimassist_magnet", 0) );
+						data += format("\n PC Aim Assist: %.1f", GetCurrentPlaylistVarFloat("aimassist_magnet_pc", 0) );
+								
+						if( (inputmsg.len() + data.len()) > 599 )
+						{	
+							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
+							return true;		
+						}
+						
+						Message( player, inputmsg, data, 20);
+					
+					} 
+					catch (show_err3) 
+					{
+	
+						Message(player, "Failed", "Command failed because of: \n\n " + show_err3 )
+						return false
+								
+					}
+				
+				
+				return true;
+				
 				
 			default:
 				//sqprint ( "Usage: show argument \n" )
@@ -680,6 +735,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 	}
 
 	
+	/*
 	string function LineBreak( string str, int interval = 80 ) 
 	{
 		string output = "";
@@ -698,6 +754,47 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 
 		return output;
 	}
+	*/
+	
+	string function LineBreak(string str, int interval = 80) 
+	{
+		string output = "";
+		
+		for (int i = 0; i < str.len();) 
+		{
+			int end = i + interval;
+			
+			if (end >= str.len()) 
+			{
+				output += str.slice(i) + "\n";
+				break;
+			}
+			
+			bool located_space = false;
+			
+			for (int j = end; j > i; --j) 
+			{
+				if (str.slice(j-1, j) == " ") 
+				{
+					end = j;
+					located_space = true;
+					break;
+				}
+			}
+			
+			if (!located_space) 
+			{
+				end = i + interval;
+			}
+
+			output += str.slice(i, end) + "\n";
+			i = end;
+		}
+		
+		return output;
+	}
+
+
 	
 	
 	bool function Is_Bool(string str)
@@ -867,6 +964,123 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		];
 	}
 	
+	void function INIT_player_whitelist()
+	{
+		string string_whitelist = SQ_GetSetting( "settings.PLAYER_WHITELIST" )
+		
+		if (string_whitelist != "")
+		{
+			whitelist = StringToArray( string_whitelist, 2000 )	
+		}
+	}
+	
+	int function Player_Has_Access( entity player )
+	{
+		if ( whitelist.contains( player.GetPlatformUID() ))
+		{
+			return 8
+		}
+		
+		if ( player.p.lifetime_gamesplayed < GetCurrentPlaylistVarInt("restricted_gamesplayed", 0) )
+		{
+			return 4
+		}
+		
+		if ( player.p.lifetime_kills < GetCurrentPlaylistVarInt("restricted_kills", 0) )
+		{	
+			//sqprint(format("Kills at time of check: %d",player.p.lifetime_kills));
+			return 3
+		}
+		
+		if ( getkd( player.p.lifetime_kills, player.p.lifetime_deaths ) < GetCurrentPlaylistVarFloat( "restricted_kd", 0 ) )
+		{
+			return 2
+		}
+		
+		if ( player.p.lifetime_playtime < GetCurrentPlaylistVarInt( "restricted_playtime", 0 ) )
+		{
+			return 1
+		}
+		
+		return 9
+	}
+	
+	string function Player_Access_Message( entity player, int result )
+	{
+		switch(result)
+		{
+			case 9:
+				return LineBreak(GetCurrentPlaylistVarString("restricted_join_message","You`re able to play on this restricted server."));
+			
+			case 8:
+				return LineBreak(GetCurrentPlaylistVarString("restricted_whitelist_message","You`re whitelisted to play on this restricted server."));
+			
+			case 4:
+				return "You don't have enough games played to play on this server. \n Your total games played: " + player.p.lifetime_gamesplayed.tostring() + " \n Server required minimum: " + GetCurrentPlaylistVarInt("restricted_gamesplayed",0).tostring() + "\n You need to play " + ( GetCurrentPlaylistVarInt("restricted_gamesplayed",0) - player.p.lifetime_gamesplayed ).tostring() + " more games to play on this server.";
+			
+			case 3:
+				return "You don't have enough kills to play on this server. \n Your kills: " + player.p.lifetime_kills.tostring() + " \n Server required minimum: " + GetCurrentPlaylistVarInt("restricted_kills",0).tostring() + "\n You need " + ( GetCurrentPlaylistVarInt("restricted_kills",0) - player.p.lifetime_kills ).tostring() + " more kills to play on this server.";
+			
+			case 2:
+				return "Your K/D ratio is too low to play on this server. \n Your K/D: " + getkd( player.p.lifetime_kills, player.p.lifetime_deaths ) + " \n Server required minimum: " + GetCurrentPlaylistVarFloat("restricted_kd",0).tostring() + "\n You need to increase your K/D ratio by:  " + (GetCurrentPlaylistVarFloat("restricted_kd",0) - getkd( player.p.lifetime_kills, player.p.lifetime_deaths )).tostring() + " to play on this server.";
+				
+			case 1:
+				return "Your play time does not meet this server's required minimum play time of: " + PlayTime(GetCurrentPlaylistVarInt("restricted_playtime",0)) + "\n Your playtime: " + PlayTime(player.p.lifetime_playtime) + "\n\n You need to play for at least: " + PlayTime((GetCurrentPlaylistVarInt("restricted_playtime",0) - player.p.lifetime_playtime)) + " more time.";
+			
+			default:
+				return "Error 404";
+		}
+		
+		unreachable
+	}
+	
+	void function force_rest( entity player )
+	{
+		while( IsValid( player ) )
+		{			
+			mkos_Force_Rest( player, [] )
+			wait 0.5
+		}	
+	}
+	
+	void function Alert_Player_Access( entity player )
+	{	
+		while( IsValid(player) && FETCH_BATCH_COMPLETE == false)
+		{	
+			mkos_Force_Rest( player, [] )
+			wait 1
+		}
+		
+		while( IsValid(player) && player.p.stats_done_loading == false)
+		{	
+			mkos_Force_Rest( player, [] )
+			wait 1
+		}
+
+		int access_status = Player_Has_Access( player )
+		if ( IsValid(player) && access_status == 8 || access_status == 9 )
+		{	
+			mkos_Force_Rest( player, [] )
+			Message( player, "Welcome " + player.GetPlayerName(),  Player_Access_Message( player, access_status ), 30)
+		}
+		else 
+		{	
+			if(IsValid( player ))
+			{
+				thread force_rest( player )
+				
+				Message( player, "Sorry " + player.GetPlayerName(),  Player_Access_Message( player, access_status ), 30)
+				wait 7	
+				
+				if(IsValid( player ))
+				{
+					KickPlayerById( player.GetPlatformUID(), Player_Access_Message( player, access_status ) )
+				}
+			}
+		}
+		
+	}
+	
 	void function INIT_playeradmins()
 	{	
 		string admins_list = GetCurrentPlaylistVarString( "admins_list","" )
@@ -955,6 +1169,16 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 		
 	}
 
+	string function PlayTime( int iSeconds ) 
+	{	
+		float seconds = iSeconds.tofloat();
+		float hours =  seconds / 3600;
+		float minutes = (seconds % 3600) / 60;
+		float r_seconds = seconds % 60;
+		
+		string playtime = format("%d hours, %d minutes, %d seconds", hours, minutes, r_seconds);
+		return playtime;
+	}
 
 
 
@@ -1074,6 +1298,32 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 								} 
 							} catch (erroreo){
 							
+								Message( player, "Error", "argument missing" )
+								return false
+							}
+							
+							return true
+							
+			case "restricted":
+			
+							try 
+							{
+							
+								if ( args[1] == "1" )
+								{
+									restricted_server = true;
+									Message( player, "Command sent", "restricted_server was ENABLED" )
+									return true
+								} 
+								else if ( args[1] == "0" )
+								{
+									restricted_server = false;
+									Message( player, "Command sent", "restricted_server was disabled" )
+									return true
+								} 
+							} 
+							catch (errorres)
+							{
 								Message( player, "Error", "argument missing" )
 								return false
 							}
@@ -1700,6 +1950,12 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK ){
 				
 						CleanupLogs(); //sdk function 
 							
+						return true
+			
+			case "reload_config":
+			
+						SQ_ReloadConfig() //sdk function
+						
 						return true
 						
 			case "setting":
@@ -2384,7 +2640,8 @@ bool function IsSpecialWeapon(string weaponSource)
 }
 
 
-void function HandleDamage(DamageEvent event, entity attacker, string weaponSource, float damageAmount, var damageInfo, entity victim) {
+void function HandleDamage(DamageEvent event, entity attacker, string weaponSource, float damageAmount, var damageInfo, entity victim) 
+{
 	if (!IsValid(victim) || !IsValid(attacker)) return;
 
 	if (IsValid(victim) && victim.IsPlayer() && victim.p.isConnected && !attacker.IsPlayer())
@@ -2605,8 +2862,8 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 	}
 	
 	
-	void function PlayerEA_Verify( entity player, array<string> args ) {
-	
+	void function PlayerEA_Verify( entity player, array<string> args ) 
+	{
 	
 		if (!IsValid(player)) // || !player.p.isConnected)
 				return;
@@ -3348,6 +3605,10 @@ int function FS_RoundTime(){ return GetCurrentPlaylistVarInt("flowstateRoundtime
 void function PIN_AddPlayer( entity player )
 {	
 	
+	if (restricted_server)
+	{	
+		thread Alert_Player_Access( player );
+	}
 	
 	if ( Logging_Enabled() && isLogging() && IsValid( player ) )
 	{	

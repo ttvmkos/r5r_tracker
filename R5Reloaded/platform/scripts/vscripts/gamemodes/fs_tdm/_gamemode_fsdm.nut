@@ -662,7 +662,7 @@ string function trim( string str )
 // CALLING FUNCTION responsible for error catch //
 //////////////////////////////////////////////////
 
-array<string> function StringToArray( string str ) 
+array<string> function StringToArray( string str, int MAX_LENGTH = 128 ) 
 {	
 	
 	int item_index = 0;
@@ -696,9 +696,9 @@ array<string> function StringToArray( string str )
 		
             sqerror( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
 			
-        } else if ( length_check >= 128 ){
+        } else if ( length_check >= MAX_LENGTH ){
 
-			sqerror( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: 128 bytes" )	
+			sqerror( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: " + MAX_LENGTH + " chars")	
 		
 		} else {
 			
@@ -924,7 +924,7 @@ void function _CustomTDM_Init()
 	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
 	if ( f_wait > 0.0 && f_wait < 3.0 )
 	{
-		sqerror(format("Default wait time was set as '%.2f' ; must be either 0 or >= 3. Resetting to 3.", f_wait ));
+		sqerror(format("Default IBMM wait time was set as '%.2f' ; must be either 0 or >= 3. Resetting to 3.", f_wait ));
 	}
 	
 }
