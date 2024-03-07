@@ -169,6 +169,28 @@ void function INIT_1v1_sbmm()
 
 }
 
+bool function IsLockable( entity player1, entity player2 )
+{
+	if (player1.p.lock1v1_setting == false || player2.p.lock1v1_setting == false)
+	{
+		return false
+	}
+	
+	return true
+}
+
+string function LockSetting( entity player )
+{
+	return player.p.lock1v1_setting == true ? "Enabled" : "Disabled";
+}
+
+bool function Lock1v1Enabled()
+{
+	return GetCurrentPlaylistVarBool("enable_lock1v1", true)
+}
+
+//end mkos
+
 int function getTimeOutPlayerAmount()
 {
 	int timeOutPlayerAmount = 0
@@ -1001,7 +1023,7 @@ void function _soloModeInit(string mapName)
 	if (mapName == "mp_rr_arena_composite")
 	{
 		// waitingRoomLocation = NewLocPair( <-7.62,200,184.57>, <0,90,0>)
-		waitingRoomPanelLocation = NewLocPair( <7.74,595.19,125>, <0,0,0>)//休息区观战面板
+		waitingRoomPanelLocation = NewLocPair( <-3.0,595.19,125>, <0,0,0>)//休息区观战面板
 
 		allSoloLocations= [
 		NewLocPair( <344.814117, 1279.00415, 188.561081>, <0, 178.998779, 0>), //1
@@ -1043,6 +1065,9 @@ void function _soloModeInit(string mapName)
 		]
 
 		//panel
+		
+		if(Lock1v1Enabled())
+		{
 			panelLocations = [
 				NewLocPair( <-4.90188408, 1580.82349, 188.526581>, <0, 0, 0>),//1
 				NewLocPair( <-2513.19702, 3376.53174, 192.048309>, <0, 50, 0>),//2
@@ -1055,9 +1080,9 @@ void function _soloModeInit(string mapName)
 				NewLocPair( <-1627.84, 1568.45, 190>, <0, 0, 0>),//9
 				NewLocPair( <1268.07, 1527.68, 190>, <0, 0, 0>),//10
 				NewLocPair( <-2969.78, 810.96, 140>, <0, 120, 0>),//11
-				NewLocPair( <-1073.46, 2685.75, 190>, <0, -43, 0>),//12
-				
+				NewLocPair( <-1073.46, 2685.75, 190>, <0, -43, 0>),//12	
 			]
+		}
 			
 			
 			//drop off patch mkos
@@ -1086,25 +1111,31 @@ void function _soloModeInit(string mapName)
 			
 			]
 		
-			dropoff_panel_patch = [
-			
-					NewLocPair( < -3047.298, 3813.393, -151.6514 >, < 0, 36.8985, 0 >),//13
-					NewLocPair( < -2178.562, 481.2845, 189.9998 >, < 0, -38.7379, 0 >),//14
-					//NewLocPair( <-1008.24, 147.977, 687.264 >, < 53.1792, 2.4232, 0>),//14
-					NewLocPair( < 3077.486, 3859.245, -151.6514 >, < 0, -39.3852, 0 >), //15
-					NewLocPair( < 1868.973, 211.2266, 191.9968 >, < 0, 36.8535, 0 >) //16
-			
-			]
+			if(Lock1v1Enabled())
+			{
+				dropoff_panel_patch = [
+				
+						NewLocPair( < -3047.298, 3813.393, -151.6514 >, < 0, 36.8985, 0 >),//13
+						NewLocPair( < -2178.562, 481.2845, 189.9998 >, < 0, -38.7379, 0 >),//14
+						//NewLocPair( <-1008.24, 147.977, 687.264 >, < 53.1792, 2.4232, 0>),//14
+						NewLocPair( < 3077.486, 3859.245, -151.6514 >, < 0, -39.3852, 0 >), //15
+						NewLocPair( < 1868.973, 211.2266, 191.9968 >, < 0, 36.8535, 0 >) //16
+				
+				]
+			}
 			
 			if ( GetCurrentPlaylistVarBool( "patch_for_dropoff", false ) ){
 			
 					foreach ( loc in dropoff_patch ) {
 						allSoloLocations.append(loc);
 					}
-
+					
+				if(Lock1v1Enabled())
+				{
 					foreach ( loc in dropoff_panel_patch ) {
 						panelLocations.append(loc);
 					}
+				}
 				
 			}
 			
@@ -1158,22 +1189,27 @@ void function _soloModeInit(string mapName)
 			NewLocPair( <-3015.57031, -3553.14819, 272.03125>, <0, -140.035995, 0>),//13
 			NewLocPair( <-3493.69263, -4762.4126, 272.032166>, <0, 84.9091492, 0>),
 			]
-			panelLocations = [
-				NewLocPair( <-6357.56, -110.40, -95.07>, <0, -30, 0>),//1
-				NewLocPair( <3551.47, -3581.74, 270.03>, <0, 0, 0>),//2
-				NewLocPair( <9136.70, -797.05, 310.17>, <0, -60, 0>),//3
-				NewLocPair( <718.50, -7027.66, 330.03>, <0, 170, 0>),//4
-				// NewLocPair( <3453.87, -4724.95, 170.89>, <0, -170, 0>),//remove
-				NewLocPair( <-962.44, -4706.85, 190.77>, <0, -10, 0>),//5
-				NewLocPair( <3035.04, -4838.01, 400.16>, <0, -80, 0>),//6
-				NewLocPair( <-179.10, -2264.64, -390.97>, <0, 0, 0>),//7
-				NewLocPair( <1810.83, -3773.77, 430.03>, <0, -179, 0>),//8
-				NewLocPair( <451.17, -4365.68, 270.03>, <0, -90, 0>),//9
-				NewLocPair( <-4515.57, -2811.07, 310.31>, <0, -120, 0>),//10
-				NewLocPair( <-2278.44, -5838.17, 400.03>, <0, 160, 0>),//11
-				NewLocPair( <-301.65, -4238.32, 430.03>, <0, 160, 0>),//12
-				NewLocPair( <-3079.95, -4274.58, 290.03>, <0, -120, 0>),//13
-			]
+			
+			if(Lock1v1Enabled())
+			{
+				panelLocations = [
+					NewLocPair( <-6357.56, -110.40, -95.07>, <0, -30, 0>),//1
+					NewLocPair( <3551.47, -3581.74, 270.03>, <0, 0, 0>),//2
+					NewLocPair( <9136.70, -797.05, 310.17>, <0, -60, 0>),//3
+					NewLocPair( <718.50, -7027.66, 330.03>, <0, 170, 0>),//4
+					// NewLocPair( <3453.87, -4724.95, 170.89>, <0, -170, 0>),//remove
+					NewLocPair( <-962.44, -4706.85, 190.77>, <0, -10, 0>),//5
+					NewLocPair( <3035.04, -4838.01, 400.16>, <0, -80, 0>),//6
+					NewLocPair( <-179.10, -2264.64, -390.97>, <0, 0, 0>),//7
+					NewLocPair( <1810.83, -3773.77, 430.03>, <0, -179, 0>),//8
+					NewLocPair( <451.17, -4365.68, 270.03>, <0, -90, 0>),//9
+					NewLocPair( <-4515.57, -2811.07, 310.31>, <0, -120, 0>),//10
+					NewLocPair( <-2278.44, -5838.17, 400.03>, <0, 160, 0>),//11
+					NewLocPair( <-301.65, -4238.32, 430.03>, <0, 160, 0>),//12
+					NewLocPair( <-3079.95, -4274.58, 290.03>, <0, -120, 0>),//13
+				]
+			}
+			
 		}
 		else if (mapName == "mp_rr_canyonlands_64k_x_64k")
 		{
@@ -1252,33 +1288,37 @@ void function _soloModeInit(string mapName)
 			NewLocPair( <10836,13212,5396>,<0,-82,0> ),
 
 			]
-			panelLocations = [
-				NewLocPair( <-5206.56, 9206.40, 3472.07>, <0, 90, 0>),//1
-				NewLocPair( <8604,9305,5384>, <0, -90, 0>),//2
-				NewLocPair( <7944.70, 28174.05, 4676.17>, <0, 0, 0>),//3
-				NewLocPair( <20406.50, 7791.66, 4120.03>, <0, -1, 0>),//4
-				// // NewLocPair( <3453.87, -4724.95, 170.89>, <0, -170, 0>),//remove
-				NewLocPair( <-27970.44, -3613.85, 2480.77>, <0, 21, 0>),//5
-				NewLocPair( <23731.04, -9124.01, 4415.16>, <0, 87, 0>),//6
-				NewLocPair( <3411.10, -9996.64, 3263.97>, <0, 7, 0>),//7
-				NewLocPair( <3165.83, -10423.77, 2760.03>, <0, 0, 0>),//8
-				NewLocPair( <-23762.17, 78.68, 3799.03>, <0, 90, 0>),//9
-				NewLocPair( <12661, 614.07, 4566.31>, <0, -172, 0>),//10
-				NewLocPair( <12924.44, 17652.17, 4717.03>, <0, -90, 0>),//11
-				NewLocPair( <12291.65, 10387.32, 4693.03>, <0, 35, 0>),//12
-				NewLocPair( <3086.95, -7750.58, 3260.03>, <0, -153, 0>),//13
-				NewLocPair( <4281,-3634,2635>, <0,157,0> ),//14
-				NewLocPair( <25331,-17565,4664>, <0,0,0> ),//15
-				NewLocPair( <-7841,5328,2401>, <0,175,0> ),//16
-				NewLocPair( <2457,23766,4128>, <0,-135,0> ),//17
-				NewLocPair( <27360,-4862,4380>, <0,1,0> ),//18
-				NewLocPair( <-24242,10927,3028>,<0,-178,0> ),//19
-				NewLocPair( <-15584,-18774,3563>,<0,-36,0> ),//20
-				NewLocPair( <-10287,-26430,2514>,<0,16,0> ),//21
-				NewLocPair( <19599,11681,5018>,<0,94,0> ),//22
-				NewLocPair( <10916,12579,5312>,<0,85,0> ),//23
+			
+			if(Lock1v1Enabled())
+			{
+				panelLocations = [
+					NewLocPair( <-5206.56, 9206.40, 3472.07>, <0, 90, 0>),//1
+					NewLocPair( <8604,9305,5384>, <0, -90, 0>),//2
+					NewLocPair( <7944.70, 28174.05, 4676.17>, <0, 0, 0>),//3
+					NewLocPair( <20406.50, 7791.66, 4120.03>, <0, -1, 0>),//4
+					// // NewLocPair( <3453.87, -4724.95, 170.89>, <0, -170, 0>),//remove
+					NewLocPair( <-27970.44, -3613.85, 2480.77>, <0, 21, 0>),//5
+					NewLocPair( <23731.04, -9124.01, 4415.16>, <0, 87, 0>),//6
+					NewLocPair( <3411.10, -9996.64, 3263.97>, <0, 7, 0>),//7
+					NewLocPair( <3165.83, -10423.77, 2760.03>, <0, 0, 0>),//8
+					NewLocPair( <-23762.17, 78.68, 3799.03>, <0, 90, 0>),//9
+					NewLocPair( <12661, 614.07, 4566.31>, <0, -172, 0>),//10
+					NewLocPair( <12924.44, 17652.17, 4717.03>, <0, -90, 0>),//11
+					NewLocPair( <12291.65, 10387.32, 4693.03>, <0, 35, 0>),//12
+					NewLocPair( <3086.95, -7750.58, 3260.03>, <0, -153, 0>),//13
+					NewLocPair( <4281,-3634,2635>, <0,157,0> ),//14
+					NewLocPair( <25331,-17565,4664>, <0,0,0> ),//15
+					NewLocPair( <-7841,5328,2401>, <0,175,0> ),//16
+					NewLocPair( <2457,23766,4128>, <0,-135,0> ),//17
+					NewLocPair( <27360,-4862,4380>, <0,1,0> ),//18
+					NewLocPair( <-24242,10927,3028>,<0,-178,0> ),//19
+					NewLocPair( <-15584,-18774,3563>,<0,-36,0> ),//20
+					NewLocPair( <-10287,-26430,2514>,<0,16,0> ),//21
+					NewLocPair( <19599,11681,5018>,<0,94,0> ),//22
+					NewLocPair( <10916,12579,5312>,<0,85,0> ),//23
 
-			]
+				]
+			}
 		}	
 		else if (mapName == "mp_rr_canyonlands_staging") //_LG_duels
 		{
@@ -1418,7 +1458,7 @@ void function _soloModeInit(string mapName)
 			return
 		}
 
-	//resting room init
+	//resting room init ///////////////////////////////////////////////////////////////////////////////////////
 	
 	string buttonText
 	
@@ -1434,9 +1474,24 @@ void function _soloModeInit(string mapName)
 	else
 		buttonText3 = "%&use% Toggle Rest"
 	
+	//mkos 
+	string buttonText4
+	
+		buttonText4 = "%&use% Toggle IBMM";
+		
+	string buttonText5
+	
+		buttonText5 = "%&use% Toggle LOCK1V1 Setting";
+	//endkos, - initialized in case we want to dynamically change it for chinese server
+	
 	entity restingRoomPanel = CreateFRButton( waitingRoomPanelLocation.origin + AnglesToForward( waitingRoomPanelLocation.angles ) * 40, waitingRoomPanelLocation.angles, buttonText )
 	entity restingRoomPanel_RestButton = CreateFRButton( waitingRoomPanelLocation.origin - AnglesToForward( waitingRoomPanelLocation.angles ) * 40, waitingRoomPanelLocation.angles, buttonText3 )
-
+	
+	//mkos 
+	entity restingRoomPanel_IBMM_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles + <0,45,0>, buttonText4 )
+	entity restingRoomPanel_lock1v1_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles - <0,45,0>, buttonText5 )
+	//endkos
+	
 	AddCallback_OnUseEntity( restingRoomPanel, void function(entity panel, entity user, int input)
 	{
 		if(!IsValid(user)) return
@@ -1477,14 +1532,66 @@ void function _soloModeInit(string mapName)
 	    {}
 	    AddButtonPressedPlayerInputCallback( user, IN_JUMP,endSpectate  )
 	})
-
+	
+	//mkos
+	AddCallback_OnUseEntity( restingRoomPanel_IBMM_button, void function(entity panel, entity user, int input)
+	{
+		if(!IsValid(user)) return
+		
+		if(user.p.IBMM_grace_period > 0)
+		{
+			user.p.IBMM_grace_period = 0;
+			Message( user, "IBMM set to ANY INPUT (disabled).");
+		}
+		else
+		{	
+			if (GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999) >= 3)
+			{	
+				if (GetCurrentPlaylistVarFloat("default_ibmm_wait", 3) == 0)
+				{
+					user.p.IBMM_grace_period = 3;
+				}
+				else
+				{
+					SetDefaultIBMM( user )
+				}
+				
+				Message( user, "IBMM set to search for same input type.");
+			}
+			else 
+			{
+				Message( user, "Server does not allow this setting.");
+			}
+		}
+		
+	})
+	
+	
+	AddCallback_OnUseEntity( restingRoomPanel_lock1v1_button, void function(entity panel, entity user, int input)
+	{
+		if(!IsValid(user)) return
+		
+		if(user.p.lock1v1_setting == true)
+		{
+			user.p.lock1v1_setting = false;
+			Message( user, "Lock1v1 setting set to DISABLED.");
+		}
+		else
+		{
+			user.p.lock1v1_setting = true;
+			Message( user, "Lock1v1 setting set to ENABLED.");
+		}
+		
+	})
+	
+	//endkos
+	
 	AddCallback_OnUseEntity( restingRoomPanel_RestButton, void function(entity panel, entity user, int input)
 	{
 		if(!IsValid(user)) return
 		
 		ClientCommand_Maki_SoloModeRest( user, [] )
 	})
-
 
 	for (int i = 0; i < allSoloLocations.len(); i=i+2)
 	{
@@ -1533,7 +1640,26 @@ void function _soloModeInit(string mapName)
 			// if (!IsValid(group.player1) || !IsValid(group.player2)) return
 			if(!isGroupValid(group)) return //Is this group is available
 			if (soloLocations[group.slotIndex].Panel != panel) return //有傻逼捣乱
+			
+			//mkos 
+			if ( !IsLockable( group.player1, group.player2 ))
+			{	
+				string lock_data;
 
+				lock_data += group.player1.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player1) + "\n"; 
+				lock_data += group.player2.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player2) + "\n";
+				
+				try
+				{
+					Message(group.player1, "LOCKING FAILED", lock_data)
+					Message(group.player2, "LOCKING FAILED", lock_data)
+				}
+				catch (L_error)
+				{}
+				
+				return
+			}
+			
 			if( group.IsKeep == false)
 			{
 				group.IsKeep = true
@@ -1546,7 +1672,6 @@ void function _soloModeInit(string mapName)
 				}
 				catch (error)
 				{}
-
 
 			}
 			else

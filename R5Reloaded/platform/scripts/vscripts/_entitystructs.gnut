@@ -759,6 +759,7 @@ global struct ServerPlayerStruct
 	float last_input_time
 	int lifetime_playtime = 0
 	int lifetime_gamesplayed = 0
+	bool lock1v1_setting = true
 	bool stats_done_loading = false
 	
 	//MovementGym

@@ -61,9 +61,11 @@ global function GetBlackListedWeapons
 global function GetCurrentRound 
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
+global function ClientCommand_mkos_lock1v1_setting
 global function StringToArray
 global function trim
 global function Concatenate
+global function SetDefaultIBMM
 global bool input_monitor_running = false;
 
 //LGDuels
@@ -216,18 +218,23 @@ void function INIT_LGDuels( entity player )
 
 }
 
-
+void function SetDefaultIBMM( entity player )
+{
+	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
+	player.p.IBMM_grace_period = f_wait > 0.0 && f_wait < 3.0 ? 3.0 : f_wait;
+}
 
 void function Init_IBMM( entity player )
 {
 
 	thread notify_thread( player )
-	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
-	player.p.IBMM_grace_period = f_wait > 0.0 && f_wait < 3.0 ? 3.0 : f_wait;
+	SetDefaultIBMM( player )
 	player.p.messagetime = 0
 	thread Thread_CheckInput( player )
 	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
 	AddClientCommandCallback("WAIT", ClientCommand_mkos_LGDuel_IBMM_wait )
+	AddClientCommandCallback("lock1v1", ClientCommand_mkos_lock1v1_setting )
+	AddClientCommandCallback("LOCK1V1", ClientCommand_mkos_lock1v1_setting )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
@@ -530,6 +537,7 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 		{
 		
 		case "on":
+		case "1":
 					try
 					{
 						
@@ -546,6 +554,7 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 					}
 		
 		case "off":
+		case "0":
 					try
 					{
 						
@@ -623,6 +632,73 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> 
 					
 }
 
+bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> args )
+{
+	if ( !IsValid( player ) ) return false
+	
+	string param = ""
+	
+	if (args.len() > 0){
+		param = args[0];
+	}
+	
+	
+		if (args.len() < 1)
+		{
+			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n LOCK1V1 SETTING:", " Type into console: lock1v1 # \n replacing # with 'on' or 'off'.  \n\n On: You can lock/be locked into 1v1 fights with same player. \n\n Off: You can neither lock, nor be locked into 1v1s.", 15)
+			return true
+		}				
+		
+		if ( param == "")
+		{
+			return true; 
+		}
+		
+		
+		switch( param )
+		{
+		
+		case "ON":
+		case "on":
+		case "1":
+		case "true":
+					try
+					{	
+						player.p.lock1v1_setting = true;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						Message( player, "Success", "Lock1v1 setting set to enabled.", 3);
+						return true
+					
+					} 
+					catch ( handicap_err_1 )
+					{			
+						Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_1 )
+						return true		
+					}
+		
+		case "OFF":
+		case "off":
+		case "0":
+		case "false":
+		
+					try
+					{
+						player.p.lock1v1_setting = false;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						Message( player, "Success", "Lock1v1 setting set to disabled.", 3);
+						return true
+					} 
+					catch ( handicap_err_2 )
+					{
+						Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_2 )
+						return true
+					}
+				
+		}
+		
+	return false
+					
+}
 
 //php my beloved
 //trims leading and trialing whitespace from a string
