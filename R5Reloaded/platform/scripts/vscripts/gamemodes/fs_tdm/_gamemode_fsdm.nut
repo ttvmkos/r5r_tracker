@@ -62,10 +62,6 @@ global function GetCurrentRound
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
 global function ClientCommand_mkos_lock1v1_setting
-global function StringToArray
-global function trim
-global function Concatenate
-global function SetDefaultIBMM
 global bool input_monitor_running = false;
 
 //LGDuels
@@ -207,7 +203,6 @@ int function GetCurrentRound() {
 
 void function INIT_LGDuels( entity player )
 {
-
 	thread AddEntityCallback_OnDamaged( player, LGDuel_OnPlayerDamaged )
 	AddClientCommandCallback("hitsound", ClientCommand_mkos_LGDuel_hitsound )
 	AddClientCommandCallback("HITSOUND", ClientCommand_mkos_LGDuel_hitsound )
@@ -215,20 +210,17 @@ void function INIT_LGDuels( entity player )
 	player.p.hitsound = HIT_0
 	CreatePanelText(player, "", "LG Duels by:", < 3450.38, -9592.87, -9888.37 >, < 354.541, 271.209, 0 >, false, 1.5, 1)
 	CreatePanelText(player, "mkos ", "",		< 3472.44, -9592.87, -9888.37 >, < 354.541, 271.209, 0 >, false, 3, 2)
-
-}
-
-void function SetDefaultIBMM( entity player )
-{
-	float f_wait = GetCurrentPlaylistVarFloat("default_ibmm_wait", 0)
-	player.p.IBMM_grace_period = f_wait > 0.0 && f_wait < 3.0 ? 3.0 : f_wait;
 }
 
 void function Init_IBMM( entity player )
 {
-
 	thread notify_thread( player )
-	SetDefaultIBMM( player )
+	
+	if(player.p.IBMM_grace_period == -1)
+	{
+		SetDefaultIBMM( player )
+	}
+	
 	player.p.messagetime = 0
 	thread Thread_CheckInput( player )
 	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
@@ -238,8 +230,7 @@ void function Init_IBMM( entity player )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
-	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, SetInput_IN_FORWARD )
-	
+	AddButtonPressedPlayerInputCallback( player, IN_FORWARD, SetInput_IN_FORWARD )	
 }
 
 
@@ -618,6 +609,7 @@ bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> 
 			}
 			
 			player.p.IBMM_grace_period = user_value;
+			SavePlayer_wait_time( player.GetPlatformUID(), player.GetPlayerName(), user_value )
 			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
 			Message( player, "Success", "Your wait to match inputs was changed to " + user_value.tostring() + " seconds", 3);
 			return true
@@ -662,10 +654,13 @@ bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> a
 		case "on":
 		case "1":
 		case "true":
+		case "enabled":
+		
 					try
 					{	
 						player.p.lock1v1_setting = true;
 						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						SavePlayer_lock1v1_setting( player.GetPlatformUID(), player.GetPlayerName(), true )
 						Message( player, "Success", "Lock1v1 setting set to enabled.", 3);
 						return true
 					
@@ -680,11 +675,13 @@ bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> a
 		case "off":
 		case "0":
 		case "false":
+		case "disabled":
 		
 					try
 					{
 						player.p.lock1v1_setting = false;
 						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						SavePlayer_lock1v1_setting( player.GetPlatformUID(), player.GetPlayerName(), false )
 						Message( player, "Success", "Lock1v1 setting set to disabled.", 3);
 						return true
 					} 
@@ -698,134 +695,6 @@ bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> a
 		
 	return false
 					
-}
-
-//php my beloved
-//trims leading and trialing whitespace from a string
-string function trim( string str ) 
-{
-
-    int start = 0;
-    int end = str.len() - 1;
-    string whitespace = " \t\n\r";
-
-    while ( start <= end && whitespace.find( str.slice( start, start + 1 )) != -1 ) 
-	{
-        start++;
-    }
-
-    while (end >= start && whitespace.find( str.slice( end, end + 1 )) != -1 ) 
-	{
-        end--;
-    }
-
-    return str.slice(start, end + 1);
-	
-}
-
-
-//////////////////////////////////////////////////
-//												//
-//				string to array			 		//
-//												//
-//	format of:									//												
-//					"string1, also string"		//
-// 												//
-//	into an array:  							//
-//					['string1','also string']	//
-//												//
-//												//
-// CALLING FUNCTION responsible for error catch //
-//////////////////////////////////////////////////
-
-array<string> function StringToArray( string str, int MAX_LENGTH = 128 ) 
-{	
-	
-	int item_index = 0;
-	int length_check;
-	string t_str = trim( str )
-	
-    if ( t_str == "" )
-	{
-        throw "Cannot convert empty string to array.";
-	}
-	
-    array<string> arr = split( str, "," )
-	array<string> valid = []
-	
-	/*debug
-	foreach (index, item in arr) 
-	{
-		sqprint("Item #" + (index + 1) + ": '" + item + "'\n");
-	}
-	*/
-	
-    foreach ( item in arr ) 
-	{	
-	
-		item_index++
-		item = trim( item )
-		length_check = item.len()
-	
-        if ( item == "" ) 
-		{   
-		
-            sqerror( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
-			
-        } else if ( length_check >= MAX_LENGTH ){
-
-			sqerror( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: " + MAX_LENGTH + " chars")	
-		
-		} else {
-			
-			valid.append( item )
-			
-		}
-		
-    }
-	
-	if ( valid.len() <= 0 ) 
-	{
-        throw "Array empty after conversion";
-    }
-
-    return valid;
-}
-
-
-string function Concatenate( string str1, string str2 ) 
-{
-	
-	int str1_length = str1.len()
-	int str2_length = str2.len()
-	int dif
-	string error
-	
-    if ( str1 == "" && str2 == "" ) 
-	{
-        return "";
-    }
-
-    if ( str1_length > 1000 ) 
-	{
-		dif = ( str1_length - 1000 )
-		throw ("Error: First string exceeds length limit of 1000 by " + dif.tostring() + " chars")
-    }
-	
-    if ( str2_length > 1000 ) 
-	{	
-		dif = ( str2_length - 1000 )
-        throw ("Error: Second string exceeds length limit of 1000 by " + dif.tostring() + " chars")
-    }
-	
-	if ( str2 != ""  )
-	{
-	
-		str2 = "," + str2;
-	
-	}
-	
-    return str1 + str2;
 }
 
 
@@ -915,7 +784,10 @@ void function _CustomTDM_Init()
 		}
 		
 		// init for IBMM
-		Init_IBMM ( player )
+		if (GetCurrentPlaylistName() == "fs_1v1")
+		{	
+			Init_IBMM ( player )
+		}
 		
 
     })
@@ -3854,7 +3726,7 @@ void function SimpleChampionUI()
 	if( SCOREBOARD_ENABLE )
 		thread SendScoreboardToClient()
 
-	wait 8
+	wait GetCurrentPlaylistVarInt("endgame_delay", 8)
 
 	if(GetCurrentPlaylistVarBool("flowstateBattleLogEnable", false ))
 		if(GetCurrentPlaylistVarBool("flowstateBattleLog_Linux", false ))
@@ -3915,15 +3787,16 @@ void function SimpleChampionUI()
 		string matchEndingTitle = GetCurrentPlaylistVarString( "custom_match_ending_title", "Server clean up incoming" )
 		string matchEndingMessage = GetCurrentPlaylistVarString( "custom_match_ending_message", "Don't leave. Server is going to reload to avoid lag." )
 		
-	
-		foreach( player in GetPlayerArray() )
-			Message( player, matchEndingTitle, matchEndingMessage, 6.0 )
+		if(GetCurrentPlaylistVarBool("end_match_message",true))
+		{
+			foreach( player in GetPlayerArray() )
+				Message( player, matchEndingTitle, matchEndingMessage, 6.0 )
 
-		wait 6.0
+			wait 6
 
-		if(FlowState_EnableMovementGymLogs() && FlowState_EnableMovementGym())
-			MovementGymSaveTimesToFile()
-
+			if(FlowState_EnableMovementGymLogs() && FlowState_EnableMovementGym())
+				MovementGymSaveTimesToFile()
+		}
 		
 		//cycle map /mkos
 		string to_map = "";
@@ -5570,6 +5443,8 @@ bool function ClientCommand_SaveCurrentWeapons(entity player, array<string> args
 
 	if(weaponname1 == "" || weaponname2 == "") return false //dont save if player is dead
 	weaponlist[player.GetPlayerName()] <- weaponname1+weaponname2
+	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), weaponname1+weaponname2 )
+	
 	return true
 }
 
@@ -5684,6 +5559,10 @@ bool function ClientCommand_ResetSavedWeapons(entity player, array<string> args)
 	{
 		delete weaponlist[player.GetPlayerName()]
 	}
+	
+	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), "NA")
+	player.p.weapon_loadout = "NA";
+	
 	return true
 }
 

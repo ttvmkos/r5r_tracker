@@ -741,7 +741,7 @@ global struct ServerPlayerStruct
 	int ziplineUsages = 0
 	float lastmoved
 	
-	//mkos /or/ r5r stats
+	//mkos /or/ r5r stats /r5r.dev
 	
 	string hitsound
 	int input
@@ -749,7 +749,7 @@ global struct ServerPlayerStruct
 	bool notify = false
 	bool has_notify = false
 	bool destroynotify = false
-	float IBMM_grace_period = 0 // disabled default
+	float IBMM_grace_period = -1 // 0=disabled
 	float messagetime = 0
 	int movevalue = 0
 	int p_damage = 3 //for lgduel default dmg/heal 
@@ -759,6 +759,7 @@ global struct ServerPlayerStruct
 	float last_input_time
 	int lifetime_playtime = 0
 	int lifetime_gamesplayed = 0
+	string weapon_loadout = "NA"
 	bool lock1v1_setting = true
 	bool stats_done_loading = false
 	

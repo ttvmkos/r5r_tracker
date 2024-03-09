@@ -1541,6 +1541,7 @@ void function _soloModeInit(string mapName)
 		if(user.p.IBMM_grace_period > 0)
 		{
 			user.p.IBMM_grace_period = 0;
+			SavePlayer_wait_time( user.GetPlatformUID(), user.GetPlayerName(), 0.0 )
 			Message( user, "IBMM set to ANY INPUT (disabled).");
 		}
 		else
@@ -1550,6 +1551,7 @@ void function _soloModeInit(string mapName)
 				if (GetCurrentPlaylistVarFloat("default_ibmm_wait", 3) == 0)
 				{
 					user.p.IBMM_grace_period = 3;
+					SavePlayer_wait_time( user.GetPlatformUID(), user.GetPlayerName(), 3.0 )
 				}
 				else
 				{
@@ -1574,11 +1576,13 @@ void function _soloModeInit(string mapName)
 		if(user.p.lock1v1_setting == true)
 		{
 			user.p.lock1v1_setting = false;
+			SavePlayer_lock1v1_setting( user.GetPlatformUID(), user.GetPlayerName(), false )
 			Message( user, "Lock1v1 setting set to DISABLED.");
 		}
 		else
-		{
+		{	
 			user.p.lock1v1_setting = true;
+			SavePlayer_lock1v1_setting( user.GetPlatformUID(), user.GetPlayerName(), true )
 			Message( user, "Lock1v1 setting set to ENABLED.");
 		}
 		
@@ -2178,7 +2182,8 @@ void function GiveWeaponsToGroup( array<entity> players )
 			if( !IsValid( player ) )
 				continue
 			
-	
+			
+			//R5Raddfeature
 			/*array<ItemFlavor> characters = GetAllCharacters()
 			int random_character_index = RandomIntRangeInclusive(0,characterslist.len()-1)
 			ItemFlavor random_character = characters[characterslist[random_character_index]]

@@ -4,6 +4,25 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ########################################################
 
+NEW 3/8/2024
+
+Refactored/Reworked various code
+Added persistence system for various settings (with stats)
+
+- saved weapons
+- lock1v1 setting
+- wait time
+
+I reccomend using a unique identifier of your choosing. Servers are identified by ip:identifier
+The identifier must be alphanumeric, underscore  hypen only, less than 30 characters. identifiers that fail the check are set as 'none'
+
+
+Added playlist settings:
+
+end_match_message // 0/1 disable or enable eng game messages
+endgame_delay // time in seconds 
+
+
 NEW 3/7/2024
 
 added playlist setting:  enable_lock1v1 0/1  //0 = removes panels for locking 1v1s
@@ -189,7 +208,10 @@ ______________________________________________________________________
 	karma_server	                  1          // for karma servers
 	custom_match_ending_title		"Match complete"	 //custom title before map reload/cycle
 	custom_match_ending_message		"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle	
-	enable_lock1v1 			1 // 0 disables locking 1v1 fight panels	
+	enable_lock1v1						1 // 0 removes all lock fight panels
+	default_lock1v1_setting					1 // 1 = allow locking.  default setting for player preference
+	end_match_message			// 0/1 disable or enable eng game messages
+	endgame_delay 				// time in seconds 
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 
