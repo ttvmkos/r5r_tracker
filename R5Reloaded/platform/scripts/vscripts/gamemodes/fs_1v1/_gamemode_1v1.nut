@@ -369,7 +369,8 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 		return false
 
 	if(soloPlayersResting.contains(player))
-	{
+	{	
+		HolsterAndDisableWeapons(player)
 		return false
 	} 
 	
@@ -433,6 +434,8 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		}
 		catch (error)
 		{}
+		
+		HolsterAndDisableWeapons(player)
 	}
 	else
 	{
@@ -1789,6 +1792,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				soloModePlayerToWaitingList(eachGroup.player1)
 				soloModePlayerToWaitingList(eachGroup.player2)
 				destroyRingsForGroup(eachGroup)
+				
+				if (IsValid(eachGroup.player1)) 	
+					HolsterAndDisableWeapons(eachGroup.player1)
+					
+				if (IsValid(eachGroup.player2))
+					HolsterAndDisableWeapons(eachGroup.player2)
+				
 				continue
 			}
 
@@ -1812,12 +1822,14 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				if(IsValid(eachGroup.player1))
 				{
 					soloModePlayerToWaitingList(eachGroup.player1) //back to wating list
+					HolsterAndDisableWeapons(eachGroup.player1)
 					Message(eachGroup.player1, Text5)
 				}
 
 				if(IsValid(eachGroup.player2))
 				{
 					soloModePlayerToWaitingList(eachGroup.player2) //back to wating list
+					HolsterAndDisableWeapons(eachGroup.player2)
 					Message(eachGroup.player2, Text5)
 				}
 				
