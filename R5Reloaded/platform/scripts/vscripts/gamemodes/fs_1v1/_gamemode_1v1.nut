@@ -1861,13 +1861,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		{
 			if(!IsValid(restingPlayer)) continue
 
-			//TakeAllWeapons( restingPlayer )
-			HolsterAndDisableWeapons( restingPlayer )
-
 			if(!IsAlive(restingPlayer)  )
 			{
 				thread respawnInSoloMode(restingPlayer)
 			}
+			
+			//TakeAllWeapons( restingPlayer )
+			HolsterAndDisableWeapons( restingPlayer )
 		}
 
 		foreach ( player in GetPlayerArray() )
