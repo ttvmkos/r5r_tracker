@@ -16,30 +16,27 @@ Added synced stat:
 - score (from global tracker)
 
 Added playlist vars:
-restricted_rank  200 // int for minimum rank allowed to join restricted_server 1
-
-give_random_legend_on_spawn             0  //  0/1
-
-default_lock1v1_setting       1      //default setting for users without preference
-
-enable_voice   1    //enables all_chat and enables voice convars on start (if not already enabled)
+- restricted_rank  200 // int for minimum rank allowed to join restricted_server 1
+- give_random_legend_on_spawn             0  //  0/1
+- default_lock1v1_setting       1      //default setting for users without preference
+- enable_voice   1    //enables all_chat and enables voice convars on start (if not already enabled)
 
 
 
 Added new cc commands:
 
-cc sayto [player] [title] [msg] [duration]     //only needs player and title - sends message only to specified player
-cc vc [0/1]  //enables or disables voice chat
-cc startbr  //starts br without minimum players reached
+- cc sayto [player] [title] [msg] [duration]     //only needs player and title - sends message only to specified player
+- cc vc [0/1]  //enables or disables voice chat
+- cc startbr  //starts br without minimum players reached
 
 Added to r5rdev_config.json: (playername-oid comma separated list) 
-"ADMINS": ""
+- "ADMINS": ""
 
 indev:
 
-custom chat messages sent at configured intervals
-voice / chat muting. voice overlay
-challenge system
+- custom chat messages sent at configured intervals
+- voice / chat muting. voice overlay
+- challenge system
 
 
 
