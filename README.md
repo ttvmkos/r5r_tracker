@@ -17,9 +17,14 @@ Added synced stat:
 
 Added playlist vars:
 restricted_rank  200 // int for minimum rank allowed to join restricted_server 1
+
 give_random_legend_on_spawn             0  //  0/1
+
 default_lock1v1_setting       1      //default setting for users without preference
+
 enable_voice   1    //enables all_chat and enables voice convars on start (if not already enabled)
+
+
 
 Added new cc commands:
 
