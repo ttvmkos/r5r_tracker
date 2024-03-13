@@ -4,6 +4,40 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ########################################################
 
+NEW 3/13/2024
+
+- General code improvements.
+- Complete synced settings query system
+
+Added persistence setting:
+- start_in_rest (players start match in rest)
+
+Added synced stat:
+- score (from global tracker)
+
+Added playlist vars:
+restricted_rank  200 // int for minimum rank allowed to join restricted_server 1
+give_random_legend_on_spawn             0  //  0/1
+default_lock1v1_setting       1      //default setting for users without preference
+enable_voice   1    //enables all_chat and enables voice convars on start (if not already enabled)
+
+Added new cc commands:
+
+cc sayto [player] [title] [msg] [duration]     //only needs player and title - sends message only to specified player
+cc vc [0/1]  //enables or disables voice chat
+cc startbr  //starts br without minimum players reached
+
+Added to r5rdev_config.json: (playername-oid comma separated list) 
+"ADMINS": ""
+
+indev:
+
+custom chat messages sent at configured intervals
+voice / chat muting. voice overlay
+challenge system
+
+
+
 NEW 3/8/2024
 
 Refactored/Reworked various code
@@ -145,7 +179,8 @@ There will be an automatic file generator on r5r.dev for creating these files wi
         "AUTO_DELETE_STATLOGS": "true"
     },
     "settings": {
-        "PLAYER_WHITELIST": "1007946891142"
+	"PLAYER_WHITELIST": "",
+	"ADMINS": "R5mkos-1007946891142"
     }
 }
 
@@ -212,6 +247,9 @@ ______________________________________________________________________
 	default_lock1v1_setting					1 // 1 = allow locking.  default setting for player preference
 	end_match_message			// 0/1 disable or enable eng game messages
 	endgame_delay 				// time in seconds 
+	give_random_legend_on_spawn             1  // gives both opponents same random legend
+	default_start_in_rest_setting			0
+	enable_voice				1
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 
