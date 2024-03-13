@@ -2,7 +2,7 @@
 Stats Tracker system for R5Reloaded servers. 
 
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
-########################################################
+______________________________________________________________
 
 NEW 3/13/2024
 
@@ -38,7 +38,7 @@ indev:
 - voice / chat muting. voice overlay
 - challenge system
 
-
+___________________________________________________________________
 
 NEW 3/8/2024
 
