@@ -893,6 +893,7 @@ void function _CustomTDM_Init()
 		{	
 			Init_IBMM ( player )
 		}
+		
 
     })
 
@@ -1040,6 +1041,11 @@ void function __OnEntitiesDidLoad()
 			MapEditor_CreateRespawnableWeaponRack( <9344.03906, 5790.82031, -3695.96875> , <0, 0, 0>, "mp_weapon_haloshotgun", 0.5 )
 			MapEditor_CreateRespawnableWeaponRack( <-10954.4912, -14820.9619, 3111.98145> , <0, 45, 0>, "mp_weapon_halobattlerifle", 0.5 )
 		}
+		break
+		
+		case "mp_rr_party_crasher":
+
+		Patch_Partycrasher_Restarea()
 		break
     }
 	
