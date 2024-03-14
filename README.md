@@ -4,6 +4,17 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ______________________________________________________________
 
+NEW 3/132024 [NIGHT update]
+
+- Added rotate feature. To configure, add a list of comma separated maps for:
+- maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
+- rotate_map 		1 // rotatesmaps in maplist
+
+- Added new 1v1 map with spawns: mp_rr_party_crasher - to enable add mp_rr_party_crasher to fs_1v1 maps in playlist
+
+
+______________________________________________________________
+
 NEW 3/13/2024
 
 - General code improvements.

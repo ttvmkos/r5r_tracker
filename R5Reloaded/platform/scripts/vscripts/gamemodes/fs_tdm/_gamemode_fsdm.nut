@@ -1445,6 +1445,7 @@ bool function is1v1EnabledAndAllowed()
 		case "mp_rr_aqueduct":
 		case "mp_rr_canyonlands_64k_x_64k":
 		case "mp_rr_canyonlands_staging":
+		case "mp_rr_party_crasher":
 		thread isChineseServer()
 		return true
 		default:
@@ -3908,36 +3909,32 @@ void function SimpleChampionUI()
 		}
 		
 		//cycle map /mkos
-		string to_map = "";
-		if( GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false ) )
-		{	
-		
-			to_map = "mp_rr_canyonlands_staging";
-			
-		} else {
-		
-			if ( GetCurrentPlaylistVarBool ( "rotate_map", false ) )
+	string to_map = GetMapName();
+
+	if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) 
+	{
+		to_map = "mp_rr_canyonlands_staging";
+	} 
+	else 
+	{
+		if (GetCurrentPlaylistVarBool("rotate_map", false)) 
+		{
+			array<string> maplist = split(GetCurrentPlaylistVarString("maplist", ""), ",");
+			int countmaps = maplist.len();
+			int i;
+
+			for ( i = 0; i < countmaps; i++ ) 
 			{
-			
-				string rotate_map = GetMapName();
-				
-				if ( rotate_map == "mp_rr_arena_composite" )
+				if ( GetMapName() == maplist[i] ) 
 				{
-					to_map = "mp_rr_aqueduct";
-					
-				}else{
-				
-					to_map = "mp_rr_arena_composite"
+					int index = (i + 1) % countmaps	
+					to_map = maplist[index]
+					break
 				}
-				
-			} else {
-				
-				//rotate_map false
-				to_map = GetMapName();
-				
 			}
-			
 		}
+	}
+
 	
 
 		GameRules_ChangeMap( to_map , GameRules_GetGameMode() )

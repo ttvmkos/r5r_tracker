@@ -810,11 +810,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 	//client command: show
 	bool function ClientCommand_mkos_test_return_data(entity player, array<string> args){
 		
-		if ( args.len() < 1){
-			
+		if ( args.len() < 1)
+		{	
 			Message( player, "\n\n\nUsage: ", " showdata argument \n\n\n Arguments:\n map - Shows current map name \n round - Shows current round number \n input - Shows a list of players and their current input", 5 )
-			return true;
-			
+			return true;	
 		}
 		
 		string requestedData = args[0];
@@ -852,10 +851,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 					
 					if ( param == "" )
 					{
-					
 						Message( player, "Failed", " Command 'player' requires playername/oid as first param. ")
 						return true;
-					
 					}
 						
 						try
@@ -893,26 +890,21 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 							
 							if( (inputmsg.len() + data.len()) > 599 )
 							{
-						
 								Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
 								return true;
-						
 							}
 							
 							Message( player, inputmsg, data, 15);
 							
-						} catch (errlookup) 
+						} 
+						catch (errlookup) 
 						{
-	
 							Message(player, "Failed", "Command failed because of: \n\n " + errlookup )
 							return false
-						
 						}
 						
-						
 						return true;
-					
-				
+	
 			
 			case "input":
 					
@@ -924,32 +916,26 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 					
 					try 
 					{
-					
-						foreach ( active_player in GetPlayerArray() ){
-							
+						foreach ( active_player in GetPlayerArray() )
+						{	
 							handicap = active_player.p.p_damage == 2 ? "On" : "Off";
 							p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
 							data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
-				
 						}
 						
 						
-						if( ( inputmsg.len() + data.len()) > 599 ){
-						
+						if( ( inputmsg.len() + data.len()) > 599 )
+						{
 							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
 							return true;
-						
 						}
 						
-						Message( player, inputmsg, data, 20);
-					
+						Message( player, inputmsg, data, 20);	
 					} 
 					catch (show_err) 
 					{
-	
 						Message(player, "Failed", "Command failed because of: \n\n " + show_err )
-						return false
-								
+						return false			
 					}
 					
 					
@@ -970,7 +956,6 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 					
 						foreach ( active_player in GetPlayerArray() )
 						{
-							
 							kills = active_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
 							deaths = active_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
 							
@@ -980,19 +965,15 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 							}
 							
 							kd_string = kd != 0.0 ? kd.tostring() : "N/A";
-							
-							
-							
+
 							data += "Player: " + active_player.GetPlayerName() + global_stats_msg + " Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
-				
 						}
 						
 						
-						if( (inputmsg.len() + data.len()) > 599 ){
-						
+						if( (inputmsg.len() + data.len()) > 599 )
+						{
 							Message( player, "Failed", "Cannot execute this command currently due to return data resulting in overflow" )
 							return true;
-						
 						}
 						
 						Message( player, inputmsg, data, 20);
@@ -1269,8 +1250,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 		if ( admins_list == "" ){ return }
 		
 		
-		try {
-		
+		try 
+		{
 			array<string> list = StringToArray( admins_list )
 		
 			foreach ( admin_pair in list )
@@ -1360,21 +1341,22 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 			
 							try 
 							{
-							
 								Message( player, "Commands:", "A command is entered as: \n\n cc command #param #param2.  \n\n cc kick #name/oid   - Kicks a player by name/oid \n cc afk #0/1   - disabled or enables afk to rest mode \n cc playself #audiofile   - Plays audiofile to self \n cc playall #audiofile    - Plays audiofile to all player \n cc sayall '#title' '#message' #duration   - says to all \n cc ban #name/oid #reason    - Bans a player \n cc unban #oid   - attempts to unban a player by OID \n cc map #name #mode   - reloads map \n cc playerinput #name/oid   - shows players input \n cc playerinfo  - some stats", 20 )
-							
-							} catch (err) { return false }
+							} 
+							catch (err) 
+							{ 
+								return false 
+							}
 					
 							return true
 				
 				
 			case "kick":	
 							
-							if ( args.len() < 2 ){
-						
+							if ( args.len() < 2 )
+							{
 								Message( player, "Failed", "kick requires name/id for 1st param of command" )
 								return false
-						
 							}
 			
 							try 
@@ -1402,9 +1384,9 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 								UpdatePlayerCounts()
 								
 								Message( player, "Kicked player", "PUID: " + param + " was kicked" )
-								return true
-								
-							} catch (erraaarg)
+								return true	
+							} 
+							catch (erraaarg)
 							{
 								Message( player, "Error", "Invalid player or argument missing" )
 								return true
@@ -1466,23 +1448,21 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 			case "playonself": 
 			
 								
-							if ( args.len() < 2 ){
-							
+							if ( args.len() < 2 )
+							{
 								Message( player, "Failed", "playself requires param of audiofile as string" )
 								return false
-							
 							} 
 								
-							try {
-							
-								EmitSoundOnEntity( player, args[1] )
-								
-							} catch ( erra ){
-									
-										Message(player, "Failed", "Command failed because of: \n\n " + erra )
-										return false
-									
-									}
+							try 
+							{
+								EmitSoundOnEntity( player, args[1] )	
+							} 
+							catch ( erra )
+							{
+								Message(player, "Failed", "Command failed because of: \n\n " + erra )
+								return false	
+							}
 							
 							return true
 				
@@ -1490,23 +1470,23 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 			case "playself": 
 			
 								
-							if ( args.len() < 2 ){
-							
+							if ( args.len() < 2 )
+							{
 								Message( player, "Failed", "Command 'playself' requires param of audiofile as string" )
 								return false
-							
 							} 
 								
-							try {
-							
-								EmitSoundOnEntityOnlyToPlayer( player, player, args[1] )
-								
-							} catch ( erra ){
+							try 
+							{
+								EmitSoundOnEntityOnlyToPlayer( player, player, args[1] )	
+							} 
+							catch ( erra )
+							{
 									
-										Message(player, "Failed", "Command failed because of: \n\n " + erra )
-										return false
+								Message(player, "Failed", "Command failed because of: \n\n " + erra )
+								return false
 									
-									}
+							}
 							
 							return true
 							
@@ -1517,16 +1497,15 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 							foreach (connected_player in GetPlayerArray())
 							{
 							
-								try {
-						
+								try 
+								{
 									EmitSoundOnEntityOnlyToPlayer( connected_player, connected_player, args[1] )
-									return true
-									
-								} catch ( errb ){
-								
+									return true		
+								} 
+								catch ( errb )
+								{	
 									Message(player, "Failed", "Command failed because of: \n\n " + errb )
-									return false
-								
+									return false	
 								}
 							
 							}
@@ -1540,16 +1519,15 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 							
 							foreach (connected_player in GetPlayerArray()){
 							
-								try {
-						
+								try 
+								{
 									StopSoundOnEntity( connected_player, args[1] )
-									return true
-									
-								} catch ( errb ){
-								
+									return true	
+								} 
+								catch ( errb )
+								{	
 									Message(player, "Failed", "Command failed because of: \n\n " + errb )
 									return false
-								
 								}
 							
 							}
@@ -1561,28 +1539,27 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 					
 			case "sayall": 
 					
-							if ( args.len() < 4 ){
-							
+							if ( args.len() < 4 )
+							{	
 								Message( player, "Failed", "Command 'sayall' requires duration for third param of command as float" )
 								return false
-							
 							} 
 							
 							foreach ( say_to_player in GetPlayerArray())
 							{
 							
 								try	
-								{
-								
-									Message( say_to_player, param, param2, param3.tofloat())
-									
-								} catch ( errc ){
+								{	
+									Message( say_to_player, param, param2, param3.tofloat())	
+								} 
+								catch ( errc ){
 								
 									Message(player, "Failed", "Command failed because of: \n\n " + errc )
 									return true
-								
 								}
 							}
+							
+					return true
 							
 			case "sayto": 
 		
@@ -1619,9 +1596,7 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 						
 								Message( player, "Failed", "Command 'ban' requires name/id for 1st param of command" )
 								return false
-						
-							}
-							
+							}			
 							
 							try 
 							{		
@@ -1641,7 +1616,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 								b_playeroid = b_player.GetPlatformUID()	
 									
 								
-								if ( IsAdmin( b_playeroid ) ){
+								if ( IsAdmin( b_playeroid ) )
+								{
 									Message( player, "Cannot ban admin")
 									return true
 								}
@@ -1652,7 +1628,8 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 								Message( player, "Success", "Player: " + param + "\n\n was banned for: \n\n" + b_reason )
 								return true
 								
-							} catch ( erre )
+							} 
+							catch ( erre )
 							{
 							
 								Message(player, "Failed", "Command failed because of: \n\n " + erre )
@@ -1663,56 +1640,46 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 			
 			case "banid":
 			
-						if ( args.len() < 2 ){
-						
-								Message( player, "Failed", "Command 'banid' requires oid for 1st param of command")
-								return false
-						
-							}	
+						if ( args.len() < 2 )
+						{
+							Message( player, "Failed", "Command 'banid' requires oid for 1st param of command")
+							return false
+						}	
 
 							try 
 							{
 								
 								if ( IsAdmin(param) )
-								{
-								
+								{		
 									Message( player, "Failed", param + " is an admin. Ban rejected.", 10 )
-									return false
-								
+									return false		
 								}
 								
 								if ( !IsNum(param) )
-								{
-									
+								{			
 									Message( player, "Failed", param + " is not a valid oid format.", 10 )
-									return false
-								
+									return false	
 								}
 								
 								if ( param2 == "")
-								{
-								
-									param2 = "0";
-									
+								{		
+									param2 = "0";							
 								}
 								
 								if ( AddBanByID( param2, param ) )
-								{
-								
+								{					
 									Message( player, "Success", param + " was added to the banlist.", 10 )
-									return true
-								
-								} else 
-								{
-									
+									return true	
+								} 
+								else 
+								{	
 									Message( player, "Failed", "Failed to add player oid: " + param + " to the banlist.", 10 )
-									return true
-									
+									return true		
 								}
 								
-							} catch ( errbanid )
+							} 
+							catch ( errbanid )
 							{
-							
 								Message(player, "Failed", "Command failed because of: \n\n " + errbanid )
 								return false
 							}
@@ -2271,6 +2238,26 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 					SetConVarBool( "sv_cheats", false )
 					
 					return true
+					
+			case "pos":
+				
+					#if DEVELOPER
+					if (args.len() < 2)
+					{
+						Message( player, "NEED TO NAME THE SPAWN" );
+						return true
+					}
+					
+					try 
+					{
+						POS_CC(player,param)
+					}
+					catch(pos_error)
+					{
+						Message( player, "Error", "Failed: " + pos_error )
+					}
+					return true
+					#endif
 					
 			default:
 			

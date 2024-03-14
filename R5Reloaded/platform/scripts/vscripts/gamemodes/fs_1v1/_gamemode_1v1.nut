@@ -256,6 +256,11 @@ LocPair function getWaitingRoomLocation(string mapName)
 		WaitingRoom.origin = < 3477.69, -8364.02, -10252 >
 		WaitingRoom.angles = <356.203, 269.459, 0>
 	}
+	else if (mapName == "mp_rr_party_crasher")
+	{	
+		WaitingRoom.origin = < 1881.75, -4210.87, 626.106 > 
+		WaitingRoom.angles = < 359.047, 104.246, 0 >
+	}
 	return WaitingRoom
 }
 
@@ -1439,6 +1444,59 @@ void function _soloModeInit(string mapName)
 
 			]
 		}
+		else if (mapName == "mp_rr_party_crasher")
+		{
+			//waitingRoomLocation = NewLocPair( < 3477.74, -8544.55, -10252 >, < 356.203, 269.459, 0 >)  
+			waitingRoomPanelLocation = NewLocPair( < 1822, -3977, 626 >, < 0, 15, 0 > ) //休息区观战面板
+
+			allSoloLocations= [
+
+				NewLocPair( < -2053.13, 4360.61, 563.285 >, < 0, 186, 0 > ),
+				NewLocPair( < -2958.06, 3402.03, 563.271 >, < 0, 85, 0 > ),
+				
+				NewLocPair( < -1387.71, 2184.46, 834.302 >, < 0, 40, 0 > ),
+				NewLocPair( < -1050.73, 2471.19, 834.302 >, < 0, 220, 0 > ),
+				
+				NewLocPair( < -1774.73, 42.2706, 1177.18 >, < 0, 30, 0 > ),
+				NewLocPair( < -875.26, 530.277, 1079.86 >, < 0, 208, 0 > ),
+				
+				NewLocPair( < -978.056, -28.7255, 1290.62 >, < 0, 133, 0 > ),
+				NewLocPair( < -1421.04, 475.461, 1298.05 >, < 0, 305, 0 > ),
+				
+				NewLocPair( < 772.704, -1660.51, 835.302 >, < 0, 22, 0 > ),
+				NewLocPair( < 1197.34, -1487.04, 835.302 >, < 0, 203, 0 > ),
+				
+				NewLocPair( < 1046.13, -3527.3, 563.272 >, < 0, 331, 0 > ),
+				NewLocPair( < 2342.18, -3197.44, 563.285 >, < 0, 233, 0 > ),
+				
+				NewLocPair( < 2663.09, -487.083, 730.031 >, < 0, 109, 0 > ),
+				NewLocPair( < 2512.93, -32.7122, 730.031 >, < 0, 290, 0 > ),
+				
+				NewLocPair( < 2837.64, -258.927, 930.031 >, < 0, 109, 0 > ),
+				NewLocPair( < 2686.48, 186.067, 930.031 >, < 0, 288, 0 > ),
+				
+				NewLocPair( < 2013.12, 2245.02, 920.031 >, < 0, 300, 0 > ),
+				NewLocPair( < 2550.29, 1371.93, 920.031 >, < 0, 121, 0 > ),
+				
+				NewLocPair( < 835.26, 2797.75, 940.031 >, < 0, 132, 0 > ),
+				NewLocPair( < 544.371, 3121.64, 940.031 >, < 0, 313, 0 > ),
+				
+				NewLocPair( < 930.568, 3029.09, 740.031 >, < 0, 133, 0 > ),
+				NewLocPair( < 582.145, 3424.91, 740.031 >, < 0, 311, 0 > ),
+				
+				NewLocPair( < 1843.89, 816.934, 703.031 >, < 0, 119, 0 > ),
+				NewLocPair( < 1220.95, 1939.03, 703.031 >, < 0, 300, 0 > ),
+				
+				NewLocPair( < 1509.87, 195.799, 543.613 >, < 0, 181, 0 > ),
+				NewLocPair( < 839.514, 191.83, 543.613 >, < 0, 0, 0 > ),
+			
+			]
+			
+			
+			panelLocations = [
+
+			]
+		}
 		else
 		{
 			return
@@ -1484,8 +1542,18 @@ void function _soloModeInit(string mapName)
 	//mkos 
 	entity restingRoomPanel_IBMM_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles + <0,45,0>, buttonText4 )
 	entity restingRoomPanel_lock1v1_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles - <0,45,0>, buttonText5 )
-	entity restingRoomPanel_start_in_rest_setting_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <-20,80,0>, waitingRoomPanelLocation.angles - <0,90,0>, buttonText6 )
-	entity restingRoomPanel_nothing_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <20,80,0>, waitingRoomPanelLocation.angles - <0,-90,0>, buttonText7 )
+	
+	
+	float rest_offset = -20;
+	float nothing_offset = 20;
+	if(GetMapName() == "mp_rr_party_crasher")
+	{
+		rest_offset = -40;
+		nothing_offset = 10;
+	}
+	
+	entity restingRoomPanel_start_in_rest_setting_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <rest_offset,80,0>, waitingRoomPanelLocation.angles - <0,90,0>, buttonText6 )
+	entity restingRoomPanel_nothing_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <nothing_offset,80,0>, waitingRoomPanelLocation.angles - <0,-90,0>, buttonText7 )
 	//endkos
 	
 	AddCallback_OnUseEntity( restingRoomPanel, void function(entity panel, entity user, int input)
@@ -2212,7 +2280,10 @@ void function GiveWeaponsToGroup( array<entity> players )
 
 		string primaryWeaponWithAttachments = ReturnRandomPrimaryMetagame_1v1()
 		string secondaryWeaponWithAttachments = ReturnRandomSecondaryMetagame_1v1()
+		
 		int random_character_index = RandomIntRangeInclusive(0,characterslist.len()-1)
+		array<ItemFlavor> characters = GetAllCharacters()
+		ItemFlavor random_character = characters[characterslist[random_character_index]]
 
 		foreach( player in players )
 		{
@@ -2221,8 +2292,6 @@ void function GiveWeaponsToGroup( array<entity> players )
 			
 			if (GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false ))
 			{	
-				array<ItemFlavor> characters = GetAllCharacters()
-				ItemFlavor random_character = characters[characterslist[random_character_index]]
 				CharacterSelect_AssignCharacter( ToEHI( player ), random_character )
 			}
 			
@@ -2492,6 +2561,11 @@ vector function Return_Loc_Data( string _type )
 				return angles
 				break
 				
+			case "mp_rr_party_crasher":
+				angles = < 1822.39, -3977.1, 626.106 >
+				return angles
+				break
+				
 			default: 
 			
 				angles = < 0,0,0 >;
@@ -2532,6 +2606,11 @@ vector function Return_Loc_Data( string _type )
 				return coordinates
 				break
 				
+			case "mp_rr_party_crasher":
+				coordinates = < 1785, -3835.48, 810.953 >
+				return coordinates 
+				break
+				
 			default: 
 			
 				coordinates = <0,0,0>;
@@ -2540,7 +2619,7 @@ vector function Return_Loc_Data( string _type )
 		} 
 		
 		
-	} 	
+	}
 	
 	else if ( _type == "waiting_for_players_angles" ) 
 	{
@@ -2553,7 +2632,6 @@ vector function Return_Loc_Data( string _type )
 				angles = < 0, 90, 0 >;
 				return angles
 				break
-			
 			
 			case "mp_rr_aqueduct":
 			
@@ -2570,6 +2648,11 @@ vector function Return_Loc_Data( string _type )
 			case "mp_rr_canyonlands_64k_x_64k":
 				angles = < 356.297, 45.561, 0 >
 				return angles
+				break
+				
+			case "mp_rr_party_crasher":
+				angles = < 0, 105, 0 >
+				return angles 
 				break
 				
 			default: 
