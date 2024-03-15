@@ -58,6 +58,7 @@ global function Flowstate_GrantSpawnImmunity
 global function GetBlackListedWeapons
 
 //R5R.DEV Tracker
+global function ReturnChatArray
 global function GetCurrentRound 
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
@@ -83,24 +84,49 @@ const string HIT_14 = "UI_Survival_Intro_PreLegendSelect_Countdown"
 const string HIT_15 = "Flesh.Shotgun.BulletImpact_Headshot_3P_vs_1P"
 const string HIT_16 = "jackhammer_pickup"
 
-			//UI_InGame_MarkedForDeath_CountdownToMarked
-			//FIRINGRANGE_BUTTON_SOUND
-			//menu_click
-			//Weapon_R1_Satchel.ArmedBeep
-			//ui_callerid_chime_friendly
-			//Wpn_ArcTrap_Beep
-			//UI_Menu_accept
-			//UI_MapPing_Location_1P
-			//    ---->    --->      this one is nice ------->>>> //UI_DownedAlert_Friendly
-			//UI_MapPing_Item_1P
-			//UI_MapPing_Undo_1P
-			//UI_MapPing_Local_Confirm_1P
-			//UI_MapPing_Acknowledge_1P
-			//UI_Survival_Intro_PreLegendSelect_Countdown
-			//Flesh.Shotgun.BulletImpact_Headshot_3P_vs_1P
-			//jackhammer_pickup
-			//UI_Survival_Intro_LaunchCountDown_3Seconds
 
+const table<string, string> WeaponNameMap = {
+    ["mp_weapon_r97"] = "R99",
+    ["mp_weapon_vinson"] = "Flatline",
+    ["mp_weapon_volt_smg"] = "Volt SMG",
+    ["mp_weapon_car"] = "Car SMG",
+    ["mp_weapon_sniper"] = "Kraber",
+    ["mp_weapon_alternator_smg"] = "Alternator",
+    ["mp_weapon_defender"] = "Charge Rifle",
+    ["mp_weapon_esaw"] = "Devotion",
+    ["mp_weapon_epg"] = "EPG",
+    ["mp_weapon_shotgun"] = "EVA8",
+    ["mp_weapon_g2"] = "G7 Scout",
+    ["mp_weapon_energy_ar"] = "Havoc",
+    ["mp_weapon_hemlok"] = "Hemlok",
+    ["mp_weapon_dmr"] = "Longbow",
+    ["mp_weapon_lstar"] = "Lstar",
+    ["mp_weapon_mastiff"] = "Mastiff",
+    ["mp_weapon_shotgun_pistol"] = "Mozambique",
+    ["mp_weapon_semipistol"] = "P2020",
+    ["mp_weapon_energy_shotgun"] = "Peacekeeper",
+    ["mp_weapon_pdw"] = "Prowler",
+    ["mp_weapon_rspn101"] = "R301",
+    ["mp_weapon_autopistol"] = "RE45",
+    ["mp_weapon_smart_pistol"] = "Smart Pistol",
+    ["mp_weapon_lmg"] = "Spitfire",
+    ["mp_weapon_doubletake"] = "Triple Take",
+    ["mp_weapon_wingman"] = "Wingman",
+    ["mp_weapon_grenade_emp"] = "Arc Star",
+    ["mp_weapon_frag_grenade"] = "Frag",
+    ["mp_weapon_thermite_grenade"] = "Thermite",
+    ["mp_weapon_grenade_creeping_bombardment"] = "Bangalore Ultimate",
+    ["mp_weapon_grenade_bangalore"] = "Bangalore Tactical",
+    ["mp_weapon_dirty_bomb"] = "Caustic Tactical",
+    ["mp_weapon_grenade_gas"] = "Caustic Ultimate",
+    ["mp_ability_crypto_drone_emp"] = "Crypto Ultimate",
+    ["mp_weapon_grenade_defensive_bombardment"] = "Gibraltar Ultimate",
+    ["mp_weapon_tesla_trap"] = "Wattson Tactical",
+    ["deathField"] = "(ZONE)",
+    ["melee_pilot_emptyhanded"] = "Punch/Kick",
+    ["melee_bolo_sword"] = "Bolo Melee",
+    ["damagedef_unknown"] = "Lightning Gun"
+};
 
 const string WHITE_SHIELD = "armor_pickup_lv1"
 const string BLUE_SHIELD = "armor_pickup_lv2"
@@ -196,10 +222,16 @@ struct
 //////////////////////////////////////////////////// 
 ///////////////////  R5R.DEV:  /////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////// 
-int function GetCurrentRound() { 
-    return file.currentRound;
+
+array<string> function ReturnChatArray()
+{
+	return file.allChatLines
 }
 
+int function GetCurrentRound() 
+{ 
+    return file.currentRound;
+}
 
 void function INIT_LGDuels( entity player )
 {
@@ -665,9 +697,9 @@ bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> a
 						return true
 					
 					} 
-					catch ( handicap_err_1 )
+					catch ( lock1v1_err_1 )
 					{			
-						Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_1 )
+						Message(player, "Failed", "Command failed because of: \n\n " + lock1v1_err_1 )
 						return true		
 					}
 		
@@ -685,9 +717,84 @@ bool function ClientCommand_mkos_lock1v1_setting( entity player, array<string> a
 						Message( player, "Success", "Lock1v1 setting set to disabled.", 3);
 						return true
 					} 
-					catch ( handicap_err_2 )
+					catch ( lock1v1_err_2 )
 					{
-						Message(player, "Failed", "Command failed because of: \n\n " + handicap_err_2 )
+						Message(player, "Failed", "Command failed because of: \n\n " + lock1v1_err_2 )
+						return true
+					}
+				
+		}
+		
+	return false
+					
+}
+
+
+
+bool function ClientCommand_mkos_start_in_rest_setting( entity player, array<string> args )
+{
+	if ( !IsValid( player ) ) return false
+	
+	string param = ""
+	
+	if (args.len() > 0){
+		param = args[0];
+	}
+	
+	
+		if (args.len() < 1)
+		{
+			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n START IN REST SETTING:", " Type into console: start_in_rest # \n replacing # with 'on' or 'off'.  \n\n On: When the round/game starts or you join, you will start in rest and have to join the queue manually. \n\n Off: You will join the queue automatically.", 15)
+			return true
+		}				
+		
+		if ( param == "")
+		{
+			return true; 
+		}
+		
+		
+		switch( param )
+		{
+		
+		case "ON":
+		case "on":
+		case "1":
+		case "true":
+		case "enabled":
+		
+					try
+					{	
+						player.p.start_in_rest_setting = true;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						SavePlayer_start_in_rest_setting( player.GetPlatformUID(), player.GetPlayerName(), true )
+						Message( player, "Success", "START_IN_REST setting set to enabled.", 3);
+						return true
+					
+					} 
+					catch ( rest_setting_err_1 )
+					{			
+						Message(player, "Failed", "Command failed because of: \n\n " + rest_setting_err_1 )
+						return true		
+					}
+		
+		case "OFF":
+		case "off":
+		case "0":
+		case "false":
+		case "disabled":
+		
+					try
+					{
+						player.p.start_in_rest_setting = false;
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+						SavePlayer_start_in_rest_setting( player.GetPlatformUID(), player.GetPlayerName(), false )
+						Message( player, "Success", "START_IN_REST setting set to disabled.", 3);
+						return true
+					} 
+					catch ( rest_setting_err_2 )
+					{
+						Message(player, "Failed", "Command failed because of: \n\n " + rest_setting_err_2 )
 						return true
 					}
 				
@@ -763,8 +870,6 @@ void function _CustomTDM_Init()
 	}
 
     __InitAdmins()
-
-
 
     AddCallback_EntitiesDidLoad( __OnEntitiesDidLoad )
 
@@ -936,6 +1041,11 @@ void function __OnEntitiesDidLoad()
 			MapEditor_CreateRespawnableWeaponRack( <9344.03906, 5790.82031, -3695.96875> , <0, 0, 0>, "mp_weapon_haloshotgun", 0.5 )
 			MapEditor_CreateRespawnableWeaponRack( <-10954.4912, -14820.9619, 3111.98145> , <0, 45, 0>, "mp_weapon_halobattlerifle", 0.5 )
 		}
+		break
+		
+		case "mp_rr_party_crasher":
+
+		Patch_Partycrasher_Restarea()
 		break
     }
 	
@@ -1341,6 +1451,7 @@ bool function is1v1EnabledAndAllowed()
 		case "mp_rr_aqueduct":
 		case "mp_rr_canyonlands_64k_x_64k":
 		case "mp_rr_canyonlands_staging":
+		case "mp_rr_party_crasher":
 		thread isChineseServer()
 		return true
 		default:
@@ -1479,7 +1590,7 @@ void function _OnPlayerDied(entity victim, entity attacker, var damageInfo)
 	if( victim.p.isSpectating )
 		return
 
-	if(victim != attacker && GetCurrentPlaylistVarBool("flowstateBattleLogEnable", false ))
+	if(GetCurrentPlaylistVarBool("flowstateBattleLogEnable", false ) && victim != attacker)
 		Flowstate_AppendBattleLogEvent(attacker, victim)
 
 	if( is1v1EnabledAndAllowed() )
@@ -2177,6 +2288,7 @@ void function WpnPulloutOnRespawn(entity player, float duration)
 
 	// if( IsValid( player ) && file.tdmState != eTDMState.NEXT_ROUND_NOW )
 	// 	DeployAndEnableWeapons( player )
+	
 	player.ClearFirstDeployForAllWeapons()
 	if(GetCurrentPlaylistVarBool("flowstateReloadTacticalOnRespawn", false ))
 	{
@@ -2265,8 +2377,12 @@ void function SummonPlayersInACircle(entity player0)
 }
 
 void function __GiveWeapon( entity player, array<string> WeaponData, int slot, int select, bool isGungame = false)
-{
+{	
+	
 	array<string> Data = split(WeaponData[select], " ")
+	
+	if ( Data.len() == 0 ) return 
+	
 	string weaponclass = Data[0]
 
 	if(weaponclass == "tgive") return
@@ -3799,36 +3915,32 @@ void function SimpleChampionUI()
 		}
 		
 		//cycle map /mkos
-		string to_map = "";
-		if( GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false ) )
-		{	
-		
-			to_map = "mp_rr_canyonlands_staging";
-			
-		} else {
-		
-			if ( GetCurrentPlaylistVarBool ( "rotate_map", false ) )
+	string to_map = GetMapName();
+
+	if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) 
+	{
+		to_map = "mp_rr_canyonlands_staging";
+	} 
+	else 
+	{
+		if (GetCurrentPlaylistVarBool("rotate_map", false)) 
+		{
+			array<string> maplist = split(GetCurrentPlaylistVarString("maplist", ""), ",");
+			int countmaps = maplist.len();
+			int i;
+
+			for ( i = 0; i < countmaps; i++ ) 
 			{
-			
-				string rotate_map = GetMapName();
-				
-				if ( rotate_map == "mp_rr_arena_composite" )
+				if ( GetMapName() == maplist[i] ) 
 				{
-					to_map = "mp_rr_aqueduct";
-					
-				}else{
-				
-					to_map = "mp_rr_arena_composite"
+					int index = (i + 1) % countmaps	
+					to_map = maplist[index]
+					break
 				}
-				
-			} else {
-				
-				//rotate_map false
-				to_map = GetMapName();
-				
 			}
-			
 		}
+	}
+
 	
 
 		GameRules_ChangeMap( to_map , GameRules_GetGameMode() )
@@ -5080,7 +5192,9 @@ bool function IsForcedlyDisabledWeapon( string weapon )
 }
 
 bool function ClientCommand_GiveWeapon(entity player, array<string> args)
-{
+{	
+	bool bRestFlag = false
+	
 	if( !IsValid( player ) || !IsAlive( player ) )
 		return false
 
@@ -5093,18 +5207,17 @@ bool function ClientCommand_GiveWeapon(entity player, array<string> args)
 	if(args.len() < 2) return false
 
 	if( is1v1EnabledAndAllowed() && isPlayerInRestingList( player ) )
-	{
-		Message( player, "NOT ALLOWED IN RESTING MODE" )
-		return false
+	{	
+		bRestFlag = true
+		//Message( player, "NOT ALLOWED IN RESTING MODE" )
+		//return false
 	}
 	
-	/*
 	if( is1v1EnabledAndAllowed() && isPlayerInWaitingList( player ) )
 	{
 		Message( player, "NOT ALLOWED IN WAITING MODE" )
 		return false
 	}
-	*/
 
 	if( is1v1EnabledAndAllowed() && args[0] != "p" && args[0] != "s" )
 		return false
@@ -5185,7 +5298,7 @@ bool function ClientCommand_GiveWeapon(entity player, array<string> args)
 			break
 		}
 	} catch( e420 ) {
-            printt("Invalid weapon name for tgive command.")
+           // printt("Invalid weapon name for tgive command.")
         }
 
     if( IsValid(weapon) && !weapon.IsWeaponOffhand() && args.len() > 2 )
@@ -5216,7 +5329,7 @@ bool function ClientCommand_GiveWeapon(entity player, array<string> args)
 				weapon.AddMod(args[i])
 			}
 			catch( e2 ) {
-				printt( "Invalid mod. - ", args[i] )
+				// printt( "Invalid mod. - ", args[i] )
 				weapon.RemoveMod( args[i] )
 			}
 		}
@@ -5228,8 +5341,260 @@ bool function ClientCommand_GiveWeapon(entity player, array<string> args)
 	}
 
 	player.p.lastTgiveUsedTime = Time()
+	
+	
+		if( ClientCommand_SaveCurrentWeapons( player, [] ) )
+		{	
+			string sWepName = GetWepName_FromClassName( weapon.GetWeaponClassName() )
+			Message( player, "WEAPON " + sWepName + " SAVED")
+		}	
+			
+		if (bRestFlag)
+		{	
+			//HolsterAndDisableWeapons( player )
+		}
 
     return true
+}
+
+string function GetWepName_FromClassName( string classname )
+{
+	if ( classname in WeaponNameMap )
+	{
+		return WeaponNameMap[classname]
+	}
+	
+	return "Unknown";
+}
+
+///Save TDM Current Weapons
+bool function ClientCommand_SaveCurrentWeapons(entity player, array<string> args)
+{	entity weapon1
+	entity weapon2
+	string optics1
+	string optics2
+	array<string> mods1
+	array<string> mods2
+	string weaponname1
+	string weaponname2
+	try
+	{
+		weapon1 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+		weapon2 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+			
+		mods1 = IsValid(weapon1) ? GetWeaponMods( weapon1 ) : [""];
+		mods2 = IsValid(weapon2) ? GetWeaponMods( weapon2 ) : [""];
+		
+		foreach (mod in mods1)
+			optics1 = mod + " " + optics1
+		foreach (mod in mods2)
+			optics2 = mod + " " + optics2
+
+		
+		if(IsValid(weapon1))
+		{
+			weaponname1 = weapon1.GetWeaponClassName()+" " + optics1;	
+		}
+		else 
+		{	
+			#if DEVELOPER
+			sqerror("Player: " + player.GetPlatformUID() + " Weapon 1 invalid, setting to empty ") 
+			#endif
+			
+			weaponname1 = " ";
+		}
+		
+		if(IsValid(weapon2))
+		{
+			weaponname2 = weapon2.GetWeaponClassName()+" " + optics2
+		}
+		else 
+		{	
+			#if DEVELOPER
+			sqerror("Player: " + player.GetPlatformUID() + " Weapon 2 invalid, setting to empty")
+			#endif		
+			
+			weaponname2 = "";
+		}
+		
+		
+	}
+	catch(error)
+	{	
+		#if DEVELOPER
+		sqerror("Error: " + error )
+		#endif
+	}
+	
+	if ( !isPlayerInRestingList( player ) )
+	{
+		if(weaponname1 == "" || weaponname2 == "")
+		{	
+			#if DEVELOPER
+			if (weaponname1 == ""){ sqerror("Player: " + player.GetPlatformUID() + " weaponname1 empty") }
+			if (weaponname2 == ""){ sqerror("Player: " + player.GetPlatformUID() + " weaponname2 empty") }
+			#endif
+			
+			Message( player, "FAILED TO SAVE" )
+			return false //dont save if player is dead
+		}
+	}
+	
+	#if DEVELOPER 
+	sqprint( "Player: " + player.GetPlatformUID() + " weaponname1: " + weaponname1 + " weaponname2: " + weaponname2 )
+	#endif 
+	
+	string concatenate_weps = weaponname1 + "; " + weaponname2;
+	
+	weaponlist[player.GetPlayerName()] <- concatenate_weps;
+	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), concatenate_weps )
+	
+	return true
+}
+
+//Limit mod for weapons in LoadCustomWeapon
+string function modChecker( string weaponMods )
+{	
+	//sqprint("weaponMods: " + weaponMods)
+	if( trim(weaponMods) == "") return "";  //return empty weapon mods
+	
+	array<string> weaponMod = split(weaponMods , " ")
+	array<string> rifles = ["mp_weapon_energy_ar","mp_weapon_esaw","mp_weapon_rspn101","mp_weapon_vinson","mp_weapon_lmg","mp_weapon_g2","mp_weapon_hemlok"]
+	array<string> smgs = ["mp_weapon_r97","mp_weapon_volt_smg","mp_weapon_pdw","mp_weapon_car"]
+	if ( weaponMod.len() > 0 && weaponMod[0] == "mp_weapon_energy_ar"||weaponMod[0] == "mp_weapon_esaw")//this weapon is energy gun
+	{
+		for (int i = 1; i < weaponMod.len(); i++)
+		{
+			if ("energy_mag_l3" == weaponMod[i] )//force player using energy_mag_l2
+				weaponMod[i] = "energy_mag_l2"
+		}
+	}
+
+	if ( weaponMod.len() > 0 && rifles.contains(weaponMod[0]))//this weapon is rifle
+	{
+		for (int i = 1; i < weaponMod.len(); i++)
+		{
+			if( i >= weaponMod.len() )
+				continue
+
+			if ("stock_tactical_l3" == weaponMod[i] || "stock_tactical_l2" == weaponMod[i]  )//force player using stock_tactical_l1
+				weaponMod[i] = "stock_tactical_l1"
+			if ("bullets_mag_l3" == weaponMod[i]   )//force player using bullets_mag_l2
+				weaponMod[i] = "bullets_mag_l2"
+			if ("highcal_mag_l3" == weaponMod[i] || "highcal_mag_l2" == weaponMod[i]  )//force player using highcal_mag_l1
+				weaponMod[i] = "highcal_mag_l1"
+			if ("energy_mag_l3" == weaponMod[i] || "energy_mag_l2" == weaponMod[i]  )//force player using energy_mag_l1
+				weaponMod[i] = "energy_mag_l1"
+			if ("barrel_stabilizer_l4_flash_hider" == weaponMod[i] || "barrel_stabilizer_l3" == weaponMod[i] || "barrel_stabilizer_l2" == weaponMod[i] ||"barrel_stabilizer_l1" == weaponMod[i])//去除枪管
+				weaponMod.remove(i)
+		}
+	}
+
+	if ( weaponMod.len() > 0 && smgs.contains(weaponMod[0]))//this weapon is smg
+	{
+		for (int i = 1; i < weaponMod.len(); i++)
+		{
+			if( i >= weaponMod.len() )
+				continue
+
+			if ("stock_tactical_l3" == weaponMod[i] || "stock_tactical_l2" == weaponMod[i]  )//force player using stock_tactical_l1
+				weaponMod[i] = "stock_tactical_l1"
+			if ("bullets_mag_l3" == weaponMod[i]   )//force player using bullets_mag_l2
+				weaponMod[i] = "bullets_mag_l2"
+			if ("highcal_mag_l3" == weaponMod[i]   )//force player using highcal_mag_l2
+				weaponMod[i] = "highcal_mag_l2"
+			if ("energy_mag_l3" == weaponMod[i]   )//force player using energy_mag_l2
+				weaponMod[i] = "energy_mag_l2"
+			if ("barrel_stabilizer_l4_flash_hider" == weaponMod[i] || "barrel_stabilizer_l3" == weaponMod[i] || "barrel_stabilizer_l2" == weaponMod[i] ||"barrel_stabilizer_l1" == weaponMod[i] )//去除枪管
+				weaponMod.remove(i)
+		}
+	}
+
+	weaponMod.reverse()
+	string returnweapon
+	foreach (i in weaponMod) {
+		returnweapon = i+" "+returnweapon
+	}
+
+	return returnweapon
+}
+
+//Auto-load TDM Saved Weapons at Respawn
+void function LoadCustomWeapon(entity player)
+{
+	if ( !IsValid( player ) ) return
+	if (player.GetPlayerName() in weaponlist)
+	{
+		// TakeAllWeapons(player)
+		array<string> weapons =  split(weaponlist[player.GetPlayerName()] , ";")
+		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+		//check if weapon's mods is allowed by server
+		foreach(index,weapon in weapons)
+		{	
+			if ( trim(weapon) == "" ) continue
+			
+            weapon =modChecker(weapon)
+			weapons[index]=weapon
+		}
+
+		foreach (index,rweapon in weapons)
+		{	
+			#if DEVELOPER 
+			sqprint(rweapon)
+			#endif
+			
+			if ( trim(rweapon) == "" ) continue
+			
+			int slot
+			if(index == 0)
+			{
+				slot = WEAPON_INVENTORY_SLOT_PRIMARY_0
+			}
+			else
+			{
+				slot = WEAPON_INVENTORY_SLOT_PRIMARY_1
+			}
+
+			__GiveWeapon( player, weapons, slot, index )
+		}
+		
+		WaitFrame()
+		
+		if(IsValid(player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )))
+		{
+			player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0)
+		}
+		else if (IsValid(player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )))
+		{
+			player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_1)
+		}
+		else 
+		{
+			#if DEVELOPER
+			sqerror("Player: " + player.GetPlatformUID() + " has no valid weapon to set: Active" )
+			#endif
+		}
+		
+	}
+}
+
+
+//Reset TDM Saved Weapons
+bool function ClientCommand_ResetSavedWeapons(entity player, array<string> args)
+{
+	if (!IsValid(player))
+		return false
+
+	if (player.GetPlayerName() in weaponlist)
+	{
+		delete weaponlist[player.GetPlayerName()]
+	}
+	
+	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), "NA")
+	player.p.weapon_loadout = "NA";
+	
+	return true
 }
 
 bool function ClientCommand_NextRound(entity player, array<string> args)
@@ -5254,6 +5619,7 @@ bool function ClientCommand_NextRound(entity player, array<string> args)
 
 	return true
 }
+
 bool function ClientCommand_adminnoclip( entity player, array<string> args )
 {
 	if( !IsValid(player) || IsValid(player) && !IsAdmin(player) )
@@ -5413,159 +5779,6 @@ void function AnimationTiming( entity legend, float cycle )
 	}
 }
 
-///Save TDM Current Weapons
-bool function ClientCommand_SaveCurrentWeapons(entity player, array<string> args)
-{	entity weapon1
-	entity weapon2
-	string optics1
-	string optics2
-	array<string> mods1
-	array<string> mods2
-	string weaponname1
-	string weaponname2
-	try
-	{
-		weapon1 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-		weapon2 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-		mods1 = GetWeaponMods( weapon1 )
-		mods2 = GetWeaponMods( weapon2 )
-		foreach (mod in mods1)
-			optics1 = mod + " " + optics1
-		foreach (mod in mods2)
-			optics2 = mod + " " + optics2
-
-		if(!IsValid(weapon1) || !IsValid(weapon2)) return false
-		weaponname1 = weapon1.GetWeaponClassName()+" " + optics1 + "; "
-		weaponname2 = weapon2.GetWeaponClassName()+" " + optics2
-	}
-	catch(error)
-	{}
-
-	if(weaponname1 == "" || weaponname2 == "") return false //dont save if player is dead
-	weaponlist[player.GetPlayerName()] <- weaponname1+weaponname2
-	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), weaponname1+weaponname2 )
-	
-	return true
-}
-
-//Limit mod for weapons in LoadCustomWeapon
-string function modChecker( string weaponMods )
-{
-	array<string> weaponMod = split(weaponMods , " ")
-	array<string> rifles = ["mp_weapon_energy_ar","mp_weapon_esaw","mp_weapon_rspn101","mp_weapon_vinson","mp_weapon_lmg","mp_weapon_g2","mp_weapon_hemlok"]
-	array<string> smgs = ["mp_weapon_r97","mp_weapon_volt_smg","mp_weapon_pdw","mp_weapon_car"]
-	if ( weaponMod.len() > 0 && weaponMod[0] == "mp_weapon_energy_ar"||weaponMod[0] == "mp_weapon_esaw")//this weapon is energy gun
-	{
-		for (int i = 1; i < weaponMod.len(); i++)
-		{
-			if ("energy_mag_l3" == weaponMod[i] )//force player using energy_mag_l2
-				weaponMod[i] = "energy_mag_l2"
-		}
-	}
-
-	if ( weaponMod.len() > 0 && rifles.contains(weaponMod[0]))//this weapon is rifle
-	{
-		for (int i = 1; i < weaponMod.len(); i++)
-		{
-			if( i >= weaponMod.len() )
-				continue
-
-			if ("stock_tactical_l3" == weaponMod[i] || "stock_tactical_l2" == weaponMod[i]  )//force player using stock_tactical_l1
-				weaponMod[i] = "stock_tactical_l1"
-			if ("bullets_mag_l3" == weaponMod[i]   )//force player using bullets_mag_l2
-				weaponMod[i] = "bullets_mag_l2"
-			if ("highcal_mag_l3" == weaponMod[i] || "highcal_mag_l2" == weaponMod[i]  )//force player using highcal_mag_l1
-				weaponMod[i] = "highcal_mag_l1"
-			if ("energy_mag_l3" == weaponMod[i] || "energy_mag_l2" == weaponMod[i]  )//force player using energy_mag_l1
-				weaponMod[i] = "energy_mag_l1"
-			if ("barrel_stabilizer_l4_flash_hider" == weaponMod[i] || "barrel_stabilizer_l3" == weaponMod[i] || "barrel_stabilizer_l2" == weaponMod[i] ||"barrel_stabilizer_l1" == weaponMod[i])//去除枪管
-				weaponMod.remove(i)
-		}
-	}
-
-	if ( weaponMod.len() > 0 && smgs.contains(weaponMod[0]))//this weapon is smg
-	{
-		for (int i = 1; i < weaponMod.len(); i++)
-		{
-			if( i >= weaponMod.len() )
-				continue
-
-			if ("stock_tactical_l3" == weaponMod[i] || "stock_tactical_l2" == weaponMod[i]  )//force player using stock_tactical_l1
-				weaponMod[i] = "stock_tactical_l1"
-			if ("bullets_mag_l3" == weaponMod[i]   )//force player using bullets_mag_l2
-				weaponMod[i] = "bullets_mag_l2"
-			if ("highcal_mag_l3" == weaponMod[i]   )//force player using highcal_mag_l2
-				weaponMod[i] = "highcal_mag_l2"
-			if ("energy_mag_l3" == weaponMod[i]   )//force player using energy_mag_l2
-				weaponMod[i] = "energy_mag_l2"
-			if ("barrel_stabilizer_l4_flash_hider" == weaponMod[i] || "barrel_stabilizer_l3" == weaponMod[i] || "barrel_stabilizer_l2" == weaponMod[i] ||"barrel_stabilizer_l1" == weaponMod[i] )//去除枪管
-				weaponMod.remove(i)
-		}
-	}
-
-	weaponMod.reverse()
-	string returnweapon
-	foreach (i in weaponMod) {
-		returnweapon = i+" "+returnweapon
-	}
-
-	return returnweapon
-}
-
-//Auto-load TDM Saved Weapons at Respawn
-void function LoadCustomWeapon(entity player)
-{
-	if ( !IsValid( player ) ) return
-	if (player.GetPlayerName() in weaponlist)
-	{
-		// TakeAllWeapons(player)
-		array<string> weapons =  split(weaponlist[player.GetPlayerName()] , ";")
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-		//check if weapon's mods is allowed by server
-		foreach(index,eachWeapons in weapons)
-		{
-            eachWeapons =modChecker(eachWeapons)
-			weapons[index]=eachWeapons
-		}
-
-		foreach (index,eachWeapon in weapons)
-		{
-			int slot
-			if(index == 0)
-			{
-				slot = WEAPON_INVENTORY_SLOT_PRIMARY_0
-			}
-			else
-			{
-				slot = WEAPON_INVENTORY_SLOT_PRIMARY_1
-			}
-
-			__GiveWeapon( player, weapons, slot, index )
-		}
-
-		player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0)
-	}
-}
-
-
-//Reset TDM Saved Weapons
-bool function ClientCommand_ResetSavedWeapons(entity player, array<string> args)
-{
-	if (!IsValid(player))
-		return false
-
-	if (player.GetPlayerName() in weaponlist)
-	{
-		delete weaponlist[player.GetPlayerName()]
-	}
-	
-	SavePlayer_saved_weapons(player.GetPlatformUID(), player.GetPlayerName(), "NA")
-	player.p.weapon_loadout = "NA";
-	
-	return true
-}
-
 void function LoadCustomSkill(entity player)
 {
 	if (!IsValid(player))
@@ -5626,6 +5839,7 @@ void function GivePlayerRandomCharacter(entity player)
     GiveRandomTac(player)
     GiveRandomUlt(player)
 }
+
 void function highlightKdMoreThan2(entity player)
 {
 	return //disable for solo mode

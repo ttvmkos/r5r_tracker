@@ -21,6 +21,7 @@ global struct soloGroupStruct
 	entity player2
 
 	entity ring//ring boundaries
+	soloLocStruct &groupLocStruct
 
 	int slotIndex
 	bool GROUP_INPUT_LOCKED = false //lock group to their input - mkos
@@ -38,6 +39,8 @@ global struct soloPlayerStruct
 	entity lastOpponent //opponent of last round
 	bool IsTimeOut = false
 }
+
+array< bool > realmSlots
 global array <soloLocStruct> soloLocations //all respawn location stored here
 global array <soloPlayerStruct> soloPlayersWaiting = [] //waiting player stored here
 global array <soloGroupStruct> soloPlayersInProgress = [] //playing player stored here
@@ -253,26 +256,31 @@ LocPair function getWaitingRoomLocation(string mapName)
 		WaitingRoom.origin = < 3477.69, -8364.02, -10252 >
 		WaitingRoom.angles = <356.203, 269.459, 0>
 	}
+	else if (mapName == "mp_rr_party_crasher")
+	{	
+		WaitingRoom.origin = < 1881.75, -4210.87, 626.106 > 
+		WaitingRoom.angles = < 359.047, 104.246, 0 >
+	}
 	return WaitingRoom
 }
 
-int function getAvailableSlotIndex()
+void function SetIsUsedBoolForRealmSlot( int realmID, bool usedState )
 {
-	array<int> soloLocationInProgressIndexs //所有正在游玩的地区编号
-	foreach (eachGroup in soloPlayersInProgress)
+	realmSlots[ realmID ] = usedState
+}
+
+int function getAvailableRealmSlotIndex()
+{
+	for( int slot = 1; slot < realmSlots.len(); slot++ )
 	{
-		soloLocationInProgressIndexs.append(eachGroup.slotIndex)
+		if( !realmSlots[slot] )
+		{
+			SetIsUsedBoolForRealmSlot( slot, true )
+			return slot
+		}
 	}
-	array<int> availableSoloLocationIndex
-	for (int i = 0; i < soloLocations.len(); ++i)
-	{
-		if(!soloLocationInProgressIndexs.contains(i))
-			availableSoloLocationIndex.append(i)
-	}
-	//printt("available slot :" + availableSoloLocationIndex.len())
-	if(availableSoloLocationIndex.len()==0)
-		return -1 //no available slot
-	return availableSoloLocationIndex[RandomInt(availableSoloLocationIndex.len())]
+
+	return -1
 }
 
 soloGroupStruct function returnSoloGroupOfPlayer(entity player)
@@ -338,40 +346,8 @@ bool function return_rest_state( entity player )
 	return false;
 }
 
-
-bool function mkos_Force_Rest(entity player, array<string> args)
-{
-	if( !IsValid(player) ) //|| !IsAlive(player) )
-		return false
-
-	if(soloPlayersResting.contains(player))
-	{
-		return false
-	} 
-	
-	if(isPlayerInWaitingList(player))
-		return false
-
-	
-		soloModePlayerToRestingList(player)
-		try
-		{
-			player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
-		}
-		catch (error)
-		{
-
-		}
-
-	TakeAllWeapons( player )	
-	player.p.lastRestUsedTime = Time()
-
-	return true
-}
-
-
 bool function isPlayerInRestingList(entity player)
-{	
+{
 	foreach (eachPlayer in soloPlayersResting)
 	{
 	   	if (eachPlayer == player) //找到当前玩家的group
@@ -379,7 +355,6 @@ bool function isPlayerInRestingList(entity player)
 	}
 	return false
 }
-
 void function deleteWaitingPlayer(entity player)
 {
 	if(!IsValid(player)) return
@@ -392,6 +367,40 @@ void function deleteWaitingPlayer(entity player)
 		}
 	}
 }
+
+bool function mkos_Force_Rest(entity player, array<string> args)
+{
+	if( !IsValid(player) ) //|| !IsAlive(player) )
+		return false
+
+	if(soloPlayersResting.contains(player))
+	{	
+		HolsterAndDisableWeapons(player)
+		return false
+	} 
+	
+	if(isPlayerInWaitingList(player))
+		deleteWaitingPlayer(player) //return false
+
+	
+		soloModePlayerToRestingList(player)
+		try
+		{
+			player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
+		}
+		catch (error)
+		{
+
+		}
+	
+	HolsterAndDisableWeapons(player)
+	//TakeAllWeapons( player )	
+	player.p.lastRestUsedTime = Time()
+
+	return true
+}
+
+
 
 bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args )
 {
@@ -430,6 +439,8 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		}
 		catch (error)
 		{}
+		
+		HolsterAndDisableWeapons(player)
 	}
 	else
 	{
@@ -449,7 +460,9 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		}
 
 		thread respawnInSoloMode(player)
-		TakeAllWeapons( player )
+		
+		HolsterAndDisableWeapons(player)
+		//TakeAllWeapons( player )
 	}
 	
 	player.p.lastRestUsedTime = Time()
@@ -498,19 +511,10 @@ entity function returnOpponentOfPlayer(entity player )
 
 void function soloModePlayerToWaitingList(entity player)
 {
-	if(!IsValid(player)) return
-	// Warning("Try to add a player to wating list: " + player.GetPlayerName())
+	if(!IsValid(player) || isPlayerInWaitingList(player) ) 
+		return
+
 	player.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
-	//检查waiting list是否有该玩家
-	bool IsAlreadyExist = false
-	foreach (eachPlayerStruct in soloPlayersWaiting)
-	{
-		if(player == eachPlayerStruct.player)
-		{
-			IsAlreadyExist = true
-			return //waiting list里已存在该玩家,返回
-		}
-	}
 
 	soloPlayerStruct playerStruct
 	playerStruct.player = player
@@ -538,22 +542,15 @@ void function soloModePlayerToWaitingList(entity player)
 	}
 	playerStruct.lastOpponent = player.p.lastKiller
 
-	if(!IsAlreadyExist) //如果waiting list里没有这个玩家
-	{
-		playerStruct.queue_time = Time()
-		ResetIBMM( player )
-		soloPlayersWaiting.append(playerStruct)
-		TakeAllWeapons( player )
+	playerStruct.queue_time = Time()
+	ResetIBMM( player )
+	soloPlayersWaiting.append(playerStruct)
+	TakeAllWeapons( player )
 
-		//set realms for resting player
-		setRealms_1v1(player,64)//more than 63 means AddToAllRealms
-		
-		Remote_CallFunction_NonReplay( player, "ForceScoreboardFocus" )
-	}
-	else //如果waiting list里有这个玩家
-	{
-		return //waiting list里已存在该玩家,返回
-	}
+	//set realms for resting player
+	FS_ClearRealmsAndAddPlayerToAllRealms( player )
+	
+	Remote_CallFunction_NonReplay( player, "ForceScoreboardFocus" )
 
 	//检查InProgress是否存在该玩家
 	foreach (eachGroup in soloPlayersInProgress)
@@ -564,8 +561,8 @@ void function soloModePlayerToWaitingList(entity player)
 			soloGroupStruct group = returnSoloGroupOfPlayer(player)
 			entity opponent = returnOpponentOfPlayer(player)
 
-			if(IsValid(soloLocations[group.slotIndex].Panel)) //Panel in current Location
-				soloLocations[group.slotIndex].Panel.SetSkin(1) //set panel to red(default color)
+			// if(IsValid(soloLocations[group.slotIndex].Panel)) //Panel in current Location
+				// soloLocations[group.slotIndex].Panel.SetSkin(1) //set panel to red(default color)
 
 			destroyRingsForGroup(eachGroup) //delete rings
 			soloPlayersInProgress.removebyvalue(eachGroup) //delete this group
@@ -635,12 +632,12 @@ bool function soloModePlayerToInProgressList(soloGroupStruct newGroup) //不能�
 	soloPlayersResting.removebyvalue(player)//将两个玩家移出resting list
 	soloPlayersResting.removebyvalue(opponent)//将两个玩家移出resting list
 
-	int slotIndex = getAvailableSlotIndex()
+	int slotIndex = getAvailableRealmSlotIndex()
 	if (slotIndex > -1) //available slot exist
 	{
 		//printt("solo slot exist")
 		newGroup.slotIndex = slotIndex
-
+		newGroup.groupLocStruct = soloLocations.getrandom()
 		//printt("add player1&player2 to InProgress list!")
 		soloPlayersInProgress.append(newGroup) //加入游玩队列
 
@@ -671,8 +668,8 @@ void function soloModePlayerToRestingList(entity player)
 	{
 		entity opponent = returnOpponentOfPlayer(player)
 
-		if(IsValid(soloLocations[group.slotIndex].Panel)) //Panel in current Location
-			soloLocations[group.slotIndex].Panel.SetSkin(1) //set panel to red(default color)
+		// if(IsValid(soloLocations[group.slotIndex].Panel)) //Panel in current Location
+			// soloLocations[group.slotIndex].Panel.SetSkin(1) //set panel to red(default color)
 
 		destroyRingsForGroup(group)
 		soloPlayersInProgress.removebyvalue(group) //销毁这个group
@@ -717,25 +714,23 @@ void function soloModefixDelayStart(entity player)
 	{}
 }
 
-void function setRealms_1v1(entity ent,int realmIndex)
-{
-	if(!IsValid(ent)) return
-	if(realmIndex>63)
-	{
-		ent.AddToAllRealms()
-		return
-	}//add to all realms for players in resting mode
+const int MAX_REALM = 63
 
-	array<int> realms = ent.GetRealms()
-	ent.AddToRealm(realmIndex)
-	realms.removebyvalue(realmIndex)
-	if(realms.len()>0)
-	{
-		foreach (eachRealm in realms )
-		{
-			ent.RemoveFromRealm(eachRealm)
-		}
-	}
+void function FS_SetRealmForPlayer( entity player, int realmIndex )
+{
+	if( !IsValid( player ) || realmIndex > MAX_REALM ) 
+		return 
+
+	player.RemoveFromAllRealms()
+	player.AddToRealm( realmIndex )
+}
+
+void function FS_ClearRealmsAndAddPlayerToAllRealms( entity player )
+{
+	if( !IsValid( player ) )
+		return
+
+	player.AddToAllRealms()
 }
 
 void function destroyRingsForGroup(soloGroupStruct group)
@@ -937,15 +932,18 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 		player.SetTakeDamageType( DAMAGE_YES )
 
 		//set realms for resting player
-		setRealms_1v1(player,64)//more than 63 means AddToAllRealms
+		FS_ClearRealmsAndAddPlayerToAllRealms( player )
 
 		return
 	}//玩家在休息模式
 
 	soloGroupStruct group = returnSoloGroupOfPlayer(player)
 
-	if(!isGroupValid(group)) return //Is this group is available
-	if (respawnSlotIndex == -1) return
+	if( !isGroupValid( group) ) 
+		return //Is this group is available
+
+	if ( respawnSlotIndex == -1 ) 
+		return
 
 	try
 	{
@@ -957,14 +955,8 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 	}
 	GivePlayerCustomPlayerModel( player )
 	
-	//mkosDEBUG
-	/* array<ItemFlavor> characters = GetAllCharacters()
-			int random_character_index = RandomIntRangeInclusive(0,characterslist.len()-1)
-			ItemFlavor random_character = characters[characterslist[random_character_index]]
-			CharacterSelect_AssignCharacter( ToEHI( player ), random_character )
-	*/
-	
-	maki_tp_player(player,soloLocations[group.slotIndex].respawnLocations[respawnSlotIndex])
+	soloLocStruct groupLocStruct = group.groupLocStruct
+	maki_tp_player(player, groupLocStruct.respawnLocations[ respawnSlotIndex ] )
 
 	wait 0.2 //防攻击的伤害传递止上一条命被到下一条命的玩家上
 
@@ -976,15 +968,14 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 	{
 		PlayerRestoreHP_1v1(player, 100, 0 ) //lg
 	}
-	
-	PlayerRestoreHP_1v1(player, 100, player.GetShieldHealthMax().tofloat())
+	else 
+	{
+		PlayerRestoreHP_1v1(player, 100, player.GetShieldHealthMax().tofloat())
+	}
 
 	Survival_SetInventoryEnabled( player, false )
 	//SetPlayerInventory( player, [] )
 	thread ReCheckGodMode(player)
-
-	//set realms for two players
-	setRealms_1v1(player,group.slotIndex+1)
 }
 
 void function GivePlayerCustomPlayerModel( entity ent )
@@ -1023,7 +1014,7 @@ void function _soloModeInit(string mapName)
 	if (mapName == "mp_rr_arena_composite")
 	{
 		// waitingRoomLocation = NewLocPair( <-7.62,200,184.57>, <0,90,0>)
-		waitingRoomPanelLocation = NewLocPair( <-3.0,595.19,125>, <0,0,0>)//休息区观战面板
+		waitingRoomPanelLocation = NewLocPair( <-3.0,645,125>, <0,0,0>)//休息区观战面板
 
 		allSoloLocations= [
 		NewLocPair( <344.814117, 1279.00415, 188.561081>, <0, 178.998779, 0>), //1
@@ -1453,6 +1444,59 @@ void function _soloModeInit(string mapName)
 
 			]
 		}
+		else if (mapName == "mp_rr_party_crasher")
+		{
+			//waitingRoomLocation = NewLocPair( < 3477.74, -8544.55, -10252 >, < 356.203, 269.459, 0 >)  
+			waitingRoomPanelLocation = NewLocPair( < 1822, -3977, 626 >, < 0, 15, 0 > ) //休息区观战面板
+
+			allSoloLocations= [
+
+				NewLocPair( < -2053.13, 4360.61, 563.285 >, < 0, 186, 0 > ),
+				NewLocPair( < -2958.06, 3402.03, 563.271 >, < 0, 85, 0 > ),
+				
+				NewLocPair( < -1387.71, 2184.46, 834.302 >, < 0, 40, 0 > ),
+				NewLocPair( < -1050.73, 2471.19, 834.302 >, < 0, 220, 0 > ),
+				
+				NewLocPair( < -1774.73, 42.2706, 1177.18 >, < 0, 30, 0 > ),
+				NewLocPair( < -875.26, 530.277, 1079.86 >, < 0, 208, 0 > ),
+				
+				NewLocPair( < -978.056, -28.7255, 1290.62 >, < 0, 133, 0 > ),
+				NewLocPair( < -1421.04, 475.461, 1298.05 >, < 0, 305, 0 > ),
+				
+				NewLocPair( < 772.704, -1660.51, 835.302 >, < 0, 22, 0 > ),
+				NewLocPair( < 1197.34, -1487.04, 835.302 >, < 0, 203, 0 > ),
+				
+				NewLocPair( < 1046.13, -3527.3, 563.272 >, < 0, 331, 0 > ),
+				NewLocPair( < 2342.18, -3197.44, 563.285 >, < 0, 233, 0 > ),
+				
+				NewLocPair( < 2663.09, -487.083, 730.031 >, < 0, 109, 0 > ),
+				NewLocPair( < 2512.93, -32.7122, 730.031 >, < 0, 290, 0 > ),
+				
+				NewLocPair( < 2837.64, -258.927, 930.031 >, < 0, 109, 0 > ),
+				NewLocPair( < 2686.48, 186.067, 930.031 >, < 0, 288, 0 > ),
+				
+				NewLocPair( < 2013.12, 2245.02, 920.031 >, < 0, 300, 0 > ),
+				NewLocPair( < 2550.29, 1371.93, 920.031 >, < 0, 121, 0 > ),
+				
+				NewLocPair( < 835.26, 2797.75, 940.031 >, < 0, 132, 0 > ),
+				NewLocPair( < 544.371, 3121.64, 940.031 >, < 0, 313, 0 > ),
+				
+				NewLocPair( < 930.568, 3029.09, 740.031 >, < 0, 133, 0 > ),
+				NewLocPair( < 582.145, 3424.91, 740.031 >, < 0, 311, 0 > ),
+				
+				NewLocPair( < 1843.89, 816.934, 703.031 >, < 0, 119, 0 > ),
+				NewLocPair( < 1220.95, 1939.03, 703.031 >, < 0, 300, 0 > ),
+				
+				NewLocPair( < 1509.87, 195.799, 543.613 >, < 0, 181, 0 > ),
+				NewLocPair( < 839.514, 191.83, 543.613 >, < 0, 0, 0 > ),
+			
+			]
+			
+			
+			panelLocations = [
+
+			]
+		}
 		else
 		{
 			return
@@ -1482,6 +1526,14 @@ void function _soloModeInit(string mapName)
 	string buttonText5
 	
 		buttonText5 = "%&use% Toggle LOCK1V1 Setting";
+		
+	string buttonText6
+	
+		buttonText6 = "%&use% Toggle START_IN_REST Setting";
+		
+	string buttonText7 
+	
+		buttonText7 = "This button does nothing";
 	//endkos, - initialized in case we want to dynamically change it for chinese server
 	
 	entity restingRoomPanel = CreateFRButton( waitingRoomPanelLocation.origin + AnglesToForward( waitingRoomPanelLocation.angles ) * 40, waitingRoomPanelLocation.angles, buttonText )
@@ -1490,6 +1542,18 @@ void function _soloModeInit(string mapName)
 	//mkos 
 	entity restingRoomPanel_IBMM_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles + <0,45,0>, buttonText4 )
 	entity restingRoomPanel_lock1v1_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <0,25,0>, waitingRoomPanelLocation.angles - <0,45,0>, buttonText5 )
+	
+	
+	float rest_offset = -20;
+	float nothing_offset = 20;
+	if(GetMapName() == "mp_rr_party_crasher")
+	{
+		rest_offset = -40;
+		nothing_offset = 10;
+	}
+	
+	entity restingRoomPanel_start_in_rest_setting_button = CreateFRButton( waitingRoomPanelLocation.origin + (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <rest_offset,80,0>, waitingRoomPanelLocation.angles - <0,90,0>, buttonText6 )
+	entity restingRoomPanel_nothing_button = CreateFRButton( waitingRoomPanelLocation.origin - (AnglesToForward( waitingRoomPanelLocation.angles ) * 100) - <nothing_offset,80,0>, waitingRoomPanelLocation.angles - <0,-90,0>, buttonText7 )
 	//endkos
 	
 	AddCallback_OnUseEntity( restingRoomPanel, void function(entity panel, entity user, int input)
@@ -1588,6 +1652,26 @@ void function _soloModeInit(string mapName)
 		
 	})
 	
+	
+	AddCallback_OnUseEntity( restingRoomPanel_start_in_rest_setting_button, void function(entity panel, entity user, int input)
+	{
+		if(!IsValid(user)) return
+		
+		if(user.p.start_in_rest_setting == true)
+		{
+			user.p.start_in_rest_setting = false;
+			SavePlayer_start_in_rest_setting( user.GetPlatformUID(), user.GetPlayerName(), false )
+			Message( user, "START_IN_REST Disabled");
+		}
+		else
+		{	
+			user.p.start_in_rest_setting = true;
+			SavePlayer_start_in_rest_setting( user.GetPlatformUID(), user.GetPlayerName(), true )
+			Message( user, "START_IN_REST Enabled.");
+		}
+		
+	})
+	
 	//endkos
 	
 	AddCallback_OnUseEntity( restingRoomPanel_RestButton, void function(entity panel, entity user, int input)
@@ -1608,6 +1692,12 @@ void function _soloModeInit(string mapName)
 
 		soloLocations.append(p)
 	}
+	realmSlots.resize( MAX_REALM + 1 )
+	realmSlots[ 0 ] = true
+	for (int i = 1; i < realmSlots.len(); i++)
+	{
+		realmSlots[ i ] = false
+	}
 	
 	string buttonText2
 	
@@ -1620,79 +1710,81 @@ void function _soloModeInit(string mapName)
 		buttonText2 = "%&use% Never change your opponent"
 	}
 	
-	foreach (index,eahclocation in panelLocations)
-	{
-		//Panels for save opponents
-		entity panel = CreateFRButton(eahclocation.origin, eahclocation.angles, buttonText2)
-		panel.SetSkin(1)//red
-		soloLocations[index].Panel = panel
-		AddCallback_OnUseEntity( panel, void function(entity panel, entity user, int input)
-		{
-			string Text3
-			string Text4
-			if(IS_CHINESE_SERVER)
-			{
-				Text3 = "您已取消绑定"
-				Text4 = "您已绑定您的对手"
-			}
-			else
-			{
-				Text3 = "Your opponent will change now"
-				Text4 = "Your opponent won't change"
-			}
-			soloGroupStruct group = returnSoloGroupOfPlayer(user)
-			// if (!IsValid(group.player1) || !IsValid(group.player2)) return
-			if(!isGroupValid(group)) return //Is this group is available
-			if (soloLocations[group.slotIndex].Panel != panel) return //有傻逼捣乱
+	//Disabled because realms don't support this. This has been changed to a button in Pause menu in indev version
+
+	// foreach (index,eahclocation in panelLocations)
+	// {
+		// //Panels for save opponents
+		// entity panel = CreateFRButton(eahclocation.origin, eahclocation.angles, buttonText2)
+		// panel.SetSkin(1)//red
+		// soloLocations[index].Panel = panel
+		// AddCallback_OnUseEntity( panel, void function(entity panel, entity user, int input)
+		// {
+			// string Text3
+			// string Text4
+			// if(IS_CHINESE_SERVER)
+			// {
+				// Text3 = "您已取消绑定"
+				// Text4 = "您已绑定您的对手"
+			// }
+			// else
+			// {
+				// Text3 = "Your opponent will change now"
+				// Text4 = "Your opponent won't change"
+			// }
+			// soloGroupStruct group = returnSoloGroupOfPlayer(user)
+			// // if (!IsValid(group.player1) || !IsValid(group.player2)) return
+			// if(!isGroupValid(group)) return //Is this group is available
+			// if (soloLocations[group.slotIndex].Panel != panel) return //有傻逼捣乱
 			
-			//mkos 
-			if ( !IsLockable( group.player1, group.player2 ))
-			{	
-				string lock_data;
+			// //mkos 
+			// if ( !IsLockable( group.player1, group.player2 ))
+			// {	
+				// string lock_data;
 
-				lock_data += group.player1.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player1) + "\n"; 
-				lock_data += group.player2.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player2) + "\n";
+				// lock_data += group.player1.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player1) + "\n"; 
+				// lock_data += group.player2.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player2) + "\n";
 				
-				try
-				{
-					Message(group.player1, "LOCKING FAILED", lock_data)
-					Message(group.player2, "LOCKING FAILED", lock_data)
-				}
-				catch (L_error)
-				{}
+				// try
+				// {
+					// Message(group.player1, "LOCKING FAILED", lock_data)
+					// Message(group.player2, "LOCKING FAILED", lock_data)
+				// }
+				// catch (L_error)
+				// {}
 				
-				return
-			}
+				// return
+			// }
 			
-			if( group.IsKeep == false)
-			{
-				group.IsKeep = true
-				panel.SetSkin(0) //green
+			// if( group.IsKeep == false)
+			// {
+				// group.IsKeep = true
+				// panel.SetSkin(0) //green
 
-				try
-				{
-					Message(group.player1, Text4)
-					Message(group.player2, Text4)
-				}
-				catch (error)
-				{}
+				// try
+				// {
+					// Message(group.player1, Text4)
+					// Message(group.player2, Text4)
+				// }
+				// catch (error)
+				// {}
 
-			}
-			else
-			{
-				group.IsKeep = false
-				panel.SetSkin(1) //red
+			// }
+			// else
+			// {
+				// group.IsKeep = false
+				// panel.SetSkin(1) //red
 
-				try
-				{
-					Message(group.player1, Text3)
-					Message(group.player2, Text3)
-				}
-				catch (error)
-				{}
-			}
-		})//AddCallback_OnUseEntity
-	}//foreach
+				// try
+				// {
+					// Message(group.player1, Text3)
+					// Message(group.player2, Text3)
+				// }
+				// catch (error)
+				// {}
+			// }
+		// })//AddCallback_OnUseEntity
+	// }//foreach
 
 
 	forbiddenZoneInit(GetMapName())
@@ -1764,9 +1856,17 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			if(eachGroup.IsFinished)//this round has been finished
 			{
 				//printt("this round has been finished")
+				SetIsUsedBoolForRealmSlot( eachGroup.slotIndex, false )
 				soloModePlayerToWaitingList(eachGroup.player1)
 				soloModePlayerToWaitingList(eachGroup.player2)
 				destroyRingsForGroup(eachGroup)
+				
+				if (IsValid(eachGroup.player1)) 	
+					HolsterAndDisableWeapons(eachGroup.player1)
+					
+				if (IsValid(eachGroup.player2))
+					HolsterAndDisableWeapons(eachGroup.player2)
+				
 				continue
 			}
 
@@ -1790,21 +1890,25 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				if(IsValid(eachGroup.player1))
 				{
 					soloModePlayerToWaitingList(eachGroup.player1) //back to wating list
+					HolsterAndDisableWeapons(eachGroup.player1)
 					Message(eachGroup.player1, Text5)
 				}
 
 				if(IsValid(eachGroup.player2))
 				{
 					soloModePlayerToWaitingList(eachGroup.player2) //back to wating list
+					HolsterAndDisableWeapons(eachGroup.player2)
 					Message(eachGroup.player2, Text5)
 				}
+				
+				SetIsUsedBoolForRealmSlot( eachGroup.slotIndex, false )
 				continue
 			}
 			
 
 			//检测乱跑的脑残
-			int eachSlotIndex = eachGroup.slotIndex
-			vector Center =  soloLocations[eachSlotIndex].Center
+			soloLocStruct groupLocStruct = eachGroup.groupLocStruct
+			vector Center = groupLocStruct.Center
 			array<entity> players = [eachGroup.player1,eachGroup.player2]
 			foreach (eachPlayer in players )
 			{
@@ -1825,12 +1929,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		{
 			if(!IsValid(restingPlayer)) continue
 
-			TakeAllWeapons( restingPlayer )
-
 			if(!IsAlive(restingPlayer)  )
 			{
 				thread respawnInSoloMode(restingPlayer)
 			}
+			
+			//TakeAllWeapons( restingPlayer )
+			HolsterAndDisableWeapons( restingPlayer )
 		}
 
 		foreach ( player in GetPlayerArray() )
@@ -1892,15 +1997,19 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				entity player = solostruct.player;	
 				bool notify = solostruct.waitingmsg
 				
-				if ( notify == true ){
+				if ( !IsValid( player ) )
+				{
+					continue
+				}
 				
+				if ( notify == true )
+				{
 					int id = player.GetEncodedEHandle()
 					Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
 					CreatePanelText(player, "", "Waiting for\n   players...",IBMM_WFP_Coordinates(),IBMM_WFP_Angles(), false, 2.5, id)
 					//Message( player, "\n\n\n\n Waiting for players...", "", 120 )
 					SetMsg( player, false )
-					APlayerHasMessage = true;
-					
+					APlayerHasMessage = true;	
 				}
 			}
 
@@ -1908,11 +2017,14 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			
 		}  else if (APlayerHasMessage) {
 		
-			foreach ( player in GetPlayerArray() ){
-				
+			foreach ( player in GetPlayerArray() )
+			{
+				if ( !IsValid( player ) )
+				{
+					continue
+				}
 				int id = player.GetEncodedEHandle()
 				RemovePanelText( player, id)
-			
 			}
 			
 			APlayerHasMessage = false;
@@ -2040,6 +2152,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 
 		if(! (IsValid(newGroup.player1) && IsValid(newGroup.player2))     ) //确保两个玩家都是合法玩家
 		{
+			SetIsUsedBoolForRealmSlot( newGroup.slotIndex, false )
 			// Warning("player Invalid, back to waiting list")
 			soloModePlayerToWaitingList(newGroup.player1)
 			soloModePlayerToWaitingList(newGroup.player2)
@@ -2051,14 +2164,12 @@ void function soloModeThread(LocPair waitingRoomLocation)
 	
 		//mkos
 		if ( Fetch_IBMM_Timeout_For_Player( newGroup.player1 ) == false || Fetch_IBMM_Timeout_For_Player( newGroup.player2 ) == false && newGroup.player1.p.input == newGroup.player2.p.input )
-		{
-						
+		{			
 			newGroup.GROUP_INPUT_LOCKED = true;
-			
-		} else {
-		
+		} 
+		else 
+		{
 			newGroup.GROUP_INPUT_LOCKED = false;
-		
 		}
 		
 		soloModePlayerToInProgressList(newGroup)
@@ -2072,18 +2183,9 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		}
 		
 		GiveWeaponsToGroup( players )
-		// try{
-			// newGroup.ring = CreateSmallRingBoundary(soloLocations[newGroup.slotIndex].Center)
-			
-			// if(IsValid(GetMainRingBoundary()))
-				// newGroup.ring.SetParent(GetMainRingBoundary())
-		// }catch(e420){}
-		
-		// setRealms_1v1(newGroup.ring,newGroup.slotIndex+1)
-		//realms = 0 means visible for everyone,so it should be more than 1
-		setRealms_1v1(newGroup.player1,newGroup.slotIndex+1) //to ensure realms is more than 0
-		setRealms_1v1(newGroup.player2,newGroup.slotIndex+1) //to ensure realms is more than 0
-		
+
+		FS_SetRealmForPlayer( newGroup.player1, newGroup.slotIndex )
+		FS_SetRealmForPlayer( newGroup.player2, newGroup.slotIndex )		
 		
 		//mkos
 		
@@ -2131,7 +2233,9 @@ void function InputWatchdog( entity player, entity opponent, soloGroupStruct gro
 	
 	while ( !group.IsFinished )
 	{
-				
+		if( GetGameState() != eGameState.Playing ) 
+			break
+
 		if ( !isGroupValid( group ) ) break
 		//if ( !IsAlive(player) || !IsAlive( opponent ) ) break
 		if ( isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) break
@@ -2176,19 +2280,20 @@ void function GiveWeaponsToGroup( array<entity> players )
 
 		string primaryWeaponWithAttachments = ReturnRandomPrimaryMetagame_1v1()
 		string secondaryWeaponWithAttachments = ReturnRandomSecondaryMetagame_1v1()
+		
+		int random_character_index = RandomIntRangeInclusive(0,characterslist.len()-1)
+		array<ItemFlavor> characters = GetAllCharacters()
+		ItemFlavor random_character = characters[characterslist[random_character_index]]
 
 		foreach( player in players )
 		{
 			if( !IsValid( player ) )
 				continue
 			
-			
-			//R5Raddfeature
-			/*array<ItemFlavor> characters = GetAllCharacters()
-			int random_character_index = RandomIntRangeInclusive(0,characterslist.len()-1)
-			ItemFlavor random_character = characters[characterslist[random_character_index]]
-			CharacterSelect_AssignCharacter( ToEHI( player ), random_character )
-			*/
+			if (GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false ))
+			{	
+				CharacterSelect_AssignCharacter( ToEHI( player ), random_character )
+			}
 			
 			DeployAndEnableWeapons( player )
 
@@ -2371,7 +2476,7 @@ void function ForceAllRoundsToFinish_solomode()
 			group.IsFinished = true //tell solo thread this round has finished
 		
 		soloModePlayerToWaitingList( player )
-		setRealms_1v1(player,64)
+		FS_ClearRealmsAndAddPlayerToAllRealms( player )
 	}
 	
 	soloPlayersInProgress.clear()
@@ -2456,6 +2561,11 @@ vector function Return_Loc_Data( string _type )
 				return angles
 				break
 				
+			case "mp_rr_party_crasher":
+				angles = < 1822.39, -3977.1, 626.106 >
+				return angles
+				break
+				
 			default: 
 			
 				angles = < 0,0,0 >;
@@ -2473,7 +2583,7 @@ vector function Return_Loc_Data( string _type )
 			
 			case "mp_rr_arena_composite":
 			
-				coordinates = < 6.94531, 687.949, 300.174 >
+				coordinates = < -3, 687.949, 300.174 >
 				return coordinates
 				break
 			
@@ -2496,6 +2606,11 @@ vector function Return_Loc_Data( string _type )
 				return coordinates
 				break
 				
+			case "mp_rr_party_crasher":
+				coordinates = < 1785, -3835.48, 810.953 >
+				return coordinates 
+				break
+				
 			default: 
 			
 				coordinates = <0,0,0>;
@@ -2504,7 +2619,7 @@ vector function Return_Loc_Data( string _type )
 		} 
 		
 		
-	} 	
+	}
 	
 	else if ( _type == "waiting_for_players_angles" ) 
 	{
@@ -2514,10 +2629,9 @@ vector function Return_Loc_Data( string _type )
 			
 			case "mp_rr_arena_composite":
 			
-				angles = < 5.64701, 87.8268, 0 >;
+				angles = < 0, 90, 0 >;
 				return angles
 				break
-			
 			
 			case "mp_rr_aqueduct":
 			
@@ -2534,6 +2648,11 @@ vector function Return_Loc_Data( string _type )
 			case "mp_rr_canyonlands_64k_x_64k":
 				angles = < 356.297, 45.561, 0 >
 				return angles
+				break
+				
+			case "mp_rr_party_crasher":
+				angles = < 0, 105, 0 >
+				return angles 
 				break
 				
 			default: 
@@ -2575,35 +2694,38 @@ vector function IBMM_WFP_Angles()
 }
 
 
-void function notify_thread( entity player ){
+void function notify_thread( entity player )
+{	
+	if ( !IsValid( player ) )
+	{
+		return
+	}
+	
+	int id = player.GetEncodedEHandle() + 1
+	
+	while(true)
+	{		
+		//sqprint("notify thread running")
+		if (!IsValid( player )) break
+		
+	
+		if ( player.p.notify == true && player.p.has_notify == false ){
+		
+			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
+			CreatePanelText(player, "", "Matching for: " + FetchInputName( player ) , IBMM_Coordinates(), IBMM_Angles(), false, 2, id)
+			//sqprint("Creating on screen match making for " + player.GetPlayerName() )
+			player.p.has_notify = true; //let thread self know not to create multiple displays
 			
-			int id = player.GetEncodedEHandle() + 1
-			
-			while(true){
-					
-				//sqprint("notify thread running")
-				if (!IsValid( player )) break
-				
-			
-				if ( player.p.notify == true && player.p.has_notify == false ){
-				
-					Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
-					CreatePanelText(player, "", "Matching for: " + FetchInputName( player ) , IBMM_Coordinates(), IBMM_Angles(), false, 2, id)
-					//sqprint("Creating on screen match making for " + player.GetPlayerName() )
-					player.p.has_notify = true; //let thread self know not to create multiple displays
-					
-				}
-			
-				if ( player.p.notify == false && player.p.destroynotify == true ){
-					
-					RemovePanelText( player, id )
-					player.p.destroynotify = false;
-					player.p.has_notify = false;
-					
-				}
-				
-			
-				wait 1
-				
-			}
 		}
+	
+		if ( player.p.notify == false && player.p.destroynotify == true ){
+			
+			RemovePanelText( player, id )
+			player.p.destroynotify = false;
+			player.p.has_notify = false;
+			
+		}
+		
+		wait 1	
+	}
+}

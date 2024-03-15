@@ -749,6 +749,7 @@ global struct ServerPlayerStruct
 	bool notify = false
 	bool has_notify = false
 	bool destroynotify = false
+	float last_input_time
 	float IBMM_grace_period = -1 // 0=disabled
 	float messagetime = 0
 	int movevalue = 0
@@ -756,12 +757,14 @@ global struct ServerPlayerStruct
 	int lifetime_kills = 0
 	int lifetime_deaths = 0
 	int lifetime_glides = 0
-	float last_input_time
 	int lifetime_playtime = 0
 	int lifetime_gamesplayed = 0
+	int lifetime_score = 0
 	string weapon_loadout = "NA"
 	bool lock1v1_setting = true
 	bool stats_done_loading = false
+	bool start_in_rest_setting = false
+	
 	
 	//MovementGym
 	bool isTimerActive = false

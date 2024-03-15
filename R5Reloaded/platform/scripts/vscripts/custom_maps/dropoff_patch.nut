@@ -44,7 +44,8 @@ void function Patch_Barrier_Overflow()
 
 }
 
-void function Patch_Dropoff() {
+void function Patch_Dropoff() 
+{
 	
 	if( !is1v1EnabledAndAllowed() ) 
 		return
@@ -719,4 +720,12 @@ void function Patch_Dropoff() {
 */
 
    
+}
+
+
+void function Patch_Partycrasher_Restarea()
+{
+	entity prop
+    prop = MapEditor_CreateProp( $"mdl/desertlands/highrise_rectangle_top_01.rmdl", < 1755.278, -3840.448, 669.9891 >, < 0, 15, 90 >, false, 0.0001, -1, 1 )
+    prop.MakeInvisible()
 }
