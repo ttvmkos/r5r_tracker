@@ -137,7 +137,7 @@ const SQ_MAX_INT_32 = 2147483647;
 const SQ_MIN_INT_32 = -2147483647;
 const RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
 const REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
-
+const float T_VERS = 2.1
 
 //(respawns) game summary
 
@@ -459,7 +459,7 @@ void function INIT_BATCH_FETCH()
 	array<string> oids
 	string oid_list = "";
 	
-	wait 7 //allow players to load
+	wait 9 //allow players to load
 	//sqprint("Calling init batch")
 	
 	foreach ( player in GetPlayerArray() )
@@ -533,7 +533,9 @@ void function SetPlayerKD( entity player )
 	int attempts = 0;
 	
 	if( !IsValid( player )) 
-			return
+	{
+		return
+	}
 			
 	OID = player.p.UID
 	
@@ -768,12 +770,8 @@ void function __CONTROLLED_LogInit()
 {
 	while(true)
 	{
-		WaitFrame()
-		FlagWait("START_LOG")
-		
-		__START_LOGGING()
-		
-		WaitFrame()
+		FlagWait("START_LOG")	
+		__START_LOGGING()	
 		FlagClear("START_LOG")	
 	}
 }
@@ -781,7 +779,7 @@ void function __CONTROLLED_LogInit()
 void function PIN_Init()
 {	
 	INIT_fastComputes()
-	FlagInit("START_LOG", false)
+	FlagInit("START_LOG", true)
 	thread __CONTROLLED_LogInit()
 	
 	if(GetCurrentPlaylistVarBool("disable_lag_comp",false))
@@ -936,7 +934,17 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 
 void function __START_LOGGING()
 {
-	if ( PIN_GameState_Start ) { return }
+	if ( PIN_GameState_Start ) 
+	{
+		#if DEVELOPER 
+			sqprint("PIN_GameState_Start was false, returning")
+		#endif
+		return 
+	}
+	
+	#if DEVELOPER 
+		sqprint("Dispatching Init_NewGame() thread")
+	#endif
 	
 	thread Init_NewGame()
 }
@@ -1007,16 +1015,7 @@ void function Init_NewGame()
 			sqprint("Log thread state: ready.")
 		}
 		#endif
-	}
-	///////////////////////////////////////////////////////////
-	///////////////////////////////////////////////////////////
-	///////////////////////////////////////////////////////////
-	///////////////////////////////////////////////////////////
-	///////////////////////////////////////////////////////////
-	
-	if ( !bSafeLog ) { return }
-	
-	
+	}	
 	waitlimit = 0;
 	while( !SQ_GetLogState( state.SAFE ) )
 	{
@@ -1037,10 +1036,16 @@ void function Init_NewGame()
 		#endif
 	}
 	
+	///////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////
+	
 	// Round started, make a new log. r5r.dev
 	//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
 	LogEvent(
-	format("|#Tracker version:2.1\n|| New match; round %s;  started at: %d\n",GetCurrentRound().tostring(), GetUnixTimestamp()),
+	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS,GetCurrentRound().tostring(), GetUnixTimestamp()),
 	Logging_Encryption()
 	);
 	
@@ -1470,7 +1475,7 @@ void function Init_NewGame()
 		player.ForceStand()
 		
 		while( IsValid( player ) )
-		{			
+		{				
 			mkos_Force_Rest( player, [] )
 			wait 0.5
 		}	
@@ -4560,20 +4565,22 @@ void function UpdateLiveStats( string metrics )
 	
 }
 
-void function FinishGameStatsRound(){
-	
-	
-	if ( process_end_round_complete == true ){
+void function FinishGameStatsRound()
+{
+	if ( process_end_round_complete == true )
+	{
 	
 		process_end_round_complete = false;
 	
 		//string message = format("round ended at %d, shipping match stats ", GetUnixTimestamp() )
 		//sqprint(message)
-		PIN_GameState_Start = false;
 
 						//R5R.DEV
-						if ( Logging_Enabled() && isLogging() && bSafeLog )
+						if ( Logging_Enabled() && isLogging() )
 						{
+						
+								if(!bSafeLog){ stopLogging(false); return; }
+								
 								//mkos: log winner placement - && denotes placement entry for parser
 								LogEvent(
 								format("\n|| Game ended at %d\n\n %s", GetUnixTimestamp(), PrintAllPlayerMetrics(true)),
@@ -4616,7 +4623,8 @@ void function FinishGameStatsRound(){
 		
 		UpdateRoundStats_GlobalsCarryOver()
 		DestroyStats()
-		process_end_round_complete = true;			
+		process_end_round_complete = true;	
+		PIN_GameState_Start = false;		
 	} 
 }
 

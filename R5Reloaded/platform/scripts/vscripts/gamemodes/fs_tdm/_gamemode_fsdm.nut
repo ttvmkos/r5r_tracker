@@ -1213,9 +1213,14 @@ void function SetTdmStateToNextRound(){
 	SetGlobalNetInt( "FSDM_GameState", file.tdmState )
 }
 
-void function SetTdmStateToInProgress(){
+void function SetTdmStateToInProgress()
+{
+	#if DEVELOPER
+	sqprint("Flag set: \"START_LOG\" in [SetTdmStateToInProgress]")
+	#endif
+	FlagSet("START_LOG")
 	file.tdmState = eTDMState.IN_PROGRESS
-	SetGlobalNetInt( "FSDM_GameState", file.tdmState )
+	SetGlobalNetInt( "FSDM_GameState", file.tdmState )	
 }
 
 void function Flowstate_ServerSaveChat()
@@ -3607,7 +3612,7 @@ void function SimpleChampionUI()
 	//printt("Flowstate DEBUG - TDM/FFA gameloop Round started.")
 	
 	//CALL THIS FOR STATS NEW ROUND
-	FlagSet("START_LOG")
+	
 	
 
 	foreach( player in GetPlayerArray() )
