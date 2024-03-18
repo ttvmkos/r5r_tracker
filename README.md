@@ -4,7 +4,38 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ______________________________________________________________
 
-NEW 3/132024 [NIGHT update]
+!! NEW 3/14/2024 [PERFORMANCE REWRITE]
+
+- ## Redesigned entire tracker engine code, several redesigned back-end systems,optimizations, failsafes.
+- ## With it: New setting for r5rdev.config (see examples folder for template):
+
+ -       "DELETE_ALL_LOGS": true,
+ -       "CVAR_MAX_BUFFER": 100
+
+- DELETE_ALL_LOGS, with auto delete on, will delete the game data logs after sending.
+- CVAR_MAX_BUFFER allows you to experiment with different buffer sizes, that which controls the active writer. 
+
+- ## new play list options ##: 
+
+- default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
+- COMMAND_RATE_LIMIT		0.200 //Rate limiting for all commands
+- enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
+
+- ## dev notes ##:
+
+- fixed movement input callbacks
+- reworked tracker engine/ tracker scripts / 1v1 game mode
+- redesigned struct methods to use constant time operations
+- replaced loops with direct access
+- converted string comparisons to int ref
+- created several new utility functions and systems
+- focused primarily on performance
+- fixed numerous bugs and issues
+
+
+______________________________________________________________
+
+NEW 3/13/2024 [NIGHT update]
 
 - Added rotate feature. To configure, add a list of comma separated maps for:
 - maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
@@ -263,6 +294,9 @@ ______________________________________________________________________
 	give_random_legend_on_spawn             1  // gives both opponents same random legend
 	default_start_in_rest_setting			0
 	enable_voice				1
+	default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
+	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all commands
+	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 

@@ -743,6 +743,9 @@ global struct ServerPlayerStruct
 	
 	//mkos /or/ r5r stats /r5r.dev
 	
+	int handle
+	string UID
+	string name
 	string hitsound
 	int input
 	string inputmode
@@ -764,6 +767,8 @@ global struct ServerPlayerStruct
 	bool lock1v1_setting = true
 	bool stats_done_loading = false
 	bool start_in_rest_setting = false
+	bool enable_input_banner = false
+	float ratelimit
 	
 	
 	//MovementGym
