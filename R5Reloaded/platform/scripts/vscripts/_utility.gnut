@@ -4390,7 +4390,11 @@ void function TakeAllWeapons( entity ent )
 try{
 	if ( ent.IsPlayer() )
 	{	
-		//ent.TakeOffhandWeapon(OFFHAND_TACTICAL)	
+		if(g_bGiveTactical)
+		{
+			ent.TakeOffhandWeapon(OFFHAND_TACTICAL)
+		}
+		
 		ent.RemoveAllItems()
 		array<entity> weapons = ent.GetMainWeapons()
 		foreach ( weapon in weapons )
