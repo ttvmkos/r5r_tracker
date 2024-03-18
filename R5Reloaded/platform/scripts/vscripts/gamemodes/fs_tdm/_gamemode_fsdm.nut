@@ -5657,6 +5657,8 @@ void function LoadCustomWeapon(entity player)
 		
 		WaitFrame()
 		
+		if(!IsValid(player)) { return }			
+			
 		if(IsValid(player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )))
 		{
 			player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0)
