@@ -4008,6 +4008,8 @@ void function SimpleChampionUI()
 				MovementGymSaveTimesToFile()
 		}
 		
+		FlagEnd("START_LOG")
+		
 		//cycle map /mkos
 		string to_map = GetMapName();
 

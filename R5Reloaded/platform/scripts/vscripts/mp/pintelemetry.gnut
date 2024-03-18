@@ -244,7 +244,8 @@ struct PlayerData {
 struct { 
 
     int READY = 1,
-    int BUSY = 2
+    int BUSY = 2,
+	int SAFE = 3
 	
 } state
 
@@ -977,7 +978,7 @@ void function Init_NewGame()
 		#if DEVELOPER
 		else 
 		{
-			sqprint("Log thread state: not busy.")
+			sqprint("Log thread checking busy...")
 		}
 		#endif
 	}
@@ -1010,6 +1011,27 @@ void function Init_NewGame()
 	///////////////////////////////////////////////////////////
 	
 	if ( !bSafeLog ) { return }
+	
+	
+	waitlimit = 0;
+	while( !SQ_GetLogState( state.SAFE ) )
+	{
+		wait 0.5;
+		waitlimit++;
+		
+		if (waitlimit >= MAX_WAIT_FOR_LOGGING_THREAD)
+		{
+			sqerror(format("Log thread failed to init [%d] seconds during safe check.", floor(MAX_WAIT_FOR_LOGGING_THREAD/2) ))
+			bSafeLog = false;
+			return
+		}
+		#if DEVELOPER
+		else 
+		{
+			sqprint("Log thread state: safe.")
+		}
+		#endif
+	}
 	
 	// Round started, make a new log. r5r.dev
 	//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
@@ -3316,19 +3338,14 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 
 	//TODO redesign delete thread
 	void function EventManager() 
-	{
-		//while (true) 
-		//{	
-			//FlagWait("DeleteEvents")		
-			if (DeleteEventTaskList.len() > 0)
-			{	
-				int victim_handle = DeleteEventTaskList[0].victim_handle;
-				int attacker_handle = DeleteEventTaskList[0].attacker_handle;
-				RemoveEvents( victim_handle, attacker_handle );	
-				DeleteEventTaskList.remove(0);			
-			}
-			//FlagClear("DeleteEvents")
-		//}
+	{		
+		if (DeleteEventTaskList.len() > 0)
+		{	
+			int victim_handle = DeleteEventTaskList[0].victim_handle;
+			int attacker_handle = DeleteEventTaskList[0].attacker_handle;
+			RemoveEvents( victim_handle, attacker_handle );	
+			DeleteEventTaskList.remove(0);			
+		}
 	}
 	
 	void function AddEventTask( DeleteEvents Event, bool flag = true ) 

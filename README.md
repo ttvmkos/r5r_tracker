@@ -222,7 +222,9 @@ There will be an automatic file generator on r5r.dev for creating these files wi
     },
     "server": {
         "MAX_LOGFILE_DIR_SIZE": "20",
-        "AUTO_DELETE_STATLOGS": "true"
+        "AUTO_DELETE_STATLOGS": true,
+        "DELETE_ALL_LOGS": true,
+        "CVAR_MAX_BUFFER": 100
     },
     "settings": {
 	"PLAYER_WHITELIST": "",
