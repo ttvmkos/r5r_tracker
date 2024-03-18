@@ -4,9 +4,9 @@ Stats Tracker system for R5Reloaded servers.
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ______________________________________________________________
 
-!! NEW 3/14/2024 [PERFORMANCE REWRITE]
+!! NEW 3/14/2024 [PERFORMANCE inspired rewrite]
 
-- ## Redesigned entire tracker engine code, several redesigned back-end systems,optimizations, failsafes.
+- ## Redesigned tracker engine code
 - ## With it: New setting for r5rdev.config (see examples folder for template):
 
  -       "DELETE_ALL_LOGS": true,
@@ -26,11 +26,13 @@ ______________________________________________________________
 - fixed movement input callbacks
 - reworked tracker engine/ tracker scripts / 1v1 game mode
 - redesigned struct methods to use constant time operations
-- replaced loops with direct access
+- replaced loops with constant time operatons
 - converted string comparisons to int ref
-- created several new utility functions and systems
+- created several new utility functions and "systems"
 - focused primarily on performance
 - fixed numerous bugs and issues
+
+- still much more to do..
 
 
 ______________________________________________________________
