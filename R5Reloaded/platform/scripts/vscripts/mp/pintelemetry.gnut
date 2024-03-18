@@ -768,8 +768,12 @@ void function __CONTROLLED_LogInit()
 {
 	while(true)
 	{
+		WaitFrame()
 		FlagWait("START_LOG")
+		
 		__START_LOGGING()
+		
+		WaitFrame()
 		FlagClear("START_LOG")	
 	}
 }
@@ -777,7 +781,7 @@ void function __CONTROLLED_LogInit()
 void function PIN_Init()
 {	
 	INIT_fastComputes()
-	FlagInit("START_LOG", true)
+	FlagInit("START_LOG", false)
 	thread __CONTROLLED_LogInit()
 	
 	if(GetCurrentPlaylistVarBool("disable_lag_comp",false))
