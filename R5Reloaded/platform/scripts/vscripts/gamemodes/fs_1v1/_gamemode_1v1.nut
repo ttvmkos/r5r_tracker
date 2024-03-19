@@ -280,7 +280,7 @@ LocPair function getWaitingRoomLocation()
 
 void function SetIsUsedBoolForRealmSlot( int realmID, bool usedState )
 {
-	if (realmID < 1) { return } //temporary crash fix
+	if ( realmID < 0 ) { return } //temporary crash fix
 	realmSlots[ realmID ] = usedState
 }
 
