@@ -2,6 +2,17 @@
 Stats Tracker system for R5Reloaded servers. 
 
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
+
+______________________________________________________________
+
+3/19/2024
+
+- Fixed a client side crash bug server sided:
+- Removed the ability to spectate after eTDMstate is not game playing.
+- Forced all spectators to stop spectating after playing state finishes.
+
+- Fixed a realms exploit that could crash the server
+
 ______________________________________________________________
 
 !! NEW 3/14/2024 [PERFORMANCE inspired rewrite]
