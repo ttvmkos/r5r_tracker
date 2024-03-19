@@ -193,7 +193,7 @@ logfolder
 
 	by default, logevents is where the match data is saved. You can change this here.
 
-
+webhooks:
 PLAYERS_WEBHOOK
 
 	discord webhook url to a channel to display player join/leave updates (not reccomendedon busy servers)
@@ -202,7 +202,7 @@ PLAYERS_WEBHOOK
 MATCHES_WEBHOOK
 
 	discord webhook url to a channel for displaying match winner recaps
-
+server:
 MAX_LOGFILE_DIR_SIZE
 
 	size in MB a log folder can be before the oldest are considered for deletion (applies to manual cc command as well)
@@ -210,7 +210,16 @@ MAX_LOGFILE_DIR_SIZE
 AUTO_DELETE_STATLOGS
 
 	if set to true, will delete oldest after MB threshold has been reached at match end during transition. 
- 
+
+DELETE_ALL_LOGS"
+
+	if set to true, will delete all logs in specified folder after match is over and data transmits
+
+CVAR_MAX_BUFFER
+
+	controls the amount of log events to queue before being wrote from memory to file
+
+settings: 
 PLAYER_WHITELIST
 	
 	comma separated list of user id's to bypass restricted 'elite' servers.
