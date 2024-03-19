@@ -1796,6 +1796,12 @@ void function _soloModeInit(string mapName)
 			
 			return //不在休息队列中不能使用观战功能
 		}
+		if( GetTDMState() != eTDMState.IN_PROGRESS )
+		{
+			Message( user, "Game is not playing" )
+			return
+		}
+
 
 
 	    try
@@ -2632,7 +2638,7 @@ void function ForceAllRoundsToFinish_solomode()
 				player.SetPlayerNetInt( "spectatorTargetCount", 0 )
 				player.p.isSpectating = false
 				player.SetSpecReplayDelay( 0 )
-				player.SetObserverTarget( null )
+				//player.SetObserverTarget( null )
 				player.StopObserverMode()
 				Remote_CallFunction_NonReplay(player, "ServerCallback_KillReplayHud_Deactivate")
 				player.MakeVisible()

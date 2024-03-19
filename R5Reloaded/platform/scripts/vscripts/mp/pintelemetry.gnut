@@ -874,7 +874,6 @@ void function UpdateFromLocalPersistence( entity player )
 //initplayer
 void function PlayerConnectedCallback( entity player ) 
 {	
-	while( IsDisconnected( player ) ) WaitFrame()
 	
 	if ( !IsValid( player ) ) return
 	
@@ -4419,7 +4418,6 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 	while( IsValid( player ) && !player.IsObserver() && AttemptingSuperGlide == true)
 	{
 		//sqprint(format("Time: %d, on ground? %s , mantling? %s, Did jump? %s", Time(), player.IsOnGround().tostring(), player.IsMantling().tostring(), pDidJump(playerID).tostring()))
-		WaitFrame()
 		
 		playerVelV = player.GetVelocity()
 		playerVel = playerVelV.Length()
@@ -4470,6 +4468,8 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 		if (player.IsMantling()){ didmantle = true; }
 		if ( player.IsSliding()){ didslide = false }
 		ResetJump(playerID);	
+		
+		wait 0.01
 	}
 	
 	//sqprint("End of loop");
@@ -4631,9 +4631,19 @@ void function FinishGameStatsRound()
 
 void function PIN_GameEnd()
 {
-	 if ( process_end_round_complete == true ){
-			thread FinishGameStatsRound()
+
+	foreach( player in GetPlayerArray() )
+	{
+		if (player.p.isSpectating)
+		{
+			endSpectate( player )
 		}
+	}
+	
+	if ( process_end_round_complete == true )
+	{
+		thread FinishGameStatsRound()
+	}
 }
 
 
