@@ -1108,7 +1108,8 @@ void function Init_NewGame()
 					Message( player, "Round:", GetCurrentRound().tostring(), 5 )
 					return true;
 				case "player":
-					
+						
+						string stringHandicap = "";
 						string handicap = "";
 						string p_input = "";
 						string data = "";
@@ -1136,9 +1137,14 @@ void function Init_NewGame()
 								{
 									Message( player, "Failed", "Player: " + param + " - is invalid. ")
 									return true;
+								}			
+								
+								if (g_bLGmode)
+								{
+									handicap = l_player.p.p_damage == 2 ? "On" : "Off";
+									stringHandicap = "---- Handicap: " + handicap; 
 								}
 								
-								handicap = l_player.p.p_damage == 2 ? "On" : "Off";
 								p_input = l_player.p.input > 0 ? "Controller" : "MnK"; 
 								kills = l_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
 								deaths = l_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
@@ -1153,7 +1159,7 @@ void function Init_NewGame()
 								}
 								
 								data += "Season Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
-								data += "Input:  " + p_input + " ---- Handicap: " + handicap + "\n"; 
+								data += "Input:  " + p_input + stringHandicap + "\n"; 
 								data += "wait time:  " + l_wait.tostring() + "\n"; 
 								data += GetScore(l_player) + "\n";
 								data += "Season playtime: " + PlayTime(l_player.p.lifetime_playtime) + "\n";
