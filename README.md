@@ -299,7 +299,8 @@ ______________________________________________________________________
 	restricted_gamesplayed 10 		// minimum games played
 
 	// extra
-	karma_server	                  1          // for karma servers
+	maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
+	rotate_map 			1 // rotatesmaps in maplist, to add, edit maplist above
 	custom_match_ending_title		"Match complete"	 //custom title before map reload/cycle
 	custom_match_ending_message		"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle	
 	enable_lock1v1						1 // 0 removes all lock fight panels
@@ -310,8 +311,9 @@ ______________________________________________________________________
 	default_start_in_rest_setting			0
 	enable_voice				1
 	default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
-	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all commands
+	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all client commands
 	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
+	give_legend_tactical		0 //gives player tactical ability for legend on spawn
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 

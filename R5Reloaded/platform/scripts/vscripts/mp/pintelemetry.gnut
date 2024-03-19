@@ -791,7 +791,7 @@ void function PIN_Init()
 	//FlagInit("DeleteEvents")
 	//thread EventManager()
 	
-		if (GetMapName() != "mp_lobby" && Logging_Enabled())
+		if (Logging_Enabled())
 		{
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)
@@ -950,6 +950,12 @@ void function __START_LOGGING()
 
 void function Init_NewGame()
 {
+	
+	if(GetMapName() == "mp_lobby")
+	{
+		return;
+	}
+	
 	#if DEVELOPER 
 	sqprint("initgame called")
 	#endif
@@ -993,6 +999,7 @@ void function Init_NewGame()
 		}
 		#endif
 	}
+	
 	
 	InitializeLogThread_internal(Logging_Encryption());
 	
