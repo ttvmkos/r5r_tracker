@@ -41,6 +41,7 @@ global function PIN_Training
 
 //TODO:: de clutter global slots
 
+global function Logging_Enabled
 global function __START_LOGGING
 global function GetUniqueFightId
 global function CreateDamageEvent
@@ -483,7 +484,7 @@ void function INIT_BATCH_FETCH()
             continue
         }
 	
-		oids.append( player.p.UID )	
+		oids.append( player.GetPlatformUID() )	
 		
 	}
 	
@@ -513,7 +514,7 @@ void function INIT_BATCH_FETCH()
 
 void function SQ_LoadPlayerKD( entity player )
 {
-	LoadKDString( player.p.UID )
+	LoadKDString( player.GetPlatformUID() )
 }
 
 void function SetPlayerKD( entity player )
@@ -537,7 +538,7 @@ void function SetPlayerKD( entity player )
 		return
 	}
 			
-	OID = player.p.UID
+	OID = player.GetPlatformUID()
 	
 	int player_lifetime_kills = 0;
 	int player_lifetime_deaths = 0;
@@ -628,7 +629,7 @@ void function SetPlayerKD( entity player )
 					
 					if( synced_weapon_loadout != "NA" )
 					{
-						weaponlist[player.p.name] <- synced_weapon_loadout
+						weaponlist[player.GetPlayerName()] <- synced_weapon_loadout
 						player.p.weapon_loadout = synced_weapon_loadout
 					}
 				}
@@ -779,10 +780,15 @@ void function __CONTROLLED_LogInit()
 void function PIN_Init()
 {	
 	INIT_fastComputes()
-	FlagInit("START_LOG", true)
-	thread __CONTROLLED_LogInit()
 	
-	if(GetCurrentPlaylistVarBool("disable_lag_comp",false))
+	if( Logging_Enabled() )
+	{
+		FlagInit("START_LOG", true)
+		thread __CONTROLLED_LogInit()
+	}
+	
+	
+	if( GetCurrentPlaylistVarBool("disable_lag_comp",false) )
 	{
 		SetConVarInt("sv_unlag",0)
 	}
@@ -791,24 +797,25 @@ void function PIN_Init()
 	//FlagInit("DeleteEvents")
 	//thread EventManager()
 	
-		if (Logging_Enabled())
+		AddCallback_OnClientConnected(PlayerConnectedCallback);
+		AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data )
+		
+		if ( Enable_CC_Administration() )
+		{ 
+			AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
+		}
+		
+		if ( Logging_Enabled() )
 		{
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)
 			
-			AddClientCommandCallback( "say", ClientCommand_ParseSay )
-			AddCallback_OnClientConnected(PlayerConnectedCallback);
-			AddCallback_OnClientDisconnected(PlayerDisconnectedCallback);	
-			if (Enable_CC_Administration()){ 
-				AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
-			}
+			AddCallback_OnClientDisconnected(PlayerDisconnectedCallback);			
 			if (Ea_Verify_Server()){
 				AddClientCommandCallback( "ea_verify", ClientCommand_mkos_ea_verify ) 
-			}
-			AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data ) 
+			} 
 			AddCallback_OnWeaponAttack(WeaponAttack);
-			RegisterSignal( "SuperglideDetectionResetStats" )
-			
+			RegisterSignal( "SuperglideDetectionResetStats" )		
 			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
 	
@@ -824,7 +831,7 @@ void function PIN_Init()
 	global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
 	restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
 	
-	if (restricted_server)
+	if (restricted_server) 
 	{
 		INIT_player_whitelist()
 	}
@@ -849,6 +856,11 @@ void function PIN_Init()
 	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
 	bChatCmdEnabled = GetCurrentPlaylistVarBool( "enable_chat_commands", true )
 	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
+	
+	if( bChatCmdEnabled )
+	{
+		AddClientCommandCallback( "say", ClientCommand_ParseSay )
+	}
 }
 
 
@@ -876,17 +888,25 @@ void function PlayerConnectedCallback( entity player )
 {	
 	
 	if ( !IsValid( player ) ) return
-	
 	//init player vars
-	player.p.UID = player.GetPlatformUID()
-	player.p.name = player.GetPlayerName()
-	player.p.handle = player.GetEncodedEHandle()
+	int playerHandle = player.GetEncodedEHandle()
+	string playerUID = player.GetPlatformUID()
+	string playerName = player.GetPlayerName()
+	
+	player.p.name = playerName
+	player.p.UID = playerUID
+	player.p.handle = playerHandle
+	//sqprint(format("Added handle as: %d,  saved state: %d", playerHandle, player.p.handle ))
+	
+	/////////////////////////////////////////////////////////////////////////////////////////
+	if(!Logging_Enabled()){ return }
+	/////////////////////////////////////////////////////////////////////////////////////////
 	
 	//init player map
 	PlayerData Data;
-	Data.playerName = player.p.name;
-	Data.playerUID = player.p.UID;	
-	file.HandleToPlayerData[player.p.handle] <- Data
+	Data.playerName = playerName;
+	Data.playerUID = playerUID;	
+	file.HandleToPlayerData[playerHandle] <- Data
 	
 	AddEntityCallback_OnDamaged( player, R5R_OnPlayerDamaged )
     thread PIN_AddPlayer(player);
@@ -895,7 +915,7 @@ void function PlayerConnectedCallback( entity player )
 	
 	string count = GetNumHumanPlayers().tostring();
 	string OID = player.GetPlatformUID();
-	string name = sanitize( player.p.name );
+	string name = sanitize( player.GetPlayerName() );
 	
 	if ( GetCurrentPlaylistVarBool("stats_discord_webhook_player_count", false ) )
 	{
@@ -1155,7 +1175,7 @@ void function Init_NewGame()
 								p_input = l_player.p.input > 0 ? "Controller" : "MnK"; 
 								kills = l_player.p.lifetime_kills + player.GetPlayerNetInt( "kills" )
 								deaths = l_player.p.lifetime_deaths + player.GetPlayerNetInt( "deaths" )
-								l_name = l_player.p.name
+								l_name = l_player.GetPlayerName()
 								l_oid = l_player.GetPlatformUID()
 								l_wait = l_player.p.IBMM_grace_period
 								inputmsg = "Player: " + l_name + " OID: " + l_oid;
@@ -1205,7 +1225,7 @@ void function Init_NewGame()
 							{	
 								handicap = active_player.p.p_damage == 2 ? "On" : "Off";
 								p_input = active_player.p.input > 0 ? "Controller" : "MnK"; 
-								data += "Player: " + active_player.p.name + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
+								data += "Player: " + active_player.GetPlayerName() + " is using: " + p_input + " ---- Handicap: " + handicap + "\n"; 
 							}
 							
 							
@@ -1251,7 +1271,7 @@ void function Init_NewGame()
 								
 								kd_string = kd != 0.0 ? kd.tostring() : "N/A";
 
-								data += "Player: " + active_player.p.name + global_stats_msg + " Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
+								data += "Player: " + active_player.GetPlayerName() + global_stats_msg + " Kills: " + kills + " ---- Deaths: " + deaths + " ---- KD: " + kd + "\n"; 
 							}
 							
 							
@@ -1520,7 +1540,7 @@ void function Init_NewGame()
 		if ( IsValid(player) && access_status >= RESTRICTED_ACCESS_STATUS_REQUIRED )
 		{	
 			mkos_Force_Rest( player, [] )
-			Message( player, "Welcome " + player.p.name,  Player_Access_Message( player, access_status ), 30)
+			Message( player, "Welcome " + player.GetPlayerName(),  Player_Access_Message( player, access_status ), 30)
 		}
 		else 
 		{	
@@ -1528,7 +1548,7 @@ void function Init_NewGame()
 			{
 				thread force_rest( player )
 				
-				Message( player, "Sorry " + player.p.name,  Player_Access_Message( player, access_status ), 30)
+				Message( player, "Sorry " + player.GetPlayerName(),  Player_Access_Message( player, access_status ), 30)
 				wait 7	
 				
 				if(IsValid( player ))
@@ -1538,7 +1558,7 @@ void function Init_NewGame()
 					
 					if(GetCurrentPlaylistVarBool("restricted_kick_log",false))
 					{
-						sqprint(format("\n\n Player: %s, Kick msg: %s",player.p.name, Player_Access_Message( player, access_status )))
+						sqprint(format("\n\n Player: %s, Kick msg: %s",player.GetPlayerName(), Player_Access_Message( player, access_status )))
 					}
 				}
 			}
@@ -2192,7 +2212,7 @@ void function Init_NewGame()
 								
 								string sayinput = a_str.tointeger() > 0 ? "Controller" : "MnK"; 
 								
-								Message( player, "Success", "Player " + select_player.p.name + "  was changed to input: " + sayinput  )
+								Message( player, "Success", "Player " + select_player.GetPlayerName() + "  was changed to input: " + sayinput  )
 								return true;
 						
 						} catch (errj) {
@@ -2211,7 +2231,7 @@ void function Init_NewGame()
 							foreach ( list_player in GetPlayerArray() )
 							{
 								int handle = list_player.GetEncodedEHandle()
-								string p_name = list_player.p.name
+								string p_name = list_player.GetPlayerName()
 								
 								statement += " Player: " + p_name + "   Handle: " + handle + "\n";
 								
@@ -2575,6 +2595,18 @@ void function Init_NewGame()
 					}
 					return true
 					#endif
+				return false;
+			
+			case "groups":
+			
+					Message(player, "\"groupsInProgress\"", groupsInProgress.len().tostring())
+					return true
+					
+			case "groupmap":
+			
+					Message(player, "\"playerToGroupMap\"", playerToGroupMap.len().tostring())
+					return true
+				
 					
 			default:
 			
@@ -2708,7 +2740,7 @@ void function Commands( entity player, array<string> args )
 			break
 		case "/info":
 		case "\\info":
-			ClientCommand_mkos_test_return_data( player, ["player",player.p.name] )
+			ClientCommand_mkos_test_return_data( player, ["player",player.GetPlayerName()] )
 			break 
 		case "/id":
 		case "\\id":
@@ -2945,12 +2977,14 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		
 		if ( totalDamageToVictim <= 0 )
 		{
-			REPORT_STATS = false;
+			return
+			
+			/*REPORT_STATS = false;
 			DeleteEvents Event;
 			Event.attacker_handle = attacker_handle 
 			Event.victim_handle = victim_handle
 			AddEventTask( Event, false )
-			return
+			return*/
 		}
 		
 		#if DEVELOPER
@@ -3718,8 +3752,8 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 				return;
 			}
 
-			string ea_acc = player.p.name;
-			string OID = player.p.UID;
+			string ea_acc = player.GetPlayerName();
+			string OID = player.GetPlatformUID();
 		
 		
 			int index = -1;
@@ -3842,13 +3876,24 @@ string function PrintAllPlayerMetrics(bool trigger = false)
         json += "\"weaponShots\": {";
 		
         bool wep_first = true;
+		
+		string replace = "";
         foreach (weaponSource, timestamps in metrics.WeaponShotsTimestamps) 
-		{
+		{					
             if (!wep_first) {
                 json += ", ";
             }
 			
-            json += format("\"%s\": %d", DamageSourceIDToString(weaponSource), timestamps.len());
+			if(!exclude(weaponSource))
+			{
+				replace = DamageSourceIDToString(weaponSource)
+			}
+			else 
+			{
+				replace = weaponSource.tostring()
+			}
+			
+            json += format("\"%s\": %d", replace, timestamps.len());
             wep_first = false;
         }
         json += "}";
@@ -3884,9 +3929,9 @@ int function GetPlayerMetricsIndex( entity player )
 		return -1;
 	}
 	
-    if ( player.p.UID in PlayerIdMap ) 
+    if ( player.GetPlatformUID() in PlayerIdMap ) 
 	{
-        return PlayerIdMap[player.p.UID];
+        return PlayerIdMap[player.GetPlatformUID()];
     }
 	
     return -1; 
@@ -3922,14 +3967,14 @@ int function InitializePlayerMetricsStructForPlayer( entity player )
 	if (index != -1) 
 	{	
 		#if DEVELOPER
-			sqerror("Metrics already initialized for player: " + player.p.name )
+			sqerror("Metrics already initialized for player: " + player.GetPlayerName() )
 		#endif
 		return -1
 	}
 		
 	PlayerMetrics NewMetrics;
-	NewMetrics.playerID = player.p.UID
-	NewMetrics.playername = player.p.name
+	NewMetrics.playerID = player.GetPlatformUID()
+	NewMetrics.playername = player.GetPlayerName()
     NewMetrics.JumpTimestamps = []
     NewMetrics.WeaponShotsTimestamps = {}
 	NewMetrics.SuperglideTimestamps = []
@@ -3944,7 +3989,7 @@ int function InitializePlayerMetricsStructForPlayer( entity player )
 	NewMetrics.ignore_sync_flag = false
 	NewMetrics.enable_input_banner = false
 	PlayerMetricsArray.append(NewMetrics);
-	return UpdatePlayerMap(player.p.UID)	
+	return UpdatePlayerMap(player.GetPlatformUID())	
 }
 
 int function InitializePlayerMetricsStructForPlayerByUID( string playerID )
@@ -4364,7 +4409,7 @@ int function GetPlayerDeaths( entity player )
 void function Flowstate_TrackingVision_SuperglideDetection_Stats(entity player) 
 { 
 	if ( !IsValid(player) ) return
-    string playerID = player.p.UID;
+    string playerID = player.GetPlatformUID();
 	thread Flowstate_TrackingVision_TryToTrackSuperglide_Stats( player )
 	AddPlayerMovementEventCallback( player , ePlayerMovementEvents.JUMP, DidJump)
 }
@@ -4372,7 +4417,7 @@ void function Flowstate_TrackingVision_SuperglideDetection_Stats(entity player)
 
 void function DidJump( entity player )
 {	
-	PlayerDidJump[player.p.UID] = true;
+	PlayerDidJump[player.GetPlatformUID()] = true;
 }
 
 
@@ -4417,7 +4462,7 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 	
 		
 	bool AttemptingSuperGlide = true
-	string playerID = player.p.UID 
+	string playerID = player.GetPlatformUID() 
 	ResetJump(playerID);
 			
 	float playerVel
@@ -4510,7 +4555,7 @@ void function UpdateRoundStats_GlobalsCarryOver()
 			int lifetime_deaths = player.p.lifetime_deaths
 			int lifetime_glides = player.p.lifetime_glides
 		
-			string player_oid = player.p.UID
+			string player_oid = player.GetPlatformUID()
 			int current_kills = GetPlayerKills( player ) 
 			int current_deaths = GetPlayerDeaths( player )
 			int current_glides = GetGlides( player )
@@ -4705,16 +4750,17 @@ void function PIN_AddPlayer( entity player )
 		}
 	}
 	
-	if ( Logging_Enabled() && SQ_GetLogState( state.READY ) && IsValid( player ) )
+	if ( Logging_Enabled() && isLogging() && IsValid( player ) )
 	{	
 	
-		string pName = player.p.UID;
-		string p_ea_name = player.p.name;
+		string pName = player.GetPlatformUID();
+		string p_ea_name = player.GetPlayerName();
 		
 		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n " , 10)	
 		
-			try {
-					float timeRemaining;
+			try 
+			{
+				float timeRemaining;
 
 				if (g_bIs1v1) 
 				{
@@ -4723,7 +4769,9 @@ void function PIN_AddPlayer( entity player )
 
 					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
 					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
-				} else if (GameRules_GetGameMode() == "fs_dm") {
+				} 
+				else if (GameRules_GetGameMode() == "fs_dm") 
+				{
 					const int INITIAL_DELAY = 8;
 					int DELAY_BETWEEN_ROUNDS;
 
@@ -4736,6 +4784,7 @@ void function PIN_AddPlayer( entity player )
 					int totalDelay = INITIAL_DELAY + (GetCurrentRound() - 1) * (FlowState_RoundTime() + DELAY_BETWEEN_ROUNDS);
 					timeRemaining = FlowState_RoundTime() - (Time() - totalDelay);
 				}
+				
 				if (IsValid(player)) 
 				{
 					LogEvent(format("^^,%s,0,%s,%d,,,,%i,,,,,%s\n",
@@ -4758,10 +4807,8 @@ void function PIN_AddPlayer( entity player )
 
 void function PIN_PlayerLeft( entity player, string reason )
 {
-	
-	string p_ea_name = player.p.name
-	string OID = player.p.UID
-	
+	string p_ea_name = player.GetPlayerName()
+	string OID = player.GetPlatformUID()
 	SetPlayerLeftFlag( player )
 	//string message = format("%s disconnected ", pname )
 	//sqprint(message)
@@ -5467,7 +5514,7 @@ entity function GetPlayerEntityByName( string name )
 	foreach ( player in GetPlayerArray() )
 	{
 	
-		if ( player.p.name == name ){
+		if ( player.GetPlayerName() == name ){
 			
 			return player;
 		
@@ -5507,7 +5554,7 @@ bool function IsValidOID( string str )
 			continue
 		}
 		
-		oid = player.p.UID
+		oid = player.GetPlatformUID()
 		
 		if ( oid == str )
 			return true
@@ -5532,7 +5579,7 @@ entity function GetPlayerEntityByOID( string str )
 			continue
 		}
 		
-		oid = player.p.UID
+		oid = player.GetPlatformUID()
 		
 		if ( oid == str )
 		{
@@ -5940,3 +5987,45 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_phase_tunnel"] = 255
 
 };
+
+array<int> function exclusions()
+{
+	const array<int> exclude = [
+		233,
+		234,
+		235,
+		236,
+		237,
+		238,
+		239,
+		240,
+		241,
+		242,
+		243,
+		244,
+		245,
+		246,
+		247,
+		248,
+		249,
+		250,
+		251,
+		252,
+		253,
+		254,
+		255
+	];
+
+	return exclude;
+}
+
+bool function exclude( int weaponSource )
+{
+	if(exclusions().find(weaponSource) != -1)
+	{
+		return true	
+	}
+	
+	return false
+}
+

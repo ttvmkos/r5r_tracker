@@ -14,7 +14,7 @@ void function Flowstate_InitAFKThreadForPlayer(entity player)
 	return
 	#endif
 
-	if ( !IsValid(player) || IsAdmin(player) || !GetCurrentPlaylistVarBool( "flowstate_afk_kick_enable", true ) )
+	if ( !IsValid(player) || IsAdmin(player) || !GetCurrentPlaylistVarBool( "flowstate_afk_kick_enable", true ) || !GetCurrentPlaylistVarBool("enable_afk_thread", true) )
 		return
 
 	AfkThread_AddPlayerCallbacks( player ) //readded mkos

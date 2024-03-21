@@ -358,7 +358,7 @@ bool function InvalidInput( int input_type, int movevalue )
 void function HandlePlayer( entity player )
 {
 	
-	string id = player.p.UID
+	string id = player.GetPlatformUID()
 	int action = GetCurrentPlaylistVarInt( "invalid_input_action", 1 )
 	string msg = GetCurrentPlaylistVarString( "invalid_input_msg", "Invalid Input Device" )
 	bool log_invalid_input = GetCurrentPlaylistVarBool( "log_invalid_input", false )
@@ -1215,10 +1215,14 @@ void function SetTdmStateToNextRound(){
 
 void function SetTdmStateToInProgress()
 {
-	#if DEVELOPER
-	sqprint("Flag set: \"START_LOG\" in [SetTdmStateToInProgress]")
-	#endif
-	FlagSet("START_LOG")
+	if(Logging_Enabled())
+	{
+		#if DEVELOPER
+		sqprint("Flag set: \"START_LOG\" in [SetTdmStateToInProgress]")
+		#endif
+		FlagSet("START_LOG")
+	}
+	
 	file.tdmState = eTDMState.IN_PROGRESS
 	SetGlobalNetInt( "FSDM_GameState", file.tdmState )	
 }
@@ -1520,6 +1524,8 @@ void function _OnPlayerConnected(entity player)
 
 	if( is1v1EnabledAndAllowed() )
 	{
+		thread soloModefixDelayStart( player )
+	/*
 		void functionref() soloModefixDelayStart1 = void function() : (player) {
 			Remote_CallFunction_NonReplay( player, "DM_HintCatalog", 3, 0)
 			wait 1
@@ -1544,6 +1550,7 @@ void function _OnPlayerConnected(entity player)
 		}
 
 		thread soloModefixDelayStart1()
+	*/
 	}
 
 	
@@ -2302,8 +2309,8 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
 
 void function ReCheckGodMode(entity player)
 {
-	wait 0.1
-	if(!IsValid(player) || IsValid(player) && !IsAlive(player)) return
+	//wait 0.1
+	if(!IsValid(player) || ( IsValid(player) && !IsAlive(player)) ) return
 
 	player.MakeVisible()
 	player.ClearInvulnerable()
@@ -2357,8 +2364,9 @@ void function Flowstate_GrantSpawnImmunity(entity player, float duration)
 	StatusEffect_StopAllOfType( player, eStatusEffect.speed_boost )
 	StatusEffect_StopAllOfType( player, eStatusEffect.drone_healing )
 	StatusEffect_StopAllOfType( player, eStatusEffect.stim_visual_effect )
-
-	thread ReCheckGodMode(player)
+	
+	wait 0.1
+	ReCheckGodMode(player)
 	//maki script
 	wait 0.5
 	try
@@ -4013,7 +4021,10 @@ void function SimpleChampionUI()
 				MovementGymSaveTimesToFile()
 		}
 		
-		FlagEnd("START_LOG")
+		if( Logging_Enabled() )
+		{
+			FlagEnd("START_LOG")
+		}
 		
 		//cycle map /mkos
 		string to_map = GetMapName();

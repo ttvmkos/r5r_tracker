@@ -1,5 +1,6 @@
 //Flowstate 1v1 gamemode
 //made by __makimakima__
+//redesigned by mkos [refactored/coderewrite/ibmm/sbmm]
 globalize_all_functions
 
 global bool IS_CHINESE_SERVER = false
@@ -12,10 +13,10 @@ global struct soloLocStruct
 	array<LocPair> respawnLocations
 	vector Center //center of Loc1 and Loc2
 	entity Panel //keep current opponent panel
-
 }
 global struct soloGroupStruct
 {
+	int groupHandle
 	entity player1
 	entity player2
 
@@ -30,6 +31,7 @@ global struct soloGroupStruct
 global struct soloPlayerStruct
 {
 	entity player
+	int handle
 	float queue_time //marks the time when they queued, to allow checking for same input
 	bool IBMM_Timeout_Reached = false //input based match making timeout 
 	bool waitingmsg = true
@@ -41,23 +43,22 @@ global struct soloPlayerStruct
 
 array< bool > realmSlots
 
-global LocPair WaitingRoom
+LocPair WaitingRoom
 
 //this is fine
-global array <soloLocStruct> soloLocations //all respawn location stored here
+array <soloLocStruct> soloLocations //all respawn location stored here
 
-//global array <soloPlayerStruct> soloPlayersWaiting = [] //waiting player stored here
-global table <entity, soloPlayerStruct> soloPlayersWaiting = {}; //moved to table for O(1) add/delete/lookup without shifting arrays, looping/scanning
+//playerHandle -> soloPlayerStruct
+table <int, soloPlayerStruct> soloPlayersWaiting = {}; //moved to table for O(1) add/delete/lookup without shifting arrays, looping/scanning
 
-//global array <soloGroupStruct> soloPlayersInProgress = [] //playing player stored here
+//playerHandle -> soloGroupStruct
+global table<int, soloGroupStruct> playerToGroupMap = {}; //map for quick assessment
 
+//groupHandle -> soloGroupStruct
+global table<int, soloGroupStruct> groupsInProgress = {}; //group map to group
 
-global table<entity, soloGroupStruct> playerToGroupMap = {}; //map for quick assessment
-
-global table<soloGroupStruct, bool> groupsInProgress = {}; //group map to group
-
-//global array <entity> soloPlayersResting = []
-global table <entity,bool> soloPlayersResting = {}
+//playerHandle -> struct resting
+table <int,bool> soloPlayersResting = {}
 
 //TODO:: move to r5rdev_config.json arrays to store loaded custom weapons from playlist once in init -- mkos //########
 global array <string> custom_weapons_primary = [] 
@@ -70,6 +71,8 @@ global float SBMM_kd_difference
 
 
 //script vars 
+global bool mGroupMutexLock
+global int groupID = 112250000;
 global bool bMap_mp_rr_party_crasher
 global bool bMap_mp_rr_canyonlands_staging
 global bool bMap_mp_rr_canyonlands_64k_x_64k
@@ -88,13 +91,18 @@ void function INIT_Flags()
 	bIsKarma = GetCurrentPlaylistVarBool( "karma_server", false )
 }
 
+int function GetUniqueID() 
+{
+    return groupID++;
+}
+
 bool function Fetch_IBMM_Timeout_For_Player( entity player ) 
 {
     if ( !IsValid(player) ) return false
 
-    if ( player in soloPlayersWaiting ) 
+    if (  player.p.handle in soloPlayersWaiting ) 
 	{
-        return soloPlayersWaiting[player].IBMM_Timeout_Reached;
+        return soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached;
     }
     return false;
 }
@@ -104,24 +112,21 @@ void function ResetIBMM( entity player )
 {
     if ( !IsValid(player) ) return
 
-    if ( player in soloPlayersWaiting ) 
+    if ( player.p.handle in soloPlayersWaiting ) 
 	{
-        soloPlayersWaiting[player].IBMM_Timeout_Reached = false;
+        soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached = false;
     }
 }
-
-
 
 void function SetMsg( entity player, bool value ) 
 {
     if ( !IsValid(player) ) return
 
-    if ( player in soloPlayersWaiting ) 
+    if ( player.p.handle in soloPlayersWaiting ) 
 	{
-        soloPlayersWaiting[player].waitingmsg = value;
+        soloPlayersWaiting[player.p.handle].waitingmsg = value;
     }
 }
-
 
 //used for display 
 string function FetchInputName( entity player )
@@ -158,7 +163,8 @@ void function INIT_1v1_sbmm()
 		
 			custom_weapons_primary = StringToArray( concatenate );
 			
-		} catch ( error ) 
+		} 
+		catch ( error ) 
 		{
 			sqerror( "" + error )
 		}
@@ -173,7 +179,8 @@ void function INIT_1v1_sbmm()
 		
 			custom_weapons_secondary = StringToArray( concatenate );
 			
-		} catch ( error ) 
+		} 
+		catch ( error ) 
 		{
 			sqerror( "" + error )
 		}
@@ -224,9 +231,9 @@ int function getTimeOutPlayerAmount()
 {
     int timeOutPlayerAmount = 0;
 	
-    foreach ( player, eachPlayerStruct in soloPlayersWaiting) 
+    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting) 
 	{
-        if ( eachPlayerStruct.IsTimeOut ) 
+        if ( IsValid(eachPlayerStruct) && eachPlayerStruct.IsTimeOut ) 
 		{
             timeOutPlayerAmount++;
         }
@@ -236,42 +243,22 @@ int function getTimeOutPlayerAmount()
 
 entity function getTimeOutPlayer() 
 {
-    foreach ( player, eachPlayerStruct in soloPlayersWaiting ) 
+    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting ) 
 	{
         if (eachPlayerStruct.IsTimeOut) 
 		{
-            return player;
+			if(!IsValid(eachPlayerStruct) || !IsValid(eachPlayerStruct.player) )
+			{
+				continue
+			}
+			
+            return eachPlayerStruct.player;
         }
     }
 	
     entity p;
 	return p
 }
-
-
-//not used, overlay is destroyed during waiting room.
-/*
-
-void function soloModeWaitingPrompt(entity player)
-{
-	wait 0.2
-	if(!IsValid(player)) return
-	foreach (eachplayerStruct in soloPlayersWaiting)
-	{
-		if(eachplayerStruct.player == player) //this player is in waiting list
-		{
-			if(IS_CHINESE_SERVER)
-				Message(player,"您已处于等待列队","请在控制台输入'rest'开始休息",1)
-			else
-				Message(player,"You're in waiting room.","Type rest in console to start resting.",1)
-		}
-	}
-
-}
-
-*/
-
-//############################################################################ 
 
 LocPair function getWaitingRoomLocation()
 {
@@ -280,8 +267,17 @@ LocPair function getWaitingRoomLocation()
 
 void function SetIsUsedBoolForRealmSlot( int realmID, bool usedState )
 {
-	if ( realmID < 0 ) { return } //temporary crash fix
-	realmSlots[ realmID ] = usedState
+	try
+	{
+		if ( !realmID ) { return } //temporary crash fix
+		realmSlots[ realmID ] = usedState
+	}
+	catch(e)
+	{	
+		#if DEVELOPER
+		sqprint("SetIsUsedBoolForRealmSlot crash " + e )
+		#endif
+	}
 }
 
 int function getAvailableRealmSlotIndex()
@@ -298,51 +294,175 @@ int function getAvailableRealmSlotIndex()
 	return -1
 }
 
-/* maki
-soloGroupStruct function returnSoloGroupOfPlayer(entity player)
-{
-	foreach (eachGroup in soloPlayersInProgress)
-	{
-		if (player == eachGroup.player1 || player == eachGroup.player2)
-			return eachGroup
-	}
-	soloGroupStruct group
-	return group
-}
-*/
-
+//p
 soloGroupStruct function returnSoloGroupOfPlayer( entity player ) 
 {
-    if (player in playerToGroupMap) 
+	soloGroupStruct group;	
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("returnSoloGroupOfPlayer entity was invalid")
+		return group; 
+		#endif
+	}	
+	try
 	{
-        return playerToGroupMap[player]
-    }
-
-    soloGroupStruct group;
-    return group;
+		if ( player.p.handle in playerToGroupMap ) 
+		{	
+			if(IsValid(playerToGroupMap[player.p.handle]))
+			{
+				return playerToGroupMap[player.p.handle]
+			}
+		}
+	}
+	catch(e)
+	{
+		#if DEVELOPER
+		sqprint("returnSoloGroupOfPlayer crash " + e)
+		#endif
+	}
+	return group;
 }
 
+//p
 void function addGroup(soloGroupStruct newGroup) 
 {
-    groupsInProgress[newGroup] <- true
-    playerToGroupMap[newGroup.player1] <- newGroup;
-    playerToGroupMap[newGroup.player2] <- newGroup;
+	if(!IsValid(newGroup))
+	{
+		sqerror("[addGroup]: Logic Flow Error: group is invalid during creation")
+		return
+	}
+	mGroupMutexLock = true
+	
+	try 
+	{
+		int groupHandle = GetUniqueID();
+		
+		newGroup.groupHandle = groupHandle
+		
+		#if DEVELOPER
+		sqprint(format("adding group: %d", groupHandle ))
+		#endif
+		if( !( groupHandle in groupsInProgress ) )
+		{
+			bool success = true
+			
+			if( IsValid(newGroup.player1 && IsValid(newGroup.player2) ))
+			{
+				playerToGroupMap[newGroup.player1.p.handle] <- newGroup;
+				#if DEVELOPER
+				sqprint(format("player 1 added to group: %s", newGroup.player1.p.name ))
+				#endif
+				playerToGroupMap[newGroup.player2.p.handle] <- newGroup;
+				#if DEVELOPER
+				sqprint(format("player 2 added to group: %s", newGroup.player2.p.name ))
+				#endif
+			}
+			else 
+			{	
+				#if DEVELOPER
+				sqerror("FAILURE adding players to group")
+				#endif
+				success = false
+			}
+			
+			if(success)
+			{
+				groupsInProgress[groupHandle] <- newGroup
+			}
+		}
+		else 
+		{	
+			#if DEVELOPER
+			sqerror(format("Logic flow error, group: [%d] already exists", groupHandle))
+			#endif
+		}
+		
+		
+	}
+	catch(e)
+	{
+		#if DEVELOPER
+		sqprint("addGroup crash: " + e)
+		#endif
+	}
+	
+	mGroupMutexLock = false
+}
+
+
+void function removeGroupByHandle( int handle )
+{
+	if ( handle in groupsInProgress )
+	{	
+		#if DEVELOPER
+		sqprint(format("Removing group by handle: %d", handle))
+		#endif
+		delete groupsInProgress[handle]
+	}
+	else
+	{
+		if(!handle)
+		{
+			sqerror("[removeGroupByHandle] ERROR: handle was null")
+		}
+		else 
+		{
+			sqerror(format("[removeGroupByHandle] Handle: \"%d\" does not exist in table: \"groupsInProgress\"", handle ))
+		}
+	}
 }
 
 void function removeGroup(soloGroupStruct groupToRemove) 
 {
-	if( groupToRemove in groupsInProgress )
-		delete groupsInProgress[groupToRemove]
+	mGroupMutexLock = true  
+	if(!IsValid(groupToRemove))
+	{
+		sqerror("Logic flow error:  groupToRemove is invalid")
+		return
+	}
 	
-	if ( groupToRemove.player1 in playerToGroupMap )
-		delete playerToGroupMap[groupToRemove.player1]
+	try
+	{	
+		if ( IsValid(groupToRemove.player1) && groupToRemove.player1.p.handle in playerToGroupMap )
+		{	
+			#if DEVELOPER
+			sqprint(format("deleting player 1 handle: %d from group map",groupToRemove.player1.p.handle))
+			#endif
+			delete playerToGroupMap[groupToRemove.player1.p.handle]
+		}
+			
+		if ( IsValid(groupToRemove.player2) && groupToRemove.player2.p.handle in playerToGroupMap )
+		{	
+			#if DEVELOPER
+			sqprint(format("deleting player 2 handle: %d from group map",groupToRemove.player2.p.handle))
+			#endif
+			delete playerToGroupMap[groupToRemove.player2.p.handle];
+		}
 		
-	if ( groupToRemove.player2 in playerToGroupMap )	
-		delete playerToGroupMap[groupToRemove.player2];
+		if( groupToRemove.groupHandle in groupsInProgress )
+		{
+			#if DEVELOPER
+			sqprint(format("removing group: %d", groupToRemove.groupHandle) )
+			#endif
+			delete groupsInProgress[groupToRemove.groupHandle]
+		}
+		else 
+		{
+			#if DEVELOPER
+			sqprint(format("groupToRemove.groupHandle: %d not in groupsInProgress", groupToRemove.groupHandle ))
+			#endif
+		}
+	}
+	catch(e)
+	{	
+		#if DEVELOPER
+		sqprint( "removeGroup crash: " + e )
+		#endif
+	}
+	
+	mGroupMutexLock = false
 }
-
-
-
 
 void function endSpectate(entity player)
 {
@@ -365,44 +485,43 @@ void function endSpectate(entity player)
 
 bool function isPlayerInSoloMode(entity player) 
 {
-    return (player in playerToGroupMap);
-}
-
-/*
-bool function isPlayerInSoloMode(entity player)
-{
-	foreach (eachGroup in soloPlayersInProgress)
-	{
-	   	if (eachGroup.player1 == player || eachGroup.player2 == player) //找到当前玩家的group
-	   		return true
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("isPlayerInSoloMode entity was invalid")
+		#endif
+		return false 
 	}
-	return false
+	
+    return ( player.p.handle in playerToGroupMap );
 }
-*/
-
 
 bool function isPlayerInWaitingList(entity player)
 {
 	//mkos
-	return ( player in soloPlayersWaiting )
-	
-	
-	//maki
-	/*
-		foreach (eachPlayerStruct in soloPlayersWaiting)
-		{
-			if (eachPlayerStruct.player == player) //找到当前玩家的group
-				return true
-		}
-		return false
-	*/
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("isPlayerInWaitingList entity was invalid")
+		#endif
+		return false 
+	}
+		
+	return ( player.p.handle in soloPlayersWaiting )
 }
 
 
 // lg_duel mkos
 bool function return_rest_state( entity player )
 {
-	if ( !IsValid( player )) return false
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("return_rest_state entity was invalid")
+		#endif
+		return false 
+	}
+	
 	if ( !g_bIs1v1 ) return false
 	
 	if (isPlayerInRestingList( player ))
@@ -412,51 +531,92 @@ bool function return_rest_state( entity player )
 	return false;
 }
 
-bool function isPlayerInRestingList(entity player)
-{
-	return ( player in soloPlayersResting )
+bool function isPlayerInRestingList( entity player )
+{	
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("isPlayerInRestingList entity was invalid")
+		#endif
+		return false 
+	}
+	
+	return ( player.p.handle in soloPlayersResting )
 }
 
 void function deleteSoloPlayerResting( entity player )
 {
-	if ( player in soloPlayersResting )
+	try 
 	{
-		delete soloPlayersResting[player]
+		if ( player.p.handle in soloPlayersResting )
+		{
+			delete soloPlayersResting[player.p.handle]
+		}
+	}
+	catch(e)
+	{	
+		#if DEVELOPER
+		sqprint( "crash in deleteSoloPlayerResting: " + e )
+		#endif
 	}
 }
 
 void function addSoloPlayerResting( entity player )
 {
-	soloPlayersResting[player] <- true
-}
-
-void function deleteWaitingPlayer(entity player)
-{	
-	//mkos
-	if ( player in soloPlayersWaiting)
-	{
-		delete soloPlayersWaiting[player]
+	if(!IsValid (player) )
+	{	
+		#if DEVELOPER
+		sqprint("addSoloPlayerResting enttiy was invalid")
+		#endif
+		return
 	}
-
-	//maki 
-	/*
-		if(!IsValid(player)) return
-		foreach (eachPlayerStruct in soloPlayersWaiting )
-		{
-			if(eachPlayerStruct.player == player)
-			{
-				soloPlayersWaiting.removebyvalue(eachPlayerStruct) //delete this PlayerStruct
-				//printt("deleted the PlayerStruct")
-			}
-		}
-	*/
+	
+	try 
+	{
+		soloPlayersResting[player.p.handle] <- true
+	}
+	catch(e)
+	{
+		#if DEVELOPER
+		sqprint("crass in addSoloPlayerResting: " + e )
+		#endif
+	}
 }
 
-//mkos 
+void function deleteWaitingPlayer( int handle )
+{	
+	if ( handle in soloPlayersWaiting )
+	{
+		delete soloPlayersWaiting[handle]
+	}
+}
 
 void function AddPlayerToWaitingList(soloPlayerStruct playerStruct) 
 {
-    soloPlayersWaiting[playerStruct.player] <- playerStruct
+	try 
+	{
+		if(!IsValid(playerStruct))
+		{
+			sqerror( "[AddPlayerToWaitingList] playerStruct was invalid" )
+		}
+		else 
+		{
+			if(IsValid(playerStruct.player))
+			{
+				soloPlayersWaiting[playerStruct.player.p.handle] <- playerStruct
+			}
+			else 
+			{
+				sqerror( "[AddPlayerToWaitingList] player to add was invalid" )
+			}
+		}
+	}
+	catch(e)
+	{
+		#if DEVELOPER
+		sqprint("crash in AddPlayerToWaitingList: " + e )
+		#endif
+	}
 }
 
 bool function mkos_Force_Rest(entity player, array<string> args)
@@ -464,17 +624,20 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 	if( !IsValid(player) ) //|| !IsAlive(player) )
 		return false
 
-	if( player in soloPlayersResting )
+	if( player.p.handle in soloPlayersResting )
 	{	
 		HolsterAndDisableWeapons(player)
 		return false
 	} 
 	
 	if(isPlayerInWaitingList(player))
-		deleteWaitingPlayer(player) //return false
+	{	
+		deleteWaitingPlayer(player.p.handle)
+	}
 
 	
-		soloModePlayerToRestingList(player)
+		thread soloModePlayerToRestingList(player)
+		
 		try
 		{
 			player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
@@ -505,7 +668,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 	}
 
 
-	if( player in soloPlayersResting )
+	if( player.p.handle in soloPlayersResting )
 	{
 		if( player.IsObserver() || IsValid( player.GetObserverTarget() ) )
 		{
@@ -525,6 +688,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 	
 		
 		soloModePlayerToWaitingList(player)
+		
 		try
 		{
 			player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
@@ -541,7 +705,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		else
 			Message(player,"You are resting now", "Type rest in console to pew pew again.")
 		
-		soloModePlayerToRestingList(player)
+		thread soloModePlayerToRestingList(player)
 		try
 		{
 			player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
@@ -550,11 +714,8 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		{
 
 		}
-		//#if DEVELOPER 
-		//respawnInSoloMode(player)
-		//#else
+		
 		thread respawnInSoloMode(player)
-		//#endif
 		
 		HolsterAndDisableWeapons(player)
 		//TakeAllWeapons( player )
@@ -564,27 +725,6 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 
 	return true
 }
-
-/*
-entity function getRandomOpponentOfPlayer(entity player)
-{
-	entity p
-	if(!IsValid(player)) return p
-	
-	
-	
-	foreach (eachPlayerStruct in soloPlayersWaiting)
-	{	
-		if(IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player)
-			if (eachPlayerStruct.player.p.input == player.p.input || ( eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player( player ) == true ) )
-			{
-				return eachPlayerStruct.player
-			}
-	}
-
-	return p
-}
-*/
 
 //mkos -new 
 
@@ -596,8 +736,20 @@ entity function getRandomOpponentOfPlayer(entity player)
 
     array<entity> eligible = [];
 
-    foreach ( playerEntity, eachPlayerStruct in soloPlayersWaiting )
+    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting )
     {   
+		/*
+		if(!IsValid(player))
+		{
+			return p
+		}
+		*/
+		
+		if( !playerHandle || (!IsValid(eachPlayerStruct)) )
+		{
+			return p
+		}
+		
         if (IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player)
             if (eachPlayerStruct.player.p.input == player.p.input || (eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player(player) == true))
             {
@@ -609,7 +761,11 @@ entity function getRandomOpponentOfPlayer(entity player)
 	
 	if( count > 0 )
 	{
-		return eligible[RandomIntRangeInclusive( 0, count - 1 )]
+		entity foundOpponent = eligible[RandomIntRangeInclusive( 0, count - 1 )]
+		if(IsValid(foundOpponent))
+		{
+			return foundOpponent
+		}
 	}
     
 	return p
@@ -625,11 +781,11 @@ entity function returnOpponentOfPlayer(entity player)
 
     if ( IsValid(group) && IsValid(player) ) 
 	{
-        if ( player == group.player1 && IsValid( group.player2 )) 
+        if ( IsValid( group.player2 ) && player == group.player1 ) 
 		{
             opponent = group.player2
         } 
-		else if ( player == group.player2 && IsValid( group.player1 )) 
+		else if ( IsValid( group.player1 ) && player == group.player2 ) 
 		{
             opponent = group.player1
         }
@@ -639,16 +795,21 @@ entity function returnOpponentOfPlayer(entity player)
 }
 
 
-void function soloModePlayerToWaitingList(entity player)
+void function soloModePlayerToWaitingList( entity player )
 {
-	if(!IsValid(player) || isPlayerInWaitingList(player) ) 
+	if(!IsValid(player) || isPlayerInWaitingList(player) ) 	
+	{	
 		return
+	}
+	
+	player.TakeOffhandWeapon(OFFHAND_MELEE)
 
 	player.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
 
 	soloPlayerStruct playerStruct
 	playerStruct.player = player
 	playerStruct.waitingTime = Time() + 2
+	playerStruct.handle = player.p.handle
 	
 	//mkos
 	//playerStruct.queue_time = Time()
@@ -668,7 +829,8 @@ void function soloModePlayerToWaitingList(entity player)
 	}
 	else
 	{
-		playerStruct.kd = 0
+		return
+		//playerStruct.kd = 0
 	}
 	playerStruct.lastOpponent = player.p.lastKiller
 
@@ -688,12 +850,26 @@ void function soloModePlayerToWaitingList(entity player)
 	// Check if the player is part of any group
 	
 	//mkos version
-	if (player in playerToGroupMap) 
+	
+	if ( player.p.handle in playerToGroupMap ) 
 	{
 		soloGroupStruct group = returnSoloGroupOfPlayer(player);
-		entity opponent = returnOpponentOfPlayer(player);
-		destroyRingsForGroup(group);
-		removeGroup(group);
+		entity opponent = returnOpponentOfPlayer(player);	
+		
+		if(mGroupMutexLock)
+		{ 
+			sqerror("tried to modify groups in use")
+			throw "tried to modify groups in use.";
+		}
+		else if(!IsValid(group))
+		{
+			#if DEVELOPER
+			sqprint("remove group request 01")
+			#endif
+			destroyRingsForGroup(group);
+			removeGroup(group);
+		}
+		
 		soloModePlayerToWaitingList(player); 
 		
 		if (IsValid(opponent)) 
@@ -701,42 +877,61 @@ void function soloModePlayerToWaitingList(entity player)
 			soloModePlayerToWaitingList(opponent);
 		}
 	}
-
-
+	
 	//检查resting list 是否有该玩家
 	deleteSoloPlayerResting( player )
 	
 }
 
-bool function soloModePlayerToInProgressList( soloGroupStruct newGroup ) 
+void function soloModePlayerToInProgressList( soloGroupStruct newGroup ) 
 {
     entity player = newGroup.player1;
     entity opponent = newGroup.player2;
-    bool result = false;
     
-    if ( !IsValid(player) || !IsValid(opponent) || player == opponent ) 
+    if ( !IsValid(player) || !IsValid(opponent) ) 
 	{  
-        return result;
+        return;
     }
+	if(player == opponent)
+	{
+		// Warning("Try to add same players to InProgress list:" + player.GetPlayerName())
+		player.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
+		return
+	}
 	
     player.SetPlayerNetEnt("FSDM_1v1_Enemy", opponent);
     opponent.SetPlayerNetEnt("FSDM_1v1_Enemy", player);
 
-    if (player in playerToGroupMap || opponent in playerToGroupMap) 
+    if ( player.p.handle in playerToGroupMap || opponent.p.handle in playerToGroupMap ) 
 	{	
 		//directly assign since we checked. - mkos
-        soloGroupStruct existingGroup = player in playerToGroupMap ? playerToGroupMap[player] : playerToGroupMap[opponent];
+        soloGroupStruct existingGroup = player.p.handle in playerToGroupMap ? playerToGroupMap[player.p.handle] : playerToGroupMap[opponent.p.handle];
 		
         destroyRingsForGroup(existingGroup);
+		
+		#if DEVELOPER
+		sqprint("remove group request 02")
+		#endif
+		
+		while(mGroupMutexLock) 
+		{
+			#if DEVELOPER
+			sqprint("Waiting for lock to release R002")
+			#endif
+			WaitFrame() 
+		}
+		
         removeGroup(existingGroup);
 
-        return result
+        return
     }
 
 	//not found 
-	
-    deleteWaitingPlayer(player);
-    deleteWaitingPlayer(opponent);
+	newGroup.player1 = player
+	newGroup.player2 = opponent
+		
+    deleteWaitingPlayer(player.p.handle);
+    deleteWaitingPlayer(opponent.p.handle);
     deleteSoloPlayerResting(player);
     deleteSoloPlayerResting(opponent);
 
@@ -747,29 +942,34 @@ bool function soloModePlayerToInProgressList( soloGroupStruct newGroup )
         newGroup.slotIndex = slotIndex;
         newGroup.groupLocStruct = soloLocations.getrandom()
 		
-        addGroup(newGroup); 
-        
-        result = true; 
+		while(mGroupMutexLock) 
+		{
+			#if DEVELOPER
+			sqprint("Waiting for lock to release R001")
+			#endif
+			WaitFrame() 
+		}
+		addGroup(newGroup); 
     } 
-	else 
-	{
-        result = false;
-    }
 
-    return result;
+    return
 }
 
 
 void function soloModePlayerToRestingList(entity player)
 {
-	if(!IsValid(player)) return
+	if(!IsValid(player))
+	{	
+		return
+	}
 	
+	player.TakeOffhandWeapon(OFFHAND_MELEE)
 	ResetIBMM( player )
 	player.p.destroynotify = true
 	player.p.notify = false
 	
 	player.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
-	deleteWaitingPlayer(player)
+	deleteWaitingPlayer(player.p.handle)
 
 	soloGroupStruct group = returnSoloGroupOfPlayer(player)
 	if(IsValid(group))
@@ -780,29 +980,45 @@ void function soloModePlayerToRestingList(entity player)
 			// soloLocations[group.slotIndex].Panel.SetSkin(1) //set panel to red(default color)
 
 		destroyRingsForGroup(group)
+		
+		#if DEVELOPER
+		sqprint("remove group request 03")
+		#endif
+		
+		while(mGroupMutexLock) 
+		{
+			#if DEVELOPER
+			sqprint("Waiting for lock to release R003")
+			#endif
+			WaitFrame() 
+		}
+		
 		removeGroup(group) //mkos remove -- 销毁这个group
 
 		if(IsValid(opponent)) //找不到对手
 			soloModePlayerToWaitingList(opponent) //将对手放回waiting list
 	}
 
-
-
-	deleteSoloPlayerResting( player ) // ??why do we do this (replaced with my functions as well)
-
+	//deleteSoloPlayerResting( player ) // ??why do we do this (replaced with my functions as well)
 	addSoloPlayerResting( player ) // ??
 }
 
 void function soloModefixDelayStart(entity player)
 {
 	if(IS_CHINESE_SERVER)
-		Message(player,"加载中 FS 1v1")
+		Message(player,"加载中 FS 1v1 \n\n\n")
 	else
-		Message(player,"Loading Flowstate 1v1")
+		Message(player,"Loading Flowstate 1v1 Tracker Version\n\n\n")
 	
 	HolsterAndDisableWeapons(player)
 
 	wait 8
+	
+	if(!IsValid(player))
+	{
+		return
+	}
+	
 	if(!isPlayerInRestingList(player))
 	{
 		soloModePlayerToWaitingList(player)
@@ -810,7 +1026,7 @@ void function soloModefixDelayStart(entity player)
 
 	try
 	{
-		player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
+		//player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
 	}
 	catch (error)
 	{}
@@ -919,7 +1135,7 @@ void function forbiddenZone_enter(entity trigger , entity ent)
 
 void function forbiddenZone_leave(entity trigger , entity ent)
 {
-	if(!IsValid(ent)) return
+	if( !IsValid(ent) || !ent.IsPlayer() ) return
 	EnableOffhandWeapons(ent)
 	DeployAndEnableWeapons( ent )
 	EntityBackInBounds( trigger, ent, null, null )
@@ -1016,18 +1232,28 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 
    	if( isPlayerInRestingList(player) )
 	{	
-		DoRespawnPlayer( player, null ) //mkos
 		/*
+		try 
+		{
+			DoRespawnPlayer( player, null ) //mkos
+		}
+		catch(o){sqprint("Caught an error that would crash the server")}
+		*/
+		
+		
 		// Warning("resting respawn")
 		try
 		{
 			DecideRespawnPlayer(player, true)
 		}
 		catch (erroree)
-		{
+		{	
+			#if DEVELOPER
+			sqprint("Caught an error that would crash the server" + erroree)
+			#endif
 			// printt("fail to respawn")
 		}
-		*/
+		
 		
 		LocPair waitingRoomLocation = getWaitingRoomLocation()
 		if (!IsValid(waitingRoomLocation)) return
@@ -1046,23 +1272,34 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 
 	soloGroupStruct group = returnSoloGroupOfPlayer(player)
 
-	if( !isGroupValid( group) ) 
+	if( !isGroupValid( group ) )
+	{	
+		sqerror("group was invalid, err 007")
 		return //Is this group is available
+	}
 
 	if ( respawnSlotIndex == -1 ) 
 		return
-		
-	DoRespawnPlayer( player, null ) //mkos
-	/*
+	
+	/*try 	
+	{
+		DoRespawnPlayer( player, null ) //mkos
+	}
+	catch(o){sqprint("Caught an error that would crash the server")}
+	*/
+	
 	try
 	{
 		DecideRespawnPlayer(player, true)
 	}
 	catch (error)
 	{
+		#if DEVELOPER
+		sqprint("Caught an error that would crash the server")
+		#endif
 		// Warning("fail to respawn")
 	}
-	*/
+	
 	
 	GivePlayerCustomPlayerModel( player )
 	
@@ -1070,10 +1307,10 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 	maki_tp_player(player, groupLocStruct.respawnLocations[ respawnSlotIndex ] )
 	
 
-	//#if DEVELOPER
-	//#else
+	#if DEVELOPER
+	#else
 	wait 0.2 //防攻击的伤害传递止上一条命被到下一条命的玩家上
-	//#endif
+	#endif
 
 	if(!IsValid(player)) return
 
@@ -1090,7 +1327,8 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 
 	Survival_SetInventoryEnabled( player, false )
 	//SetPlayerInventory( player, [] )
-	thread ReCheckGodMode(player)
+	wait 0.1
+	ReCheckGodMode(player)
 }
 
 void function GivePlayerCustomPlayerModel( entity ent )
@@ -2070,11 +2308,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			continue
 		
 		//遍历等待队列 - cycle waiting queue (mkos version)
-		foreach (playerEntity, playerInWaitingStruct in soloPlayersWaiting)
+		foreach (playerHandle, playerInWaitingStruct in soloPlayersWaiting)
 		{
 			if (!IsValid(playerInWaitingStruct.player))
 			{
-				delete soloPlayersWaiting[playerEntity]
+				deleteWaitingPlayer(playerInWaitingStruct.handle) //struct contains players handle as basic int
 				continue
 			}
 
@@ -2097,96 +2335,156 @@ void function soloModeThread(LocPair waitingRoomLocation)
 
 
 		//遍历游玩队列
-		foreach (group, n in groupsInProgress) 
+		array<soloGroupStruct> groupsToRemove;
+		bool quit;
+		bool removed;
+		
+		foreach (groupHandle, group in groupsInProgress) 
 		{
-			if ( group.IsFinished ) //this round has been finished
-			{
-				SetIsUsedBoolForRealmSlot( group.slotIndex, false )
-				soloModePlayerToWaitingList( group.player1 )
-				soloModePlayerToWaitingList( group.player2 )
-				destroyRingsForGroup( group )
-				
-				if ( IsValid(group.player1) ) HolsterAndDisableWeapons( group.player1 )
-				if ( IsValid(group.player2) ) HolsterAndDisableWeapons( group.player2 )
-				
-				removeGroup(group)
-				continue
-			}
-
-			if ( group.IsKeep ) 
-			{
-				if (IsValid( group.player1 ) && IsValid( group.player2 ) && ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ))) 
+			quit = false
+			removed = false
+			//if(!IsValid(group))
+			//{
+			//	sqerror("Logic flow error 0002: group was invalid")
+			//	removeGroupByHandle(groupHandle)
+			//}
+			//else 
+			//{	
+				if(!IsValid(group))
 				{
-					//#if DEVELOPER
-					//respawnInSoloMode(group.player1, 0)
-					//respawnInSoloMode(group.player2, 1)
-					//#else
-					thread respawnInSoloMode(group.player1, 0)
-					thread respawnInSoloMode(group.player2, 1)
-					//#endif
-					GiveWeaponsToGroup([group.player1, group.player2])			
-				}//player in keeped group is died, respawn them
-			}
-
-			if (!IsValid( group.player1 ) || !IsValid( group.player2 )) 
-			{	
-				//printt("solo player quit!!!!!")
-				if (IsValid(group.player1)) 
-				{
-					soloModePlayerToWaitingList( group.player1 ) //back to wating list
-					HolsterAndDisableWeapons( group.player1 )
-					Message( group.player1, Text5 ) 
-				}
-
-				if ( IsValid( group.player2 ) ) 
-				{
-					soloModePlayerToWaitingList(group.player2) //back to wating list
-					HolsterAndDisableWeapons(group.player2)
-					Message(group.player2, Text5);
+					removed = true
 				}
 				
-				SetIsUsedBoolForRealmSlot(group.slotIndex, false);
-
-				removeGroup(group) //TODO::verify
-
-				continue
-			}
-			
-
-			//检测乱跑的脑残
-			soloLocStruct groupLocStruct = group.groupLocStruct
-			vector Center = groupLocStruct.Center
-			array<entity> players = [group.player1,group.player2]
-			foreach (eachPlayer in players )
-			{
-				if(!IsValid(eachPlayer)) continue
-				eachPlayer.p.lastDamageTime = Time() //avoid player regen health
-
-				if(Distance2D(eachPlayer.GetOrigin(),Center) > 2000) //检测乱跑的脑残
+				if ( !removed && group.IsFinished ) //this round has been finished //IsValid(group) &&
 				{
-					Remote_CallFunction_Replay( eachPlayer, "ServerCallback_PlayerTookDamage", 0, 0, 0, 0, DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, eDamageSourceId.deathField, null )
-					eachPlayer.TakeDamage( 1, null, null, { scriptType = DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, damageSourceId = eDamageSourceId.deathField } )
+					SetIsUsedBoolForRealmSlot( group.slotIndex, false )
+					soloModePlayerToWaitingList( group.player1 )
+					soloModePlayerToWaitingList( group.player2 )
+					destroyRingsForGroup( group )
+					
+					if ( IsValid(group.player1) ) HolsterAndDisableWeapons( group.player1 )
+					if ( IsValid(group.player2) ) HolsterAndDisableWeapons( group.player2 )
+					
+					#if DEVELOPER
+					sqprint("remove group request 04")
+					#endif
+					
+					while(mGroupMutexLock) 
+					{
+						#if DEVELOPER
+						sqprint("Waiting for lock to release R004")
+						#endif
+						WaitFrame() 
+					}
+					
+					groupsToRemove.append(group)
+					quit = true
 				}
-			}
+				
+				if ( !removed && group.IsKeep ) 
+				{
+					if (IsValid( group.player1 ) && IsValid( group.player2 ) &&  ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ) )) 
+					{
+						thread respawnInSoloMode(group.player1, 0)
+						thread respawnInSoloMode(group.player2, 1)
+						GiveWeaponsToGroup([group.player1, group.player2])			
+					}//player in keeped group is died, respawn them
+				}
+				
+				if ( !IsValid( group.player1 ) || !IsValid( group.player2 )) 
+				{	
+					//printt("solo player quit!!!!!")
+					if ( !removed && IsValid(group.player1)) 
+					{
+						soloModePlayerToWaitingList( group.player1 ) //back to wating list
+						HolsterAndDisableWeapons( group.player1 )
+						Message( group.player1, Text5 ) 
+					}
+
+					if ( !removed && IsValid( group.player2 ) ) 
+					{
+						soloModePlayerToWaitingList(group.player2) //back to wating list
+						HolsterAndDisableWeapons(group.player2)
+						Message(group.player2, Text5);
+					}
+					
+					if(!removed)
+					{
+						SetIsUsedBoolForRealmSlot(group.slotIndex, false);
+					}
+					
+					#if DEVELOPER
+					sqprint("remove group request 05")
+					#endif
+					groupsToRemove.append(group)
+					quit = true
+				}
+				
+				//检测乱跑的脑残
+				if(!removed && !quit)
+				{
+					soloLocStruct groupLocStruct = group.groupLocStruct
+					vector Center = groupLocStruct.Center
+					array<entity> players = [group.player1,group.player2]
+					foreach (eachPlayer in players )
+					{
+						if(!IsValid(eachPlayer)) continue
+						eachPlayer.p.lastDamageTime = Time() //avoid player regen health
+
+						if(Distance2D(eachPlayer.GetOrigin(),Center) > 2000) //检测乱跑的脑残
+						{
+							Remote_CallFunction_Replay( eachPlayer, "ServerCallback_PlayerTookDamage", 0, 0, 0, 0, DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, eDamageSourceId.deathField, null )
+							eachPlayer.TakeDamage( 1, null, null, { scriptType = DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, damageSourceId = eDamageSourceId.deathField } )
+						}
+					}
+				}
+			//} //valid
 		}//foreach
-
+		
+		foreach ( group in groupsToRemove )
+		{	
+			#if DEVELOPER
+			sqprint(format("arrayloop: Removing group: %d", group.groupHandle ))
+			#endif 
+			while(mGroupMutexLock) 
+			{	
+				#if DEVELOPER
+				sqprint("Waiting for lock to release arrayloop")
+				#endif
+				WaitFrame() 
+			}
+			if(IsValid(group))
+			{
+				removeGroup(group)
+			}
+			else 
+			{
+				#if DEVELOPER
+				sqerror("Invalid group cannot be removed by reference alone")
+				#endif
+			}
+		}
 
 		//遍历休息队列
-		foreach (restingPlayer,state in soloPlayersResting )
+		foreach ( restingPlayerHandle,b in soloPlayersResting )
 		{
-			if(!IsValid(restingPlayer)) continue
-
-			if(!IsAlive(restingPlayer)  )
+			if(!restingPlayerHandle)
 			{	
-				//#if DEVELOPER 
-				//respawnInSoloMode(restingPlayer)
-				//#else
-				thread respawnInSoloMode(restingPlayer)
-				//#endif
+				sqerror("Null handle")
+					continue
+			}
+			
+			entity restingPlayerEntity = GetEntityFromEncodedEHandle(restingPlayerHandle)
+			
+			if(!IsValid(restingPlayerEntity)) continue
+
+			if(!IsAlive(restingPlayerEntity)  )
+			{	
+				thread respawnInSoloMode(restingPlayerEntity)
 			}
 			
 			//TakeAllWeapons( restingPlayer )
-			HolsterAndDisableWeapons( restingPlayer )
+			HolsterAndDisableWeapons( restingPlayerEntity )
 		}
 
 		foreach ( player in GetPlayerArray() )
@@ -2308,14 +2606,16 @@ void function soloModeThread(LocPair waitingRoomLocation)
 							
 			}
 		}//超时玩家处理结束
-		else//不存在已超时玩家,正常按照kd匹配
-		
-		
+		else//不存在已超时玩家,正常按照kd匹配	
 		{	
 		
 			// Warning("Normal matching")
-			foreach ( playerEntity, eachPlayerStruct in soloPlayersWaiting ) //找player1
+			foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting ) //找player1
 			{	
+				if(!IsValid(eachPlayerStruct))
+				{
+					continue
+				}					
 				
 				entity playerSelf = eachPlayerStruct.player
 				bool player_IBMM_timeout = eachPlayerStruct.IBMM_Timeout_Reached
@@ -2402,14 +2702,21 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			}//foreach
 		}//else
 
-		if(! (IsValid(newGroup.player1) && IsValid(newGroup.player2))     ) //确保两个玩家都是合法玩家
+		if ( !IsValid(newGroup.player1) || !IsValid(newGroup.player2) ) 
 		{
-			SetIsUsedBoolForRealmSlot( newGroup.slotIndex, false )
-			// Warning("player Invalid, back to waiting list")
-			soloModePlayerToWaitingList(newGroup.player1)
-			soloModePlayerToWaitingList(newGroup.player2)
-			continue
+			SetIsUsedBoolForRealmSlot(newGroup.slotIndex, false);
+			if (IsValid(newGroup.player1)) 
+			{
+				soloModePlayerToWaitingList(newGroup.player1);
+			}
+			
+			if (IsValid(newGroup.player2)) 
+			{
+				soloModePlayerToWaitingList(newGroup.player2);
+			}
+			continue;
 		}
+
 
 		//already matched two players
 		array<entity> players = [newGroup.player1,newGroup.player2]
@@ -2424,18 +2731,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			newGroup.GROUP_INPUT_LOCKED = false;
 		}
 		
-		soloModePlayerToInProgressList(newGroup)
+		thread soloModePlayerToInProgressList(newGroup)
 
 		foreach (index,eachPlayer in players )
 		{
 			EnableOffhandWeapons( eachPlayer )
 			DeployAndEnableWeapons( eachPlayer )
-			
-			//#if DEVELOPER 
-			//respawnInSoloMode(eachPlayer, index)
-			//#else
 			thread respawnInSoloMode(eachPlayer, index)
-			//#endif
 		}
 		
 		GiveWeaponsToGroup( players )
@@ -2489,36 +2791,47 @@ void function soloModeThread(LocPair waitingRoomLocation)
 //mkos input watch
 void function InputWatchdog( entity player, entity opponent, soloGroupStruct group )
 {
-	//sqprint( format("THREAD FOR GROUP STARTED" ))
+	#if DEVELOPER
+	sqprint( format("THREAD FOR GROUP STARTED" ))
+	#endif
 	
-	while ( !group.IsFinished )
-	{
-		if( GetGameState() != eGameState.Playing ) 
+	while ( isGroupValid(group) )
+	{	
+		if ( group.IsFinished || isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) 
+		{ 
 			break
-		if ( !isGroupValid( group ) ) break
-		if ( isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) break
-		//sqprint("Waiting for input to change");
+		}
+		#if DEVELOPER
+		sqprint("Waiting for input to change");
+		#endif
 	
 		if ( player.p.input != opponent.p.input )
-		{
-							
-			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );			
-			Message( player, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
+		{	
+			if(IsValid(player))
+			{
+				Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );			
+				Message( player, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
+			}
 			
-			Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
-			Message( opponent, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
+			if(IsValid(opponent))
+			{
+				Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
+				Message( opponent, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
+			}
 			
-			group.IsFinished = true
+			if(IsValid(group))
+			{
+				group.IsFinished = true
+			}
 			
-			break;
-		
+			break;	
 		}
 		
 		wait 0.2
 	}
-	
-	//sqprint( format("THREAD FOR GROUP ENDED" ))
-	
+	#if DEVELOPER
+	sqprint( format("THREAD FOR GROUP ENDED" ))
+	#endif
 }
 
 void function GiveWeaponsToGroup( array<entity> players )
@@ -2649,22 +2962,32 @@ void function ForceAllRoundsToFinish_solomode()
 		}catch(e420){}
 		
 		if(isPlayerInWaitingList(player))
+		{
 			return
+		}
 
-		soloGroupStruct group = returnSoloGroupOfPlayer(player) 
-		destroyRingsForGroup(group)
-		
-		if(!group.IsKeep)
-			group.IsFinished = true //tell solo thread this round has finished
+		soloGroupStruct group = returnSoloGroupOfPlayer(player) 	
+		if(IsValid(group))
+		{
+			destroyRingsForGroup(group)		
+			if(!group.IsKeep)
+			{
+				group.IsFinished = true //tell solo thread this round has finished
+			}
+		}
 		
 		soloModePlayerToWaitingList( player )
 		FS_ClearRealmsAndAddPlayerToAllRealms( player )
 	}
 	
-	//soloPlayersInProgress.clear()
 	
-	groupsInProgress = {}
-	playerToGroupMap = {}
+	if(GetCurrentRound() > 0)
+	{
+		//soloPlayersInProgress.clear()
+		soloPlayersWaiting = {} //needed?
+		groupsInProgress = {}
+		playerToGroupMap = {}
+	}
 	
 }
 
