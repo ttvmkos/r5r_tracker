@@ -762,6 +762,7 @@ bool function processRestRequest( entity player )
 	
 	if ( player.p.rest_request )
 	{
+		player.p.rest = false;
 		expliciteRest( player )
 		return true
 	}
