@@ -2,9 +2,53 @@
 Stats Tracker system for R5Reloaded servers. 
 
 Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
+
 ______________________________________________________________
 
-NEW 3/132024 [NIGHT update]
+3/19/2024
+
+- Fixed a client side crash bug server sided:
+- Removed the ability to spectate after eTDMstate is not game playing.
+- Forced all spectators to stop spectating after playing state finishes.
+
+- Fixed a realms exploit that could crash the server
+
+______________________________________________________________
+
+!! NEW 3/14/2024 [PERFORMANCE inspired rewrite]
+
+- ## Redesigned tracker engine code
+- ## With it: New setting for r5rdev.config (see examples folder for template):
+
+ -       "DELETE_ALL_LOGS": true,
+ -       "CVAR_MAX_BUFFER": 100
+
+- DELETE_ALL_LOGS, with auto delete on, will delete the game data logs after sending.
+- CVAR_MAX_BUFFER allows you to experiment with different buffer sizes, that which controls the active writer. 
+
+- ## new play list options ##: 
+
+- default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
+- COMMAND_RATE_LIMIT		0.200 //Rate limiting for all commands
+- enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
+
+- ## dev notes ##:
+
+- fixed movement input callbacks
+- reworked tracker engine/ tracker scripts / 1v1 game mode
+- redesigned struct methods to use constant time operations
+- replaced loops with constant time operatons
+- converted string comparisons to int ref
+- created several new utility functions and "systems"
+- focused primarily on performance
+- fixed numerous bugs and issues
+
+- still much more to do..
+
+
+______________________________________________________________
+
+NEW 3/13/2024 [NIGHT update]
 
 - Added rotate feature. To configure, add a list of comma separated maps for:
 - maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
@@ -149,7 +193,7 @@ logfolder
 
 	by default, logevents is where the match data is saved. You can change this here.
 
-
+webhooks:
 PLAYERS_WEBHOOK
 
 	discord webhook url to a channel to display player join/leave updates (not reccomendedon busy servers)
@@ -158,7 +202,7 @@ PLAYERS_WEBHOOK
 MATCHES_WEBHOOK
 
 	discord webhook url to a channel for displaying match winner recaps
-
+server:
 MAX_LOGFILE_DIR_SIZE
 
 	size in MB a log folder can be before the oldest are considered for deletion (applies to manual cc command as well)
@@ -166,7 +210,16 @@ MAX_LOGFILE_DIR_SIZE
 AUTO_DELETE_STATLOGS
 
 	if set to true, will delete oldest after MB threshold has been reached at match end during transition. 
- 
+
+DELETE_ALL_LOGS"
+
+	if set to true, will delete all logs in specified folder after match is over and data transmits
+
+CVAR_MAX_BUFFER
+
+	controls the amount of log events to queue before being wrote from memory to file
+
+settings: 
 PLAYER_WHITELIST
 	
 	comma separated list of user id's to bypass restricted 'elite' servers.
@@ -189,7 +242,9 @@ There will be an automatic file generator on r5r.dev for creating these files wi
     },
     "server": {
         "MAX_LOGFILE_DIR_SIZE": "20",
-        "AUTO_DELETE_STATLOGS": "true"
+        "AUTO_DELETE_STATLOGS": true,
+        "DELETE_ALL_LOGS": true,
+        "CVAR_MAX_BUFFER": 100
     },
     "settings": {
 	"PLAYER_WHITELIST": "",
@@ -253,7 +308,8 @@ ______________________________________________________________________
 	restricted_gamesplayed 10 		// minimum games played
 
 	// extra
-	karma_server	                  1          // for karma servers
+	maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
+	rotate_map 			1 // rotatesmaps in maplist, to add, edit maplist above
 	custom_match_ending_title		"Match complete"	 //custom title before map reload/cycle
 	custom_match_ending_message		"Don't leave. Server is going to change maps."	 //custom msg before map reload/cycle	
 	enable_lock1v1						1 // 0 removes all lock fight panels
@@ -263,6 +319,10 @@ ______________________________________________________________________
 	give_random_legend_on_spawn             1  // gives both opponents same random legend
 	default_start_in_rest_setting			0
 	enable_voice				1
+	default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
+	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all client commands
+	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
+	give_legend_tactical		0 //gives player tactical ability for legend on spawn
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 

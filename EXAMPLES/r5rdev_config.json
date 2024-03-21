@@ -7,10 +7,13 @@
         "MATCHES_WEBHOOK": "url"
     },
     "server": {
-        "MAX_LOGFILE_DIR_SIZE": "20",
-        "AUTO_DELETE_STATLOGS": true
+        "MAX_LOGFILE_DIR_SIZE": "3",
+        "AUTO_DELETE_STATLOGS": true,
+        "DELETE_ALL_LOGS": true,
+        "CVAR_MAX_BUFFER": 100
     },
     "settings": {
-        "PLAYER_WHITELIST": "1007946891142"
+        "PLAYER_WHITELIST": "1007946891142",
+        "ADMINS": ""
     }
 }

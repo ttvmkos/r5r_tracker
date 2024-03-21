@@ -51,7 +51,13 @@ hitsound [0/16]
 
 	sets hitsound to available hitsounds
 
-	
+show aa
+
+	shows current aa values of server
+
+show id
+
+	shows current match id
 
 
 
@@ -139,17 +145,19 @@ cc listhandles
 	Lists all player's handles in the server
 
 
-____________________________________________________________________________________________________________________________________________________________
+___________________________________________________________________________________________
 
 cc map [mapname] [gametype]
 
 	Changes map. Can use short name for both, or long name.  If invalid,uses current gamemode or current map or both. i.e. entering cc map will reset reload current map and game mode.
 
-____________________________________________________________________________________________________________________________________________________________
+
+
+
+___________________________________________________________________________________________
 
 Current maps:
-____________________________________________________________________________________________________________________________________________________________
-
+___________________________________________________________________________________________
 ["dropoff", "mp_rr_arena_composite"],
 ["overflow", "mp_rr_aqueduct"],
 ["firingrange", "mp_rr_canyonlands_staging"],
@@ -218,6 +226,30 @@ cc stopplayall [audiofile]
 	Stops sound for all players (edited)
 
 
+cc cleanuplogs
 
+	Manually clears logs based on settings in r5rdev_config.json
 
+cc reload_config
 
+	Reloads r5rdev_config.json settings into memory
+
+cc setting [keyname]
+
+	Displays value of key from config file.  sub keys must be specified with "."   for example, to show admins, it's:    cc setting settings.ADMINS
+
+cc spamupdate
+
+	Infinitely announces to all players the server is going to update and shut down.
+
+cc stopspam
+
+	Stops update message loop in case of accidental usage.
+
+cc vc [0/1]
+
+	Enables or disables voice chat ( can be enabled and then disabled mid game )
+
+cc startbr
+
+	Starts br regardless of player count

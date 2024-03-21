@@ -14,11 +14,11 @@ void function Flowstate_InitAFKThreadForPlayer(entity player)
 	return
 	#endif
 
-	if ( !IsValid(player) || IsAdmin(player) || !GetCurrentPlaylistVarBool( "flowstate_afk_kick_enable", true ) )
+	if ( !IsValid(player) || IsAdmin(player) || !GetCurrentPlaylistVarBool( "flowstate_afk_kick_enable", true ) || !GetCurrentPlaylistVarBool("enable_afk_thread", true) )
 		return
 
-	//AfkThread_AddPlayerCallbacks( player )
-	player.SetSendInputCallbacks( true )
+	AfkThread_AddPlayerCallbacks( player ) //readded mkos
+	//player.SetSendInputCallbacks( true ) //disabled internal call
 	AfkThread_PlayerMoved( player )
 	thread CheckAfkKickThread(player)
 }
@@ -56,8 +56,6 @@ void function AfkWarning( entity player )
 
 void function CheckAfkKickThread(entity player)
 {	
-
-
 	printt("Flowstate - AFK thread initialized for " + player.GetPlayerName() )
 	
 	while( true )
@@ -122,13 +120,30 @@ void function CheckAfkKickThread(entity player)
     }
 }
 
-void function AfkThread_PlayerMoved( entity player )
+bool function AfkThread_PlayerMoved( entity player )
 {
+	if(!IsValid(player))
+		return false
+	
+	#if DEVELOPER
+	sqprint("fired callback")
+	#endif
+	
     player.p.lastmoved = Time()
+	return true
 }
 
 void function AfkThread_AddPlayerCallbacks( entity player )
 {	
+	
+	AddPlayerPressedForwardCallback( player, AfkThread_PlayerMoved )
+	AddPlayerPressedBackCallback( player, AfkThread_PlayerMoved )
+	AddPlayerPressedLeftCallback( player, AfkThread_PlayerMoved )
+	AddPlayerPressedRightCallback( player, AfkThread_PlayerMoved )
+	
+	
+	//disabled and reworked to above (fixed callback move inputs) -- mkos
+	
 	/*
 	AddButtonPressedPlayerInputCallback( player, IN_ATTACK, AfkThread_PlayerMoved )
 	AddButtonPressedPlayerInputCallback( player, IN_JUMP, AfkThread_PlayerMoved )
