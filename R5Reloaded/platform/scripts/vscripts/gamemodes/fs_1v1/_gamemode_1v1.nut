@@ -85,6 +85,26 @@ vector IBMM_COORDINATES
 vector IBMM_ANGLES
 bool bIsKarma
 
+
+bool function isPlayerInProgress( entity player )
+{
+	if ( !IsValid( player ) )
+	{
+		return false
+	}
+	
+	if ( player.p.handle in playerToGroupMap )
+	{
+		if( IsValid(playerToGroupMap[player.p.handle]))
+		{
+			return true
+		}
+	}
+	
+	return false 
+}
+
+
 void function INIT_Flags()
 {
 	bGiveSameRandomLegendToBothPlayers = GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false )
@@ -700,6 +720,13 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 	}
 	else
 	{
+		if( isPlayerInProgress( player ) )
+		{
+			Message( player, "SENDING TO REST AFTER FIGHT")
+			player.p.rest_request = true;
+			return true
+		}
+		
 		if(IS_CHINESE_SERVER)
 			Message(player,"您已处于休息室", "在控制台中输入'rest'重新开始匹配")
 		else
@@ -724,6 +751,51 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 	player.p.lastRestUsedTime = Time()
 
 	return true
+}
+
+bool function processRestRequest( entity player )
+{
+	if( !IsValid( player ) )
+	{
+		return  false
+	}
+	
+	if ( player.p.rest_request )
+	{
+		expliciteRest( player )
+		return true
+	}
+	
+	return false
+}
+
+
+void function expliciteRest( entity player )
+{
+	if( player.p.handle in soloPlayersResting )
+	{
+		return 
+	}
+	
+		if(IS_CHINESE_SERVER)
+		Message(player,"您已处于休息室", "在控制台中输入'rest'重新开始匹配")
+	else
+		Message(player,"You are resting now", "Type rest in console to pew pew again.")
+	
+	thread soloModePlayerToRestingList(player)
+	
+	try
+	{
+		player.Die( null, null, { damageSourceId = eDamageSourceId.damagedef_suicide } )
+	}
+	catch (error){}
+	
+	thread respawnInSoloMode(player)
+	
+	HolsterAndDisableWeapons(player)
+	//TakeAllWeapons( player )
+	
+	player.p.lastRestUsedTime = Time()
 }
 
 //mkos -new 
@@ -2358,12 +2430,21 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				if ( !removed && group.IsFinished ) //this round has been finished //IsValid(group) &&
 				{
 					SetIsUsedBoolForRealmSlot( group.slotIndex, false )
+					
 					soloModePlayerToWaitingList( group.player1 )
 					soloModePlayerToWaitingList( group.player2 )
 					destroyRingsForGroup( group )
 					
-					if ( IsValid(group.player1) ) HolsterAndDisableWeapons( group.player1 )
-					if ( IsValid(group.player2) ) HolsterAndDisableWeapons( group.player2 )
+					if ( IsValid(group.player1) )
+					{
+						processRestRequest( group.player1 )
+						HolsterAndDisableWeapons( group.player1 )
+					}					
+					if ( IsValid(group.player2) )
+					{
+						processRestRequest( group.player2 )
+						HolsterAndDisableWeapons( group.player2 )
+					}	
 					
 					#if DEVELOPER
 					sqprint("remove group request 04")
@@ -2385,9 +2466,32 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				{
 					if (IsValid( group.player1 ) && IsValid( group.player2 ) &&  ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ) )) 
 					{
-						thread respawnInSoloMode(group.player1, 0)
-						thread respawnInSoloMode(group.player2, 1)
-						GiveWeaponsToGroup([group.player1, group.player2])			
+						bool nowep = false;
+						if ( processRestRequest( group.player1 ))
+						{	
+							nowep = true
+							processRestRequest( group.player1 )
+						}
+						else 
+						{
+							thread respawnInSoloMode(group.player1, 0)
+						}
+						
+						
+						if ( processRestRequest( group.player1 ))
+						{
+							nowep = true
+							processRestRequest( group.player1 )
+						}
+						else 
+						{
+							thread respawnInSoloMode(group.player2, 1)
+						}
+						
+						if(!nowep)
+						{					
+							GiveWeaponsToGroup([group.player1, group.player2])	
+						}
 					}//player in keeped group is died, respawn them
 				}
 				
@@ -2396,6 +2500,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					//printt("solo player quit!!!!!")
 					if ( !removed && IsValid(group.player1)) 
 					{
+						if(processRestRequest( group.player1 )){ continue }	
 						soloModePlayerToWaitingList( group.player1 ) //back to wating list
 						HolsterAndDisableWeapons( group.player1 )
 						Message( group.player1, Text5 ) 
@@ -2403,6 +2508,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 
 					if ( !removed && IsValid( group.player2 ) ) 
 					{
+						if(processRestRequest( group.player2 )){ continue }
 						soloModePlayerToWaitingList(group.player2) //back to wating list
 						HolsterAndDisableWeapons(group.player2)
 						Message(group.player2, Text5);
@@ -2466,7 +2572,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		}
 
 		//遍历休息队列
-		foreach ( restingPlayerHandle,b in soloPlayersResting )
+		foreach ( restingPlayerHandle,restingStruct in soloPlayersResting )
 		{
 			if(!restingPlayerHandle)
 			{	
