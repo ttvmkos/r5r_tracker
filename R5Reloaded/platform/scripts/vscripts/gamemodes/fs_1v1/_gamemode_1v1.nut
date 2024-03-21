@@ -61,8 +61,8 @@ global table<int, soloGroupStruct> groupsInProgress = {}; //group map to group
 table <int,bool> soloPlayersResting = {}
 
 //TODO:: move to r5rdev_config.json arrays to store loaded custom weapons from playlist once in init -- mkos //########
-global array <string> custom_weapons_primary = [] 
-global array <string> custom_weapons_secondary = [] 
+array <string> custom_weapons_primary = [] 
+array <string> custom_weapons_secondary = [] 
 
 // SBMM vars
 global float lifetime_kd_weight
@@ -79,11 +79,11 @@ global bool bMap_mp_rr_canyonlands_64k_x_64k
 global bool bMap_mp_rr_aqueduct
 global bool bMap_mp_rr_arena_composite
 global bool bGiveSameRandomLegendToBothPlayers
-global array<string> Weapons = []
-global array<string> WeaponsSecondary = []
-global vector IBMM_COORDINATES
-global vector IBMM_ANGLES
-global bool bIsKarma
+array<string> Weapons = []
+array<string> WeaponsSecondary = []
+vector IBMM_COORDINATES
+vector IBMM_ANGLES
+bool bIsKarma
 
 void function INIT_Flags()
 {
@@ -1008,7 +1008,7 @@ void function soloModefixDelayStart(entity player)
 	if(IS_CHINESE_SERVER)
 		Message(player,"加载中 FS 1v1 \n\n\n")
 	else
-		Message(player,"Loading Flowstate 1v1 Tracker Version\n\n\n")
+		Message(player,"Flowstate 1v1 : Tracker Version\n\n\n")
 	
 	HolsterAndDisableWeapons(player)
 
@@ -2550,6 +2550,10 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				
 				if ( solostruct.waitingmsg == true )
 				{
+					if(!IsValid(solostruct) || !IsValid(solostruct.player))
+					{
+						continue
+					}
 					int id = solostruct.player.GetEncodedEHandle()
 					Remote_CallFunction_NonReplay( solostruct.player, "ForceScoreboardLoseFocus" );
 					CreatePanelText(solostruct.player, "", "Waiting for\n   players...",IBMM_WFP_Coordinates(),IBMM_WFP_Angles(), false, 2.5, id)

@@ -236,7 +236,7 @@ int function GetCurrentRound()
 
 void function INIT_LGDuels( entity player )
 {
-	thread AddEntityCallback_OnDamaged( player, LGDuel_OnPlayerDamaged )
+	AddEntityCallback_OnDamaged( player, LGDuel_OnPlayerDamaged ) //was thread?why?
 	AddClientCommandCallback("hitsound", ClientCommand_mkos_LGDuel_hitsound )
 	AddClientCommandCallback("HITSOUND", ClientCommand_mkos_LGDuel_hitsound )
 	AddClientCommandCallback("handicap", ClientCommand_mkos_LGDuel_p_damage )
