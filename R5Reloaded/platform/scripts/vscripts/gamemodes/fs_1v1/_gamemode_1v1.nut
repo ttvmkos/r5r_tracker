@@ -1,10 +1,8 @@
 //Flowstate 1v1 gamemode
 //made by __makimakima__
 //redesigned by mkos [refactored/coderewrite/ibmm/sbmm]
-globalize_all_functions
 
-global bool IS_CHINESE_SERVER = false
-global bool APlayerHasMessage = false
+globalize_all_functions // why?
 
 global struct soloLocStruct
 {
@@ -72,6 +70,9 @@ struct {
 
 	//playerHandle -> struct resting
 	table <int,bool> soloPlayersResting = {}
+	
+	bool IS_CHINESE_SERVER = false
+	bool APlayerHasMessage = false
 
 } file
 
@@ -103,6 +104,10 @@ table<int, soloGroupStruct> function getPlayerToGroupMap()
 	return file.playerToGroupMap
 }
 
+void function setChineseServer( bool value )
+{
+	file.IS_CHINESE_SERVER = value
+}
 
 //usage intended for display only queries from scripts, not game logic
 float function getSbmmSetting( string setting )
@@ -240,10 +245,9 @@ void function INIT_1v1_sbmm()
 		
 		string concatenate = Concatenate( Playlist_1v1_Primary_Array(), Playlist_1v1_Primary_Array_continue() )
 	
-		try {
-		
-			custom_weapons_primary = StringToArray( concatenate );
-			
+		try 
+		{	
+			custom_weapons_primary = StringToArray( concatenate );		
 		} 
 		catch ( error ) 
 		{
@@ -256,10 +260,9 @@ void function INIT_1v1_sbmm()
 	{
 		string concatenate = Concatenate( Playlist_1v1_Secondary_Array(), Playlist_1v1_Secondary_Array_continue() )
 	
-		try {
-		
-			custom_weapons_secondary = StringToArray( concatenate );
-			
+		try 
+		{	
+			custom_weapons_secondary = StringToArray( concatenate );		
 		} 
 		catch ( error ) 
 		{
@@ -716,7 +719,6 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 	{	
 		deleteWaitingPlayer(player.p.handle)
 	}
-
 	
 		thread soloModePlayerToRestingList(player)
 		
@@ -732,6 +734,7 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 	HolsterAndDisableWeapons(player)
 	//TakeAllWeapons( player )	
 	player.p.lastRestUsedTime = Time()
+
 
 	return true
 }
@@ -764,7 +767,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 			player.SetTakeDamageType( DAMAGE_YES )
 		}
 
-		if(IS_CHINESE_SERVER)
+		if(file.IS_CHINESE_SERVER)
 			Message(player,"匹配中")
 		else
 			Message(player,"Matching!")
@@ -851,7 +854,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		}
 	
 		
-		if(IS_CHINESE_SERVER)
+		if(file.IS_CHINESE_SERVER)
 			Message(player,"您已处于休息室", "在控制台中输入'rest'重新开始匹配")
 		else
 			Message(player,"You are resting now", restText )
@@ -902,7 +905,7 @@ void function expliciteRest( entity player )
 		return 
 	}
 	
-		if(IS_CHINESE_SERVER)
+		if(file.IS_CHINESE_SERVER)
 		Message(player,"您已处于休息室", "在控制台中输入'rest'重新开始匹配")
 	else
 		Message(player,"You are resting now", "Type rest in console to pew pew again.")
@@ -1202,7 +1205,7 @@ void function soloModePlayerToRestingList(entity player)
 
 void function soloModefixDelayStart(entity player)
 {
-	if(IS_CHINESE_SERVER)
+	if(file.IS_CHINESE_SERVER)
 		Message(player,"加载中 FS 1v1       Tracker Edition\n\n\n")
 	else
 		Message(player,"Flowstate 1v1       Tracker Edition\n\n\n")
@@ -1460,6 +1463,7 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 		player.MakeVisible()
 		player.ClearInvulnerable()
 		player.SetTakeDamageType( DAMAGE_YES )
+		HolsterAndDisableWeapons(player)
 
 		//set realms for resting player
 		FS_ClearRealmsAndAddPlayerToAllRealms( player )
@@ -1636,31 +1640,32 @@ void function _soloModeInit(string mapName)
 				WeaponsSecondary.removebyvalue(weapon)
 	}
 	
-	
-	if(mapName == "mp_rr_arena_composite")
+	switch(mapName)
 	{
-		WaitingRoom.origin = <-7.62,200,184.57>
-		WaitingRoom.angles = <0,90,0>
-	}
-	else if (mapName == "mp_rr_aqueduct")
-	{
-		WaitingRoom.origin = <719.94,-5805.13,494.03>
-		WaitingRoom.angles = <0,90,0>
-	}
-	else if (mapName == "mp_rr_canyonlands_64k_x_64k")
-	{
-		WaitingRoom.origin = <-762.59,20485.05,4626.03>
-		WaitingRoom.angles = <0,45,0>
-	}
-	else if (mapName == "mp_rr_canyonlands_staging") //_LG_duels
-	{
-		WaitingRoom.origin = < 3477.69, -8364.02, -10252 >
-		WaitingRoom.angles = <356.203, 269.459, 0>
-	}
-	else if (mapName == "mp_rr_party_crasher")
-	{	
-		WaitingRoom.origin = < 1881.75, -4210.87, 626.106 > 
-		WaitingRoom.angles = < 359.047, 104.246, 0 >
+		case "mp_rr_arena_composite":
+			WaitingRoom.origin = <-7.62,200,184.57>
+			WaitingRoom.angles = <0,90,0>
+			break;
+			
+		case "mp_rr_aqueduct":
+			WaitingRoom.origin = <719.94,-5805.13,494.03>
+			WaitingRoom.angles = <0,90,0>
+			break;
+			
+		case "mp_rr_canyonlands_64k_x_64k":
+			WaitingRoom.origin = <-762.59,20485.05,4626.03>
+			WaitingRoom.angles = <0,45,0>
+			break;
+			
+		case "mp_rr_canyonlands_staging":
+			WaitingRoom.origin = < 3477.69, -8364.02, -10252 >
+			WaitingRoom.angles = <356.203, 269.459, 0>
+			break;		
+			
+		case "mp_rr_party_crasher":
+			WaitingRoom.origin = < 1881.75, -4210.87, 626.106 > 
+			WaitingRoom.angles = < 359.047, 104.246, 0 >
+			break;
 	}
 	
 	array<LocPair> allSoloLocations
@@ -2172,14 +2177,14 @@ void function _soloModeInit(string mapName)
 	
 	string buttonText
 	
-	if(IS_CHINESE_SERVER)
+	if(file.IS_CHINESE_SERVER)
 		buttonText = "%&use% 开始观战"
 	else
 		buttonText = "%&use% Start spectating"
 
 	string buttonText3
 	
-	if(IS_CHINESE_SERVER)
+	if(file.IS_CHINESE_SERVER)
 		buttonText3 = "%&use% 开始休息"
 	else
 		buttonText3 = "%&use% Toggle Rest"
@@ -2227,7 +2232,7 @@ void function _soloModeInit(string mapName)
 		if(!IsValid(user)) return
 		if(!isPlayerInRestingList(user))
 		{
-			if(IS_CHINESE_SERVER)
+			if(file.IS_CHINESE_SERVER)
 				Message(user,"您必须在休息模式中才能使用观战功能您","请在控制台中输入'rest'进入休息模式")
 			else
 				Message(user,"You must be in resting mode to spectate others!","Input 'rest' in console to enter resting mode ")
@@ -2256,7 +2261,7 @@ void function _soloModeInit(string mapName)
 			thread CheckForObservedTarget(user)
 			user.p.lastTimeSpectateUsed = Time()
 
-			if(IS_CHINESE_SERVER)
+			if(file.IS_CHINESE_SERVER)
 				Message(user,"按一下空格后结束观战")
 			else
 				Message(user,"Jump to stop spectating")
@@ -2393,7 +2398,7 @@ void function _soloModeInit(string mapName)
 	
 	string buttonText2
 	
-	if(IS_CHINESE_SERVER)
+	if(file.IS_CHINESE_SERVER)
 	{
 		buttonText2 = "%&use% 不再更换对手"
 	}
@@ -2401,83 +2406,6 @@ void function _soloModeInit(string mapName)
 	{
 		buttonText2 = "%&use% Never change your opponent"
 	}
-	
-	//Disabled because realms don't support this. This has been changed to a button in Pause menu in indev version
-
-	// foreach (index,eahclocation in panelLocations)
-	// {
-		// //Panels for save opponents
-		// entity panel = CreateFRButton(eahclocation.origin, eahclocation.angles, buttonText2)
-		// panel.SetSkin(1)//red
-		// soloLocations[index].Panel = panel
-		// AddCallback_OnUseEntity( panel, void function(entity panel, entity user, int input)
-		// {
-			// string Text3
-			// string Text4
-			// if(IS_CHINESE_SERVER)
-			// {
-				// Text3 = "您已取消绑定"
-				// Text4 = "您已绑定您的对手"
-			// }
-			// else
-			// {
-				// Text3 = "Your opponent will change now"
-				// Text4 = "Your opponent won't change"
-			// }
-			// soloGroupStruct group = returnSoloGroupOfPlayer(user)
-			// // if (!IsValid(group.player1) || !IsValid(group.player2)) return
-			// if(!isGroupValid(group)) return //Is this group is available
-			// if (soloLocations[group.slotIndex].Panel != panel) return //有傻逼捣乱
-			
-			// //mkos 
-			// if ( !IsLockable( group.player1, group.player2 ))
-			// {	
-				// string lock_data;
-
-				// lock_data += group.player1.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player1) + "\n"; 
-				// lock_data += group.player2.GetPlayerName() + "'s Lock1v1 Setting: " + LockSetting(group.player2) + "\n";
-				
-				// try
-				// {
-					// Message(group.player1, "LOCKING FAILED", lock_data)
-					// Message(group.player2, "LOCKING FAILED", lock_data)
-				// }
-				// catch (L_error)
-				// {}
-				
-				// return
-			// }
-			
-			// if( group.IsKeep == false)
-			// {
-				// group.IsKeep = true
-				// panel.SetSkin(0) //green
-
-				// try
-				// {
-					// Message(group.player1, Text4)
-					// Message(group.player2, Text4)
-				// }
-				// catch (error)
-				// {}
-
-			// }
-			// else
-			// {
-				// group.IsKeep = false
-				// panel.SetSkin(1) //red
-
-				// try
-				// {
-					// Message(group.player1, Text3)
-					// Message(group.player2, Text3)
-				// }
-				// catch (error)
-				// {}
-			// }
-		// })//AddCallback_OnUseEntity
-	// }//foreach
-
 
 	forbiddenZoneInit(GetMapName())
 	thread soloModeThread(getWaitingRoomLocation())
@@ -2490,7 +2418,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 
 	string Text5
 
-	if(IS_CHINESE_SERVER)
+	if(file.IS_CHINESE_SERVER)
 	{
 		Text5 = "您的对手已断开连接"
 	}
@@ -2792,13 +2720,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					CreatePanelText(solostruct.player, "", "Waiting for\n   players...",IBMM_WFP_Coordinates(),IBMM_WFP_Angles(), false, 2.5, id)
 					//Message( solostruct.player, "\n\n\n\n Waiting for players...", "", 120 )
 					SetMsg( solostruct.player, false )
-					APlayerHasMessage = true;	
+					file.APlayerHasMessage = true;	
 				}
 			}
 
 			continue		
 		}  
-		else if (APlayerHasMessage) 
+		else if (file.APlayerHasMessage) 
 		{
 			foreach ( player in GetPlayerArray() )
 			{
@@ -2810,7 +2738,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				RemovePanelText( player, id)
 			}
 			
-			APlayerHasMessage = false;
+			file.APlayerHasMessage = false;
 		}
 
 		// printt("------------------more than 2 player in solo waiting array,matching------------------")

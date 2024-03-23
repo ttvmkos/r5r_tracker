@@ -6,9 +6,13 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ______________________________________________________________
 
 
+
+
 3/23/2024
 
-- Official posted release of 3.0.3
+- Patched return to spawn with weapons
+- Patched worldspawn info
+
 - New feature, playlist setting: rest_grace  
 - time required from start of fight or since last damage to rest during a fight if player tries to rest, it will send them to rest after fight and tell them they can try again in (n) seconds. Default if not specified in playlist is 0.0 (disabled)
 

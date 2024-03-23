@@ -271,7 +271,7 @@ string function GetPlayerIdFromHandle( int handle )
 		return file.HandleToPlayerData[handle].playerUID
 	}
 	
-	return "-1"
+	return handle.tostring()
 }
 
 string function GetPlayerNameFromHandle( int handle )
@@ -281,7 +281,7 @@ string function GetPlayerNameFromHandle( int handle )
 		return file.HandleToPlayerData[handle].playerName
 	}
 	
-	return "NULL"
+	return handle.tostring()
 }
 
 table <string,string> function GetAllStringSettings()

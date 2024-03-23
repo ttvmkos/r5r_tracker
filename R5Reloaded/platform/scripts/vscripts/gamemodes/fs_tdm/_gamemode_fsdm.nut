@@ -1574,7 +1574,7 @@ void function isChineseServer()
 {
 	if ( GetCurrentPlaylistVarBool( "flowstate_1v1mode_is_chinese_server", false ) )
 	{
-		IS_CHINESE_SERVER = true
+		setChineseServer( true )
 	}
 }
 
