@@ -31,7 +31,6 @@ global function PIN_PlayerJumpedFromPlane
 global function PIN_Training
 
 
-
 // ██████  ███████ ██████     ██████  ███████ ██    ██     ████████ ██████   █████   ██████ ██   ██ ███████ ██████ 
 // ██   ██ ██      ██   ██    ██   ██ ██      ██    ██        ██    ██   ██ ██   ██ ██      ██  ██  ██      ██   ██ 
 // ██████  ███████ ██████     ██   ██ █████   ██    ██        ██    ██████  ███████ ██      █████   █████   ██████  
@@ -39,28 +38,8 @@ global function PIN_Training
 // ██   ██ ███████ ██   ██ ██ ██████  ███████   ████          ██    ██   ██ ██   ██  ██████ ██   ██ ███████ ██   ██ 
 // r5r.dev by mkos
 
-//TODO:: de clutter global slots
-
-global function Logging_Enabled
-global function __START_LOGGING
-global function GetUniqueFightId
-global function CreateDamageEvent
-global function EndFight
-global function GetBulletsPerShot
-global function GetDamagePerBullet
-global function IsSpecialWeapon
-global function HandleDamage
-global function R5R_OnPlayerDamaged
-global function WeaponToIdentifier
-
-global function PlayerConnectedCallback
-global function PlayerDisconnectedCallback
-global function DidJump
-global function PrintAllPlayerMetrics
-global function DestroyStats
-
-global function PIN_WinnerByKillsAndDamage
-global function INIT_player_whitelist
+//shared
+global function getEventByPlayerHandle
 global function SavePlayer_wait_time
 global function SavePlayer_saved_weapons
 global function SavePlayer_lock1v1_setting
@@ -74,9 +53,10 @@ global function GetStringSetting
 global function GetFloatSetting
 global function GetIntSetting
 global function GetBoolSetting
-
-global function CheckRate
-global function ClientCommand_mkos_ea_verify
+global function bAfkToRest
+global function bGlobalStats
+global function bLog
+global function bEnc
 global function ClientCommand_mkos_test_return_data
 
 //admin util
@@ -98,38 +78,16 @@ global function Is_Bool
 global function sanitize
 global function LineBreak
 global function printarray
+global function CheckRate
 
 ////////////////////////////////////
 //
 global bool g_bIs1v1 //used in all modes
 global bool g_bLGmode //used in all modes
-global bool bCheckShip = true
-global float COMMAND_RATE_LIMIT = 0.200
-global bool bChatCmdEnabled
-global bool g_bGiveTactical
-
+global bool g_bGiveTactical //used in all modes
+global float COMMAND_RATE_LIMIT = 0.200 //used in all client commands
 //
 ////////////////////////////////////
-
-global int fightIdCounter = 0
-
-global bool PIN_GameState_Start = false
-global bool global_stats
-global string DISCORD_PLAYERS_WEBHOOK
-global string DISCORD_MATCHES_WEBHOOK
-global bool FETCH_BATCH_COMPLETE = false
-global bool restricted_server
-
-global bool stop_update_msg_flag = false
-global bool bSyncedGlobal
-global bool bSafeLog = true
-global bool bShouldShip = false
-
-global string superglide_msg
-global string superglidetitle
-global bool sg_counter_msg
-global float FS_MaxHealth;
-global bool afk_to_rest_enabled = true // bool to reflect state of cc (chat command) cc afk 1/0
 
 const float MAX_WAIT_FOR_LOGGING_THREAD = 10 //5 seconds
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
@@ -182,6 +140,7 @@ global struct DamageEvent {
 };
 
 
+
 global struct DeleteEvents {
 
 	int victim_handle
@@ -219,17 +178,15 @@ table<string, string> player_admins
 table<string, int> PlayerIdMap //for constant time operation lookups
 
 //script arrays
+global array<DamageEvent> allDamageEvents
 array<PlayerMetrics> PlayerMetricsArray
 array<PlayerVerifyCount> playerVerifyCounts
-array<DamageEvent> allDamageEvents
 array< array< string > > list_maps
 array< array< string > > list_gamemodes
 array< string > whitelist
 array<DeleteEvents> DeleteEventTaskList // queue for managing event deletion
 
 #if SERVER   
-bool function Logging_Enabled() 				{ return GetCurrentPlaylistVarBool("logging_enabled", false) }
-bool function Logging_Encryption() 				{ return GetCurrentPlaylistVarBool("logging_encryption", false) }
 bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("logging_shipstats", false) }
 bool function Enable_CC_Administration() 		{ return GetCurrentPlaylistVarBool("cc_administration", false) }
 bool function Ea_Verify_Server()				{ return GetCurrentPlaylistVarBool("ea_verify_server", false) }
@@ -260,9 +217,52 @@ struct {
 	table <string,float> Global_R5RDEV_FloatSettings
 	table <string,int> Global_R5RDEV_IntSettings
 	table <string,bool> Global_R5RDEV_BoolSettings
+	
+	int fightIdCounter = 0
+	bool PIN_GameState_Start = false
+	bool global_stats
 
+	bool LogOn
+	bool LogE
+	bool FETCH_BATCH_COMPLETE = false
+	bool restricted_server
+	bool bSyncedGlobal
+	bool bSafeLog = true
+	bool bShouldShip = false
+	bool bCheckShip
+	bool afk_to_rest_enabled = true // bool to reflect state of cc (chat command) cc afk 1/0
+	
+	bool stop_update_msg_flag = false
+	bool sg_counter_msg
+	float FS_MaxHealth
+
+	string DISCORD_PLAYERS_WEBHOOK
+	string DISCORD_MATCHES_WEBHOOK
+	string superglide_msg
+	string superglidetitle
+	
 } file
 
+
+bool function bLog()
+{
+	return file.LogOn
+}
+
+bool function bEnc()
+{
+	return file.LogE
+}
+
+bool function bGlobalStats()
+{
+	return file.global_stats
+}
+
+bool function bAfkToRest()
+{
+	return file.afk_to_rest_enabled
+}
 
 string function GetPlayerIdFromHandle( int handle )
 {
@@ -449,14 +449,14 @@ void function INIT_Global_R5RDEV_VarTable()
 		}//value len check
 	}//foreach category
 	
-	bSyncedGlobal = true
+	file.bSyncedGlobal = true
 	
 }//init global settings
 
 void function INIT_BATCH_FETCH() 
 {
 	
-	FETCH_BATCH_COMPLETE = false
+	file.FETCH_BATCH_COMPLETE = false
 	array<string> oids
 	string oid_list = "";
 	
@@ -508,7 +508,7 @@ void function INIT_BATCH_FETCH()
 		
     }
 		
-	FETCH_BATCH_COMPLETE = true
+	file.FETCH_BATCH_COMPLETE = true
 	
 }
 
@@ -520,7 +520,7 @@ void function SQ_LoadPlayerKD( entity player )
 void function SetPlayerKD( entity player )
 {	
 	
-	while ( FETCH_BATCH_COMPLETE == false )
+	while ( file.FETCH_BATCH_COMPLETE == false )
 	{
 		#if DEVELOPER
 		sqprint("waiting for batch fetch to complete")
@@ -759,8 +759,8 @@ void function SetPlayerKD( entity player )
 
 void function DestroyStats()
 {	
-	bCheckShip = true
-	bShouldShip = false;
+	file.bCheckShip = true
+	file.bShouldShip = false;
 	allDamageEvents.resize(0)
 	PlayerMetricsArray.resize(0)
 	playerVerifyCounts.resize(0)
@@ -781,7 +781,7 @@ void function PIN_Init()
 {	
 	INIT_fastComputes()
 	
-	if( Logging_Enabled() )
+	if( file.LogOn )
 	{
 		FlagInit("START_LOG", true)
 		thread __CONTROLLED_LogInit()
@@ -805,7 +805,7 @@ void function PIN_Init()
 			AddClientCommandCallback( "cc", ClientCommand_mkos_admin ) 
 		}
 		
-		if ( Logging_Enabled() )
+		if ( file.LogOn )
 		{
 			string message = format("R5R.DEV metrics initialized at:  %d ", GetUnixTimestamp())
 			sqprint(message)
@@ -816,11 +816,11 @@ void function PIN_Init()
 			} 
 			AddCallback_OnWeaponAttack(WeaponAttack);
 			RegisterSignal( "SuperglideDetectionResetStats" )		
-			FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
+			file.FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
 	
-	DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
-	DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
+	file.DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
+	file.DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	
 	//initialize array/table values
 	INIT_GameTypes()
@@ -828,21 +828,21 @@ void function PIN_Init()
 	INIT_playeradmins()
 	
 	//init bools (must be before string inits)
-	global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
-	restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
+	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
+	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
 	
-	if (restricted_server) 
+	if (file.restricted_server) 
 	{
 		INIT_player_whitelist()
 	}
 	
 	//init strings
-	sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false )
-	superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
-	superglidetitle = global_stats ? "Season Glides" : "Glides";
+	file.sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false )
+	file.superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
+	file.superglidetitle = file.global_stats ? "Season Glides" : "Glides";
 	
 	//fetch global STATS
-	if ( global_stats )
+	if ( file.global_stats )
 	{
 		thread INIT_Global_R5RDEV_VarTable()
 		thread INIT_BATCH_FETCH()
@@ -854,20 +854,23 @@ void function PIN_Init()
 	}
 	
 	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
-	bChatCmdEnabled = GetCurrentPlaylistVarBool( "enable_chat_commands", true )
 	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
 	
-	if( bChatCmdEnabled )
+	if( GetCurrentPlaylistVarBool( "enable_chat_commands", true ) )
 	{
 		AddClientCommandCallback( "say", ClientCommand_ParseSay )
 	}
+	
 }
+
 
 
 void function INIT_fastComputes()
 {
 	g_bIs1v1 = GetCurrentPlaylistName() == "fs_1v1" ? true : false;
 	g_bLGmode = GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false )
+	file.LogOn = GetCurrentPlaylistVarBool("logging_enabled", false)
+	file.LogE = GetCurrentPlaylistVarBool("logging_encryption", false)
 }
 
 void function UpdateFromLocalPersistence( entity player )
@@ -899,7 +902,7 @@ void function PlayerConnectedCallback( entity player )
 	//sqprint(format("Added handle as: %d,  saved state: %d", playerHandle, player.p.handle ))
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
-	if(!Logging_Enabled()){ return }
+	if(!file.LogOn){ return }
 	/////////////////////////////////////////////////////////////////////////////////////////
 	
 	//init player map
@@ -923,12 +926,12 @@ void function PlayerConnectedCallback( entity player )
 	}
 	
 	
-	if ( global_stats && FETCH_BATCH_COMPLETE )
+	if ( file.global_stats && file.FETCH_BATCH_COMPLETE )
 	{
 		thread SQ_LoadPlayerKD( player )
 	}
 	
-	if ( global_stats )
+	if ( file.global_stats )
 	{
 		thread SetPlayerKD( player )
 	}
@@ -938,7 +941,7 @@ void function PlayerCounts( string state, string name, string OID, string count 
 {
 	if ( GetGlobalNetInt( "FSDM_GameState" ) == eTDMState.IN_PROGRESS || GetNumHumanPlayers() == 1 )
 	{
-		_STATSHOOK_UpdatePlayerCount(state, name, OID, count, DISCORD_PLAYERS_WEBHOOK )
+		_STATSHOOK_UpdatePlayerCount(state, name, OID, count, file.DISCORD_PLAYERS_WEBHOOK )
 	}
 }
 
@@ -953,10 +956,10 @@ void function EndOfMatch( string recap, string DISCORD_MATCHES_WEBHOOK )
 
 void function __START_LOGGING()
 {
-	if ( PIN_GameState_Start ) 
+	if ( file.PIN_GameState_Start ) 
 	{
 		#if DEVELOPER 
-			sqprint("PIN_GameState_Start was false, returning")
+			sqprint("file.PIN_GameState_Start was true, returning")
 		#endif
 		return 
 	}
@@ -980,10 +983,10 @@ void function Init_NewGame()
 	sqprint("initgame called")
 	#endif
 	
-	if (!Logging_Enabled())
+	if (!file.LogOn)
 	{
 		sqprint("::: Logging disabled -- to enable set in playlists file --");
-		PIN_GameState_Start = true;
+		file.PIN_GameState_Start = true;
 		return
 	}
 	
@@ -1009,7 +1012,7 @@ void function Init_NewGame()
 		if (waitlimit >= MAX_WAIT_FOR_LOGGING_THREAD)
 		{
 			sqerror(format("Log thread failed to finish within [%d] seconds during busy check.", floor(MAX_WAIT_FOR_LOGGING_THREAD/2) ))
-			bSafeLog = false;
+			file.bSafeLog = false;
 			return
 		}
 		#if DEVELOPER
@@ -1021,7 +1024,7 @@ void function Init_NewGame()
 	}
 	
 	
-	InitializeLogThread_internal(Logging_Encryption());
+	InitializeLogThread_internal(file.LogE);
 	
 	waitlimit = 0;
 	while( !SQ_GetLogState( state.READY ) )
@@ -1032,7 +1035,7 @@ void function Init_NewGame()
 		if (waitlimit >= MAX_WAIT_FOR_LOGGING_THREAD)
 		{
 			sqerror(format("Log thread failed to finish within [%d] seconds during ready check.", floor(MAX_WAIT_FOR_LOGGING_THREAD/2) ))
-			bSafeLog = false;
+			file.bSafeLog = false;
 			return
 		}
 		#if DEVELOPER
@@ -1051,7 +1054,7 @@ void function Init_NewGame()
 		if (waitlimit >= MAX_WAIT_FOR_LOGGING_THREAD)
 		{
 			sqerror(format("Log thread failed to init [%d] seconds during safe check.", floor(MAX_WAIT_FOR_LOGGING_THREAD/2) ))
-			bSafeLog = false;
+			file.bSafeLog = false;
 			return
 		}
 		#if DEVELOPER
@@ -1072,7 +1075,7 @@ void function Init_NewGame()
 	//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
 	LogEvent(
 	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS,GetCurrentRound().tostring(), GetUnixTimestamp()),
-	Logging_Encryption()
+	file.LogE
 	);
 	
 	
@@ -1083,7 +1086,7 @@ void function Init_NewGame()
 		CheckPlayerStartInRest( player )
 	}
 	
-	PIN_GameState_Start = true;
+	file.PIN_GameState_Start = true;
 	//END .DEV
 }
 
@@ -1249,12 +1252,12 @@ void function Init_NewGame()
 				case "stats":
 						
 						string data = "";
-						string inputmsg = global_stats ? "Current Player Global Stats" : "Current Player Round Stats";
+						string inputmsg = file.global_stats ? "Current Player Global Stats" : "Current Player Round Stats";
 						float kd = 0.0
 						string kd_string = "";
 						int kills = 0;
 						int deaths = 0;
-						string global_stats_msg = global_stats ? " Season Stats:" : " Current Round Stats:";
+						string global_stats_msg = file.global_stats ? " Season Stats:" : " Current Round Stats:";
 						
 						try 
 						{
@@ -1515,7 +1518,7 @@ void function Init_NewGame()
 	
 	void function Alert_Player_Access( entity player )
 	{	
-		while( IsValid(player) && FETCH_BATCH_COMPLETE == false)
+		while( IsValid(player) && file.FETCH_BATCH_COMPLETE == false)
 		{	
 			mkos_Force_Rest( player, [] )
 			wait 1
@@ -1738,13 +1741,13 @@ void function Init_NewGame()
 							
 								if ( args[1] == "1" )
 								{
-									afk_to_rest_enabled = true;
+									file.afk_to_rest_enabled = true;
 									Message( player, "Command sent", "Afk to rest was ENABLED" )
 									return true
 								} 
 								else if ( args[1] == "0" )
 								{
-									afk_to_rest_enabled = false;
+									file.afk_to_rest_enabled = false;
 									Message( player, "Command sent", "Afk to rest was disabled" )
 									return true
 								} 
@@ -1763,13 +1766,13 @@ void function Init_NewGame()
 							
 								if ( args[1] == "1" )
 								{
-									restricted_server = true;
+									file.restricted_server = true;
 									Message( player, "Command sent", "restricted_server was ENABLED" )
 									return true
 								} 
 								else if ( args[1] == "0" )
 								{
-									restricted_server = false;
+									file.restricted_server = false;
 									Message( player, "Command sent", "restricted_server was disabled" )
 									return true
 								} 
@@ -2277,21 +2280,21 @@ void function Init_NewGame()
 						if ( param == "current" )
 						{
 							
-							Message( player, "Success", "'Current KD' server weight setting is:   " + current_kd_weight )
+							Message( player, "Success", "'Current KD' server weight setting is:   " + getSbmmSetting( "current_kd_weight" ) )
 							return true
 							
 						}
 						else if ( param == "lifetime" )
 						{
 							
-							Message( player, "Success", "'lifetime KD' server weight setting is:   " + lifetime_kd_weight )
+							Message( player, "Success", "'lifetime KD' server weight setting is:   " + getSbmmSetting( "lifetime_kd_weight" ) )
 							return true
 						
 						}
 						else if ( param == "difference" )
 						{
 							
-							Message( player, "Success", "'KD matchmaking difference' server setting is:   " + SBMM_kd_difference )
+							Message( player, "Success", "'KD matchmaking difference' server setting is:   " + getSbmmSetting( "SBMM_kd_difference" ) )
 							return true
 						
 						}
@@ -2391,19 +2394,19 @@ void function Init_NewGame()
 							if ( param == "current" )
 							{
 							
-								current_kd_weight = param2.tofloat();
+								setSbmmSetting( "current_kd_weight", param2.tofloat() )
 							
 							}
 							else if ( param == "lifetime" )
 							{
 							
-								lifetime_kd_weight = param2.tofloat();
+								setSbmmSetting( "lifetime_kd_weight", param2.tofloat() )
 							
 							}
 							else if ( param == "difference" )
 							{
 							
-								SBMM_kd_difference = param2.tofloat();
+								setSbmmSetting( "SBMM_kd_difference", param2.tofloat() )
 							
 							}
 							else
@@ -2466,7 +2469,7 @@ void function Init_NewGame()
 			case "spamupdate":
 			case "spam":
 					
-					stop_update_msg_flag = false;
+					file.stop_update_msg_flag = false;
 					thread RunUpdateMsg()
 				
 				break;
@@ -2474,7 +2477,7 @@ void function Init_NewGame()
 			case "spamstop":
 			case "stopspam":
 			
-					stop_update_msg_flag = true;
+					file.stop_update_msg_flag = true;
 				
 				break;
 				
@@ -2599,12 +2602,12 @@ void function Init_NewGame()
 			
 			case "groups":
 			
-					Message(player, "\"groupsInProgress\"", groupsInProgress.len().tostring())
+					Message(player, "\"groupsInProgress\"", getGroupsInProgress().len().tostring())
 					return true
 					
 			case "groupmap":
 			
-					Message(player, "\"playerToGroupMap\"", playerToGroupMap.len().tostring())
+					Message(player, "\"playerToGroupMap\"", getPlayerToGroupMap().len().tostring())
 					return true
 				
 					
@@ -2628,7 +2631,7 @@ void function RunUpdateMsg()
 	{	
 		WaitFrame()
 		
-		if ( stop_update_msg_flag == true )
+		if ( file.stop_update_msg_flag == true )
 		{
 			break
 		}
@@ -2800,7 +2803,7 @@ void function Commands( entity player, array<string> args )
 
 int function GetUniqueFightId() 
 {
-    return fightIdCounter++;
+    return file.fightIdCounter++;
 }
 
 //endfight function to count from global metrics struct
@@ -2886,7 +2889,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		string attackerName;
 		
 		int victim_handle = victim.p.handle 
-		int attacker_handle = attacker.p.handle
+		int attacker_handle = attacker.IsPlayer() ? attacker.p.handle : DamageInfo_GetDamageSourceIdentifier(damageInfo);
 		
 	
 		
@@ -2966,13 +2969,13 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		}
 		
 		// set should ship to true
-		if ( bCheckShip && totalDamageToVictim >= 50 )
+		if ( file.bCheckShip && totalDamageToVictim >= 50 )
 		{
 			#if DEVELOPER 
 			Warning("Flag shouldship set")
 			#endif
-			bShouldShip = true;
-			bCheckShip = false;
+			file.bShouldShip = true;
+			file.bCheckShip = false;
 		}
 		
 		if ( totalDamageToVictim <= 0 )
@@ -2992,7 +2995,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		#endif
 
 		//check bool first
-		if ( !g_bIs1v1 && totalDamageToVictim < FS_MaxHealth ) 
+		if ( !g_bIs1v1 && totalDamageToVictim < file.FS_MaxHealth ) 
 		{
 			timeWindow = DAMAGE_LOOKBACK_TIME_WINDOW;
 		}
@@ -3062,7 +3065,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		// if total damage to victim is less than max health, extend time frame
 		
 		//check bool first
-		if ( !g_bIs1v1 && totalDamageToVictim < FS_MaxHealth ) 
+		if ( !g_bIs1v1 && totalDamageToVictim < file.FS_MaxHealth ) 
 		{
 			foreach (DamageEvent event in allDamageEvents) 
 			{	
@@ -3071,7 +3074,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 				
 				if ( event.victimHandle == victim_handle && ( deathtime - event.actionTimestamp <= timeWindow ) ) 
 				{
-					if ( totalDamageToVictim + event.damage <= FS_MaxHealth ) 
+					if ( totalDamageToVictim + event.damage <= file.FS_MaxHealth ) 
 					{
 						totalDamageToVictim += event.damage;
 
@@ -3158,7 +3161,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		
 		//queue events for deletion immediately so they are not reused in the next fight
 		DeleteEvents Event;
-		Event.attacker_handle = attacker_handle 
+		Event.attacker_handle = attacker.IsPlayer() ? attacker_handle : DamageInfo_GetDamageSourceIdentifier(damageInfo)
 		Event.victim_handle = victim_handle
 		AddEventTask(Event)
 			
@@ -3382,9 +3385,9 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 				vicName //13
             );
 
-			if (REPORT_STATS && bSafeLog)
+			if (REPORT_STATS && file.bSafeLog)
 			{
-				LogEvent(logString, Logging_Encryption());
+				LogEvent(logString, file.LogE);
 				//sqprint(logString);
 			}
 
@@ -3681,6 +3684,22 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
         sqprint(format("Attacker: %s, Victim: %s, Damage: %.2f, Time: %.2f\n", event.attackerUID, event.victimUID, event.damage, event.actionTimestamp));
     }
 	*/
+}
+
+
+DamageEvent function getEventByPlayerHandle( int playerHandle )
+{
+	DamageEvent nullevent;
+	
+	foreach( event in allDamageEvents )
+	{
+		if ( event.attackerHandle == playerHandle )
+		{
+			return event
+		}
+	}
+	
+	return nullevent
 }
 
 
@@ -4505,9 +4524,9 @@ void function Flowstate_TrackingVision_TryToTrackSuperglide_Stats( entity player
 			//sqprint(format("hitsuperglide airtime: %d, velocity: %d", airtime, playerVel));
 			AttemptingSuperGlide = false;
 			RecordPlayerSuperglides( player )
-			if ( sg_counter_msg )
+			if ( file.sg_counter_msg )
 			{	
-				Message ( player, format("%s: %d", superglidetitle, ( GetGlides(player) + player.p.lifetime_glides ) ), superglide_msg )
+				Message ( player, format("%s: %d", file.superglidetitle, ( GetGlides(player) + player.p.lifetime_glides ) ), file.superglide_msg )
 			}
 			break;	
 		} 			
@@ -4634,22 +4653,22 @@ void function FinishGameStatsRound()
 		//sqprint(message)
 
 						//R5R.DEV
-						if ( Logging_Enabled() && isLogging() )
+						if ( file.LogOn && isLogging() )
 						{
 						
-								if(!bSafeLog){ stopLogging(false); return; }
+								if(!file.bSafeLog){ stopLogging(false); return; }
 								
 								//mkos: log winner placement - && denotes placement entry for parser
 								LogEvent(
 								format("\n|| Game ended at %d\n\n %s", GetUnixTimestamp(), PrintAllPlayerMetrics(true)),
-								Logging_Encryption()
+								file.LogE
 								);
 
 										if(!Logging_ShipStats()){
 											sqprint("Shipping to stats server DISABLED -- check playlists file to enable --");
 										}
 											
-										if ( !Flag( "SurvivalCommentary_FirstBloodReached" ) || !bShouldShip )
+										if ( !Flag( "SurvivalCommentary_FirstBloodReached" ) || !file.bShouldShip )
 										{
 											sqprint("No stats to ship...\n");
 											stopLogging(false);
@@ -4664,7 +4683,7 @@ void function FinishGameStatsRound()
 										
 										//send to discord:
 										string recap = PIN_WinnerByKillsAndDamage();
-										thread EndOfMatch( recap, DISCORD_MATCHES_WEBHOOK );
+										thread EndOfMatch( recap, file.DISCORD_MATCHES_WEBHOOK );
 										
 											if (Logging_ShipStats())
 											{
@@ -4682,7 +4701,7 @@ void function FinishGameStatsRound()
 		UpdateRoundStats_GlobalsCarryOver()
 		DestroyStats()
 		process_end_round_complete = true;	
-		PIN_GameState_Start = false;		
+		file.PIN_GameState_Start = false;		
 	} 
 }
 
@@ -4714,7 +4733,7 @@ void function PIN_AddPlayer( entity player )
 	string UID = player.GetPlatformUID()
 	InitializePlayerMetricsStructForPlayer( player )
 	
-	if( !global_stats )
+	if( !file.global_stats )
 	{
 		player.p.stats_done_loading = true
 	}
@@ -4735,7 +4754,7 @@ void function PIN_AddPlayer( entity player )
 		SavePlayer_R5RDEV_Settings_To_Struct( player );
 	}
 	
-	if (restricted_server)
+	if (file.restricted_server)
 	{	
 		thread Alert_Player_Access( player );
 	}
@@ -4750,13 +4769,15 @@ void function PIN_AddPlayer( entity player )
 		}
 	}
 	
-	if ( Logging_Enabled() && isLogging() && IsValid( player ) )
+	if ( file.LogOn && isLogging() && IsValid( player ) )
 	{	
 	
 		string pName = player.GetPlatformUID();
 		string p_ea_name = player.GetPlayerName();
 		
-		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n " , 10)	
+
+		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n\n\n\n\n " , 10)	
+
 		
 			try 
 			{
@@ -4794,7 +4815,7 @@ void function PIN_AddPlayer( entity player )
 					   timeRemaining,
 					   p_ea_name
 					   ),
-					Logging_Encryption()
+					file.LogE
 					);
 				} 
 
@@ -4813,7 +4834,7 @@ void function PIN_PlayerLeft( entity player, string reason )
 	//string message = format("%s disconnected ", pname )
 	//sqprint(message)
 
-	if (Logging_Enabled() && bSafeLog) 
+	if (file.LogOn && file.bSafeLog) 
 	{
 		if (isLogging()) 
 		{
@@ -4855,7 +4876,7 @@ void function PIN_PlayerLeft( entity player, string reason )
 					   GetUnixTimestamp(),
 					   p_ea_name
 					   ),
-				Logging_Encryption()
+				file.LogE
 			);
 		}
 	}
@@ -4901,7 +4922,7 @@ void function PIN_PlayerKilled( entity victim, entity attacker, var damageInfo )
 
 	float deathtime = Time();
 
-	if ( Logging_Enabled() && isLogging() && IsValid(victim) && victim.IsPlayer() )
+	if ( file.LogOn && isLogging() && IsValid(victim) && victim.IsPlayer() )
 	{
 		//TODO: Call function with additional flag
 		// for attackers from non player sources
@@ -5961,7 +5982,7 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_plasma_grenade_halomod"] = 230,
 	["mp_weapon_oddball_primary"] = 231,
 	["melee_oddball"] = 232,
-	//lies
+	// lies
 	["mp_weapon_grenade_bangalore"] = 233,
 	["mp_weapon_grenade_creeping_bombardment"] = 234,
 	["mp_ability_area_sonar_scan"] = 235,
@@ -6028,4 +6049,3 @@ bool function exclude( int weaponSource )
 	
 	return false
 }
-

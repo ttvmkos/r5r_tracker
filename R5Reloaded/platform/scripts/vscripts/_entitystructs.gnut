@@ -770,6 +770,7 @@ global struct ServerPlayerStruct
 	bool enable_input_banner = false
 	float ratelimit
 	bool rest_request = false
+	//bool doneJumping = true
 	
 	
 	//MovementGym

@@ -58,7 +58,7 @@ global function Flowstate_GrantSpawnImmunity
 global function GetBlackListedWeapons
 
 //R5R.DEV Tracker
-global function ReturnChatArray
+global function ReturnChatArray //not really used yet
 global function GetCurrentRound 
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
@@ -914,8 +914,10 @@ bool function bIs1v1Mode()
 
 void function _CustomTDM_Init()
 {	
-
-
+	//InitBhop()
+	
+	//ServerCommand( "_setClassVarServer antiMultiJumpHeightFrac 1" )
+	
 	file.scriptversion = FLOWSTATE_VERSION
 
 	RegisterSignal( "EndScriptedPropsThread" )
@@ -1215,7 +1217,7 @@ void function SetTdmStateToNextRound(){
 
 void function SetTdmStateToInProgress()
 {
-	if(Logging_Enabled())
+	if( bLog() )
 	{
 		#if DEVELOPER
 		sqprint("Flag set: \"START_LOG\" in [SetTdmStateToInProgress]")
@@ -1373,11 +1375,15 @@ void function DissolveItem(entity prop)
 	}) ( prop )
 }
 
-void function _OnPlayerConnected(entity player)
+void function _OnPlayerConnected(entity player) 
 {
 	while(IsDisconnected( player )) WaitFrame()
 
     if ( !IsValid( player ) ) return
+	
+	//AddButtonPressedPlayerInputCallback( player, IN_JUMP, InitAutoBhopThread ) //mbhop
+	//AddPlayerHeldButtonEventCallback( player, IN_JUMP, AutoBhop, 0.2)
+	//AddButtonReleasedPlayerInputCallback( player, IN_JUMP, BreakHop)
 
 	if(GetCurrentPlaylistVarBool( "flowstate_hackersVsPros", false ))
 	{
@@ -2305,6 +2311,9 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
 			break
 		}
 	}
+	
+	//sqprint("player died, resetting jump fatigue")
+		//ClientCommand( player , "_setClassVarServer antiMultiJumpHeightFrac 1" )
 }
 
 void function ReCheckGodMode(entity player)
@@ -3543,6 +3552,8 @@ void function SimpleChampionUI()
 						tactical.SetWeaponPrimaryClipCount( tactical.GetWeaponPrimaryClipCountMax() )
 					if(IsValid(ultimate) && ultimate.UsesClipsForAmmo())
 						ultimate.SetWeaponPrimaryClipCount( ultimate.GetWeaponPrimaryClipCountMax() )
+						
+					//ClientCommand( player , "_setClassVarServer antiMultiJumpHeightFrac 1")
 				}()
 
 			} catch(e3){}
@@ -4021,7 +4032,7 @@ void function SimpleChampionUI()
 				MovementGymSaveTimesToFile()
 		}
 		
-		if( Logging_Enabled() )
+		if( bLog() )
 		{
 			FlagEnd("START_LOG")
 		}

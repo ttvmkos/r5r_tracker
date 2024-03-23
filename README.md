@@ -5,6 +5,17 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 ______________________________________________________________
 
+
+3/23/2024
+
+- Official posted release of 3.0.3
+- New feature, playlist setting: rest_grace  
+- time required from start of fight or since last damage to rest during a fight if player tries to rest, it will send them to rest after fight and tell them they can try again in (n) seconds. Default if not specified in playlist is 0.0 (disabled)
+
+- Decluttered global name space
+- Fixed discord hooks
+______________________________________________________________
+
 3/19/2024
 
 - Fixed a client side crash bug server sided:
@@ -323,6 +334,10 @@ ______________________________________________________________________
 	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all client commands
 	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
 	give_legend_tactical		0 //gives player tactical ability for legend on spawn
+	rest_grace 			5.0 // time required from start of fight 
+					// or since last damage to rest during a fight 
+					// if player tries to rest, it will send them to rest after fight 
+					// and tell them they can try again in (n) seconds. 
 	
 	//string limit in playlist is 1000 bytes. Use continue to extend list respectively
 

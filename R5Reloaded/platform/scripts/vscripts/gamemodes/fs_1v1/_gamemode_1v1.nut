@@ -27,6 +27,8 @@ global struct soloGroupStruct
 	bool GROUP_INPUT_LOCKED = false //lock group to their input - mkos
 	bool IsFinished = false //player1 or player2 is died, set this to true and soloModeThread() will handle this
 	bool IsKeep = false //player may want to play with current opponent,so we will keep this group
+	
+	float startTime
 }
 global struct soloPlayerStruct
 {
@@ -48,42 +50,101 @@ LocPair WaitingRoom
 //this is fine
 array <soloLocStruct> soloLocations //all respawn location stored here
 
-//playerHandle -> soloPlayerStruct
-table <int, soloPlayerStruct> soloPlayersWaiting = {}; //moved to table for O(1) add/delete/lookup without shifting arrays, looping/scanning
-
-//playerHandle -> soloGroupStruct
-global table<int, soloGroupStruct> playerToGroupMap = {}; //map for quick assessment
-
-//groupHandle -> soloGroupStruct
-global table<int, soloGroupStruct> groupsInProgress = {}; //group map to group
-
-//playerHandle -> struct resting
-table <int,bool> soloPlayersResting = {}
-
 //TODO:: move to r5rdev_config.json arrays to store loaded custom weapons from playlist once in init -- mkos //########
 array <string> custom_weapons_primary = [] 
 array <string> custom_weapons_secondary = [] 
 
 // SBMM vars
-global float lifetime_kd_weight
-global float current_kd_weight 
-global float SBMM_kd_difference
+struct {
 
+	float lifetime_kd_weight
+	float current_kd_weight
+	float SBMM_kd_difference
+	
+	//playerHandle -> soloPlayerStruct
+	table <int, soloPlayerStruct> soloPlayersWaiting = {} //moved to table for O(1) add/delete/lookup without shifting arrays, looping/scanning
+
+	//playerHandle -> soloGroupStruct
+	table<int, soloGroupStruct> playerToGroupMap = {} //map for quick assessment
+
+	//groupHandle -> soloGroupStruct
+	table<int, soloGroupStruct> groupsInProgress = {} //group map to group
+
+	//playerHandle -> struct resting
+	table <int,bool> soloPlayersResting = {}
+
+} file
 
 //script vars 
-global bool mGroupMutexLock
-global int groupID = 112250000;
-global bool bMap_mp_rr_party_crasher
-global bool bMap_mp_rr_canyonlands_staging
-global bool bMap_mp_rr_canyonlands_64k_x_64k
-global bool bMap_mp_rr_aqueduct
-global bool bMap_mp_rr_arena_composite
-global bool bGiveSameRandomLegendToBothPlayers
+bool mGroupMutexLock
+int groupID = 112250000;
+bool bMap_mp_rr_party_crasher
+bool bMap_mp_rr_canyonlands_staging
+bool bMap_mp_rr_canyonlands_64k_x_64k
+bool bMap_mp_rr_aqueduct
+bool bMap_mp_rr_arena_composite
+bool bGiveSameRandomLegendToBothPlayers
+
 array<string> Weapons = []
 array<string> WeaponsSecondary = []
 vector IBMM_COORDINATES
 vector IBMM_ANGLES
 bool bIsKarma
+float REST_GRACE = 5.0
+
+
+table<int, soloGroupStruct> function getGroupsInProgress()
+{
+	return file.groupsInProgress
+}
+
+table<int, soloGroupStruct> function getPlayerToGroupMap()
+{
+	return file.playerToGroupMap
+}
+
+
+//usage intended for display only queries from scripts, not game logic
+float function getSbmmSetting( string setting )
+{
+	switch(setting)
+	{
+		case "lifetime_kd_weight":
+			return file.lifetime_kd_weight
+		case "current_kd_weight":
+			return file.current_kd_weight
+		case "SBMM_kd_difference":
+			return file.SBMM_kd_difference
+			
+		default:
+			return 0.0
+	}
+	
+	unreachable
+}
+
+bool function setSbmmSetting( string setting, float value )
+{
+	switch(setting)
+	{
+		case "lifetime_kd_weight":
+			file.lifetime_kd_weight = value
+			return true
+			
+		case "current_kd_weight":
+			file.current_kd_weight = value
+			return true
+			
+		case "SBMM_kd_difference":
+			file.SBMM_kd_difference = value
+			return true
+			
+		default:
+			return false
+	}
+	
+	unreachable
+}
 
 
 bool function isPlayerInProgress( entity player )
@@ -93,9 +154,9 @@ bool function isPlayerInProgress( entity player )
 		return false
 	}
 	
-	if ( player.p.handle in playerToGroupMap )
+	if ( player.p.handle in file.playerToGroupMap )
 	{
-		if( IsValid(playerToGroupMap[player.p.handle]))
+		if( IsValid(file.playerToGroupMap[player.p.handle]))
 		{
 			return true
 		}
@@ -120,9 +181,9 @@ bool function Fetch_IBMM_Timeout_For_Player( entity player )
 {
     if ( !IsValid(player) ) return false
 
-    if (  player.p.handle in soloPlayersWaiting ) 
+    if (  player.p.handle in file.soloPlayersWaiting ) 
 	{
-        return soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached;
+        return file.soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached;
     }
     return false;
 }
@@ -132,9 +193,9 @@ void function ResetIBMM( entity player )
 {
     if ( !IsValid(player) ) return
 
-    if ( player.p.handle in soloPlayersWaiting ) 
+    if ( player.p.handle in file.soloPlayersWaiting ) 
 	{
-        soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached = false;
+        file.soloPlayersWaiting[player.p.handle].IBMM_Timeout_Reached = false;
     }
 }
 
@@ -142,9 +203,9 @@ void function SetMsg( entity player, bool value )
 {
     if ( !IsValid(player) ) return
 
-    if ( player.p.handle in soloPlayersWaiting ) 
+    if ( player.p.handle in file.soloPlayersWaiting ) 
 	{
-        soloPlayersWaiting[player.p.handle].waitingmsg = value;
+        file.soloPlayersWaiting[player.p.handle].waitingmsg = value;
     }
 }
 
@@ -164,7 +225,7 @@ string function GetScore( entity player )
 	
 	float lt_kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
 	float cur_kd = getkd( player.GetPlayerNetInt( "kills" ) , player.GetPlayerNetInt( "deaths" )  )
-	float score = (  ( lt_kd * lifetime_kd_weight ) + ( cur_kd * current_kd_weight ) )
+	float score = (  ( lt_kd * file.lifetime_kd_weight ) + ( cur_kd * file.current_kd_weight ) )
 	string name = player.GetPlayerName()	
 	
 	return format("Player: %s, Lifetime KD: %.2f, Current KD: %.2f, Round Score: %.2f ", name, lt_kd, cur_kd, score )
@@ -208,18 +269,18 @@ void function INIT_1v1_sbmm()
 	}
 	
 	//initialize defaults for SBMM
-	if (global_stats)
+	if ( bGlobalStats() )
 	{
-		lifetime_kd_weight = GetCurrentPlaylistVarFloat( "lifetime_kd_weight", 0.90 )
-		current_kd_weight = GetCurrentPlaylistVarFloat( "current_kd_weight", 1.3 )
-		SBMM_kd_difference = GetCurrentPlaylistVarFloat( "kd_difference", 1.5 )
+		file.lifetime_kd_weight = GetCurrentPlaylistVarFloat( "lifetime_kd_weight", 0.90 )
+		file.current_kd_weight = GetCurrentPlaylistVarFloat( "current_kd_weight", 1.3 )
+		file.SBMM_kd_difference = GetCurrentPlaylistVarFloat( "kd_difference", 1.5 )
 	} 
 	else
 	{
 		//base values
-		lifetime_kd_weight = 1
-		current_kd_weight = 1
-		SBMM_kd_difference = 3
+		file.lifetime_kd_weight = 1
+		file.current_kd_weight = 1
+		file.SBMM_kd_difference = 3
 	
 	}
 
@@ -251,7 +312,7 @@ int function getTimeOutPlayerAmount()
 {
     int timeOutPlayerAmount = 0;
 	
-    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting) 
+    foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting) 
 	{
         if ( IsValid(eachPlayerStruct) && eachPlayerStruct.IsTimeOut ) 
 		{
@@ -263,7 +324,7 @@ int function getTimeOutPlayerAmount()
 
 entity function getTimeOutPlayer() 
 {
-    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting ) 
+    foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting ) 
 	{
         if (eachPlayerStruct.IsTimeOut) 
 		{
@@ -327,11 +388,11 @@ soloGroupStruct function returnSoloGroupOfPlayer( entity player )
 	}	
 	try
 	{
-		if ( player.p.handle in playerToGroupMap ) 
+		if ( player.p.handle in file.playerToGroupMap ) 
 		{	
-			if(IsValid(playerToGroupMap[player.p.handle]))
+			if(IsValid(file.playerToGroupMap[player.p.handle]))
 			{
-				return playerToGroupMap[player.p.handle]
+				return file.playerToGroupMap[player.p.handle]
 			}
 		}
 	}
@@ -359,21 +420,22 @@ void function addGroup(soloGroupStruct newGroup)
 		int groupHandle = GetUniqueID();
 		
 		newGroup.groupHandle = groupHandle
+		newGroup.startTime = Time()
 		
 		#if DEVELOPER
 		sqprint(format("adding group: %d", groupHandle ))
 		#endif
-		if( !( groupHandle in groupsInProgress ) )
+		if( !( groupHandle in file.groupsInProgress ) )
 		{
 			bool success = true
 			
 			if( IsValid(newGroup.player1 && IsValid(newGroup.player2) ))
 			{
-				playerToGroupMap[newGroup.player1.p.handle] <- newGroup;
+				file.playerToGroupMap[newGroup.player1.p.handle] <- newGroup;
 				#if DEVELOPER
 				sqprint(format("player 1 added to group: %s", newGroup.player1.p.name ))
 				#endif
-				playerToGroupMap[newGroup.player2.p.handle] <- newGroup;
+				file.playerToGroupMap[newGroup.player2.p.handle] <- newGroup;
 				#if DEVELOPER
 				sqprint(format("player 2 added to group: %s", newGroup.player2.p.name ))
 				#endif
@@ -388,7 +450,7 @@ void function addGroup(soloGroupStruct newGroup)
 			
 			if(success)
 			{
-				groupsInProgress[groupHandle] <- newGroup
+				file.groupsInProgress[groupHandle] <- newGroup
 			}
 		}
 		else 
@@ -413,12 +475,12 @@ void function addGroup(soloGroupStruct newGroup)
 
 void function removeGroupByHandle( int handle )
 {
-	if ( handle in groupsInProgress )
+	if ( handle in file.groupsInProgress )
 	{	
 		#if DEVELOPER
 		sqprint(format("Removing group by handle: %d", handle))
 		#endif
-		delete groupsInProgress[handle]
+		delete file.groupsInProgress[handle]
 	}
 	else
 	{
@@ -428,7 +490,7 @@ void function removeGroupByHandle( int handle )
 		}
 		else 
 		{
-			sqerror(format("[removeGroupByHandle] Handle: \"%d\" does not exist in table: \"groupsInProgress\"", handle ))
+			sqerror(format("[removeGroupByHandle] Handle: \"%d\" does not exist in table: \"file.groupsInProgress\"", handle ))
 		}
 	}
 }
@@ -444,33 +506,33 @@ void function removeGroup(soloGroupStruct groupToRemove)
 	
 	try
 	{	
-		if ( IsValid(groupToRemove.player1) && groupToRemove.player1.p.handle in playerToGroupMap )
+		if ( IsValid(groupToRemove.player1) && groupToRemove.player1.p.handle in file.playerToGroupMap )
 		{	
 			#if DEVELOPER
 			sqprint(format("deleting player 1 handle: %d from group map",groupToRemove.player1.p.handle))
 			#endif
-			delete playerToGroupMap[groupToRemove.player1.p.handle]
+			delete file.playerToGroupMap[groupToRemove.player1.p.handle]
 		}
 			
-		if ( IsValid(groupToRemove.player2) && groupToRemove.player2.p.handle in playerToGroupMap )
+		if ( IsValid(groupToRemove.player2) && groupToRemove.player2.p.handle in file.playerToGroupMap )
 		{	
 			#if DEVELOPER
 			sqprint(format("deleting player 2 handle: %d from group map",groupToRemove.player2.p.handle))
 			#endif
-			delete playerToGroupMap[groupToRemove.player2.p.handle];
+			delete file.playerToGroupMap[groupToRemove.player2.p.handle];
 		}
 		
-		if( groupToRemove.groupHandle in groupsInProgress )
+		if( groupToRemove.groupHandle in file.groupsInProgress )
 		{
 			#if DEVELOPER
-			sqprint(format("removing group: %d", groupToRemove.groupHandle) )
+			sqprint(format("removing group: %d", file.groupToRemove.groupHandle) )
 			#endif
-			delete groupsInProgress[groupToRemove.groupHandle]
+			delete file.groupsInProgress[groupToRemove.groupHandle]
 		}
 		else 
 		{
 			#if DEVELOPER
-			sqprint(format("groupToRemove.groupHandle: %d not in groupsInProgress", groupToRemove.groupHandle ))
+			sqprint(format("groupToRemove.groupHandle: %d not in file.groupsInProgress", file.groupToRemove.groupHandle ))
 			#endif
 		}
 	}
@@ -513,7 +575,7 @@ bool function isPlayerInSoloMode(entity player)
 		return false 
 	}
 	
-    return ( player.p.handle in playerToGroupMap );
+    return ( player.p.handle in file.playerToGroupMap );
 }
 
 bool function isPlayerInWaitingList(entity player)
@@ -527,7 +589,7 @@ bool function isPlayerInWaitingList(entity player)
 		return false 
 	}
 		
-	return ( player.p.handle in soloPlayersWaiting )
+	return ( player.p.handle in file.soloPlayersWaiting )
 }
 
 
@@ -561,16 +623,16 @@ bool function isPlayerInRestingList( entity player )
 		return false 
 	}
 	
-	return ( player.p.handle in soloPlayersResting )
+	return ( player.p.handle in file.soloPlayersResting )
 }
 
 void function deleteSoloPlayerResting( entity player )
 {
 	try 
 	{
-		if ( player.p.handle in soloPlayersResting )
+		if ( player.p.handle in file.soloPlayersResting )
 		{
-			delete soloPlayersResting[player.p.handle]
+			delete file.soloPlayersResting[player.p.handle]
 		}
 	}
 	catch(e)
@@ -593,7 +655,7 @@ void function addSoloPlayerResting( entity player )
 	
 	try 
 	{
-		soloPlayersResting[player.p.handle] <- true
+		file.soloPlayersResting[player.p.handle] <- true
 	}
 	catch(e)
 	{
@@ -605,9 +667,9 @@ void function addSoloPlayerResting( entity player )
 
 void function deleteWaitingPlayer( int handle )
 {	
-	if ( handle in soloPlayersWaiting )
+	if ( handle in file.soloPlayersWaiting )
 	{
-		delete soloPlayersWaiting[handle]
+		delete file.soloPlayersWaiting[handle]
 	}
 }
 
@@ -623,7 +685,7 @@ void function AddPlayerToWaitingList(soloPlayerStruct playerStruct)
 		{
 			if(IsValid(playerStruct.player))
 			{
-				soloPlayersWaiting[playerStruct.player.p.handle] <- playerStruct
+				file.soloPlayersWaiting[playerStruct.player.p.handle] <- playerStruct
 			}
 			else 
 			{
@@ -644,7 +706,7 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 	if( !IsValid(player) ) //|| !IsAlive(player) )
 		return false
 
-	if( player.p.handle in soloPlayersResting )
+	if( player.p.handle in file.soloPlayersResting )
 	{	
 		HolsterAndDisableWeapons(player)
 		return false
@@ -675,7 +737,7 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 }
 
 
-
+//modified by mkos
 bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args )
 {
 	if( !IsValid(player) ) //|| !IsAlive(player) )
@@ -686,9 +748,10 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		Message(player, "REST COOLDOWN")
 		return false
 	}
+	
+	string restText = "Type rest in console to pew pew again.";
 
-
-	if( player.p.handle in soloPlayersResting )
+	if( player.p.handle in file.soloPlayersResting )
 	{
 		if( player.IsObserver() || IsValid( player.GetObserverTarget() ) )
 		{
@@ -719,18 +782,79 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 		HolsterAndDisableWeapons(player)
 	}
 	else
-	{
+	{		
+
 		if( isPlayerInProgress( player ) )
-		{
-			Message( player, "SENDING TO REST AFTER FIGHT")
-			player.p.rest_request = true;
-			return true
+		{		
+			entity opponent;
+			float timeNow;
+			bool skip = false
+			soloGroupStruct group = returnSoloGroupOfPlayer( player )
+			
+			if(!IsValid(group))
+			{
+				skip = true
+			}
+			
+			if(!skip)
+			{
+				opponent = player == group.player1 ? group.player2 : group.player1;
+				timeNow = Time()
+			}
+			
+			if ( !IsValid (opponent)) { skip = true }
+			
+			if(!skip)
+			{
+				DamageEvent event = getEventByPlayerHandle(opponent.p.handle) 
+				
+				float lasthittime = event.lastHitTimestamp
+				
+				float difference = ( timeNow - lasthittime )
+				
+				bool start_grace_exceeded = false
+				
+				if( ( timeNow - group.startTime ) > REST_GRACE )
+				{
+					start_grace_exceeded = true
+				}
+				
+				if(difference < REST_GRACE || !start_grace_exceeded )
+				{	
+					float fTryAgainIn;
+					
+					if(start_grace_exceeded)
+					{
+						fTryAgainIn = REST_GRACE - ( timeNow - lasthittime )
+					}
+					else 
+					{
+						fTryAgainIn = REST_GRACE - ( timeNow - group.startTime )
+					}
+					
+					string sTryAgain = format("Or.. try again in: %d seconds", floor( fTryAgainIn.tointeger() ) )
+					#if DEVELOPER
+					sqprint(format( "Time was too soon: difference:  %d, REST_GRACE: %d ", difference, REST_GRACE ))
+					#endif
+					Message( player, "SENDING TO REST AFTER FIGHT", sTryAgain, 1 )
+					player.p.rest_request = true;
+					return true
+				}
+				else 
+				{
+					#if DEVELOPER
+					sqprint(format("Time was good: difference: %d, REST_GRACE: %d ", difference, REST_GRACE ))
+					#endif
+					restText = format("Sent to rest because time since last damage recieved was greater than %d seconds.", REST_GRACE );
+				}
+			}
 		}
+	
 		
 		if(IS_CHINESE_SERVER)
 			Message(player,"您已处于休息室", "在控制台中输入'rest'重新开始匹配")
 		else
-			Message(player,"You are resting now", "Type rest in console to pew pew again.")
+			Message(player,"You are resting now", restText )
 		
 		thread soloModePlayerToRestingList(player)
 		try
@@ -773,7 +897,7 @@ bool function processRestRequest( entity player )
 
 void function expliciteRest( entity player )
 {
-	if( player.p.handle in soloPlayersResting )
+	if( player.p.handle in file.soloPlayersResting )
 	{
 		return 
 	}
@@ -809,7 +933,7 @@ entity function getRandomOpponentOfPlayer(entity player)
 
     array<entity> eligible = [];
 
-    foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting )
+    foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting )
     {   
 		/*
 		if(!IsValid(player))
@@ -898,7 +1022,7 @@ void function soloModePlayerToWaitingList( entity player )
 	{// weighted scoring
 		lifetime_kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
 		current_kd = getkd( player.GetPlayerNetInt( "kills" ) , player.GetPlayerNetInt( "deaths" )  )	
-		playerStruct.kd = (  ( lifetime_kd * lifetime_kd_weight ) + ( current_kd * current_kd_weight ) )
+		playerStruct.kd = (  ( lifetime_kd * file.lifetime_kd_weight ) + ( current_kd * file.current_kd_weight ) )
 	}
 	else
 	{
@@ -924,7 +1048,7 @@ void function soloModePlayerToWaitingList( entity player )
 	
 	//mkos version
 	
-	if ( player.p.handle in playerToGroupMap ) 
+	if ( player.p.handle in file.playerToGroupMap ) 
 	{
 		soloGroupStruct group = returnSoloGroupOfPlayer(player);
 		entity opponent = returnOpponentOfPlayer(player);	
@@ -975,10 +1099,10 @@ void function soloModePlayerToInProgressList( soloGroupStruct newGroup )
     player.SetPlayerNetEnt("FSDM_1v1_Enemy", opponent);
     opponent.SetPlayerNetEnt("FSDM_1v1_Enemy", player);
 
-    if ( player.p.handle in playerToGroupMap || opponent.p.handle in playerToGroupMap ) 
+    if ( player.p.handle in file.playerToGroupMap || opponent.p.handle in file.playerToGroupMap ) 
 	{	
 		//directly assign since we checked. - mkos
-        soloGroupStruct existingGroup = player.p.handle in playerToGroupMap ? playerToGroupMap[player.p.handle] : playerToGroupMap[opponent.p.handle];
+        soloGroupStruct existingGroup = player.p.handle in file.playerToGroupMap ? file.playerToGroupMap[player.p.handle] : file.playerToGroupMap[opponent.p.handle];
 		
         destroyRingsForGroup(existingGroup);
 		
@@ -1079,9 +1203,9 @@ void function soloModePlayerToRestingList(entity player)
 void function soloModefixDelayStart(entity player)
 {
 	if(IS_CHINESE_SERVER)
-		Message(player,"加载中 FS 1v1 \n\n\n")
+		Message(player,"加载中 FS 1v1       Tracker Edition\n\n\n")
 	else
-		Message(player,"Flowstate 1v1 : Tracker Version\n\n\n")
+		Message(player,"Flowstate 1v1       Tracker Edition\n\n\n")
 	
 	HolsterAndDisableWeapons(player)
 
@@ -1436,6 +1560,8 @@ void function _soloModeInit(string mapName)
 	
 	IBMM_COORDINATES = IBMM_Coordinates()
 	IBMM_ANGLES = IBMM_Angles()
+	
+	REST_GRACE = GetCurrentPlaylistVarFloat( "rest_grace", 0.0 )
 	
 	//INIT PRIMARY WEAPON SELECTION
 	if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) 
@@ -2381,7 +2507,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			continue
 		
 		//遍历等待队列 - cycle waiting queue (mkos version)
-		foreach (playerHandle, playerInWaitingStruct in soloPlayersWaiting)
+		foreach (playerHandle, playerInWaitingStruct in file.soloPlayersWaiting)
 		{
 			if (!IsValid(playerInWaitingStruct.player))
 			{
@@ -2412,7 +2538,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		bool quit;
 		bool removed;
 		
-		foreach (groupHandle, group in groupsInProgress) 
+		foreach (groupHandle, group in file.groupsInProgress) 
 		{
 			quit = false
 			removed = false
@@ -2573,7 +2699,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		}
 
 		//遍历休息队列
-		foreach ( restingPlayerHandle,restingStruct in soloPlayersResting )
+		foreach ( restingPlayerHandle,restingStruct in file.soloPlayersResting )
 		{
 			if(!restingPlayerHandle)
 			{	
@@ -2644,11 +2770,11 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//开始匹配
 		
-		if(soloPlayersWaiting.len()<2) //等待队列人数不足,无法开始匹配
+		if(file.soloPlayersWaiting.len()<2) //等待队列人数不足,无法开始匹配
 		{	
 			
 			//mkos
-			foreach ( player, solostruct in soloPlayersWaiting )
+			foreach ( player, solostruct in file.soloPlayersWaiting )
 			{			
 				if ( !IsValid( player ) )
 				{
@@ -2721,7 +2847,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		{	
 		
 			// Warning("Normal matching")
-			foreach ( playerHandle, eachPlayerStruct in soloPlayersWaiting ) //找player1
+			foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting ) //找player1
 			{	
 				if(!IsValid(eachPlayerStruct))
 				{
@@ -2734,7 +2860,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				table <entity,float> properOpponentTable
 				
 				
-				foreach ( opponentEntity, eachOpponentPlayerStruct in soloPlayersWaiting ) //找player2
+				foreach ( opponentEntity, eachOpponentPlayerStruct in file.soloPlayersWaiting ) //找player2
 				{	
 					
 					entity eachOpponent = eachOpponentPlayerStruct.player
@@ -2745,7 +2871,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
 						continue
 						
-					if(fabs(selfKd - opponentKd) > SBMM_kd_difference ) //过滤kd差值
+					if(fabs(selfKd - opponentKd) > file.SBMM_kd_difference ) //过滤kd差值
 						continue
 						
 					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
@@ -3095,9 +3221,9 @@ void function ForceAllRoundsToFinish_solomode()
 	if(GetCurrentRound() > 0)
 	{
 		//soloPlayersInProgress.clear()
-		soloPlayersWaiting = {} //needed?
-		groupsInProgress = {}
-		playerToGroupMap = {}
+		file.soloPlayersWaiting = {} //needed?
+		file.groupsInProgress = {}
+		file.playerToGroupMap = {}
 	}
 	
 }
