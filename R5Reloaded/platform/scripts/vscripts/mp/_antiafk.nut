@@ -44,7 +44,7 @@ int function GetAfkState( entity player )
 //lg_duel mkos modified
 void function AfkWarning( entity player )
 {	
-	if ( GetCurrentPlaylistVarBool( "afk_to_rest_bool", false ))
+	if ( bAfkToRest() )
 	{	
 		Message( player, "Are you there?", "\n Sending to rest if you don't move in the next " + GetCurrentPlaylistVarFloat( "Flowstate_antiafk_warn", 15.0 ) + " seconds." )		
 	} 
@@ -74,11 +74,11 @@ void function CheckAfkKickThread(entity player)
 		if ( player.p.isSpectating )
 			continue
 			
-		if (!afk_to_rest_enabled)
+		if (!bAfkToRest())
 			continue
 		
 		//another mkos mod
-		if ( GetCurrentPlaylistName() == "fs_1v1" && isPlayerInRestingList( player ) && GetCurrentPlaylistVarBool( "rest_msg", false) )
+		if ( g_bIs1v1 && isPlayerInRestingList( player ) && g_bRestMsg )
 		{	
 			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 25 )
 			{	
@@ -96,10 +96,10 @@ void function CheckAfkKickThread(entity player)
 				AfkWarning( player )
 				break
 			
-			//mkos modificaiton, afk_to_rest
+			//mkos modificaiton, afk_to_rest = bAfkToRest()
 			case eAntiAfkPlayerState.AFK:
-				if ( GetCurrentPlaylistVarBool( "afk_to_rest_bool", false )){
-				
+				if ( bAfkToRest() )
+				{		
 					player.p.lastmoved = Time()
 					
 					if(GetCurrentPlaylistName() == "fs_1v1")
@@ -107,10 +107,10 @@ void function CheckAfkKickThread(entity player)
 						mkos_Force_Rest( player, [] )
 					}
 					
-				} else {
-				
-					KickPlayerById( player.GetPlatformUID(), "You were AFK for too long" )
-					
+				} 
+				else 
+				{	
+					KickPlayerById( player.GetPlatformUID(), "You were AFK for too long" )		
 				}
 				break
 		}
