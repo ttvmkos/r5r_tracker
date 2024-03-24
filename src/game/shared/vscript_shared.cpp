@@ -330,10 +330,10 @@ namespace VScriptCode
 
         SQRESULT _STATSHOOK_EndOfMatch(HSQUIRRELVM v) 
         {      
-            const SQChar* recap = sq_getstring(v, 1);
-            const SQChar* DISCORD_HOOK = sq_getstring(v, 2);
+            std::string recap = sq_getstring(v, 1);
+            std::string DISCORD_HOOK = sq_getstring(v, 2);
 
-            LOGGER::NOTIFY_END_OF_MATCH( recap, DISCORD_HOOK );
+            LOGGER::NOTIFY_END_OF_MATCH( recap.c_str(), DISCORD_HOOK.c_str() );
             return SQ_OK;
         }
 
