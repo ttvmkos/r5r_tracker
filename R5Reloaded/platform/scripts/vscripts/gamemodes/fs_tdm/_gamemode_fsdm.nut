@@ -600,26 +600,17 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 
 bool function ClientCommand_mkos_LGDuel_IBMM_wait( entity player, array<string> args )
 {
-	if (!CheckRate( player )) return false	
+	if (!CheckRate( player )) return false
+
+	player.p.messagetime = Time()
 	string param = "";
 	int limit = GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999);
-	bool trigger = false
-	
 	if (args.len() > 0)
 	{
 		param = args[0]
-		
-		if( args.len() > 1 ) 
-		{
-			param = args[1]
-		}
-		else if ( args.len() == 1 )
-		{
-			trigger = true;
-		}
 	}
 	
-		if (args.len() < 1 || trigger == true )
+		if  ( args.len() < 1 )
 		{		
 			string status = "";
 			if (player.p.IBMM_grace_period == 0)

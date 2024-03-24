@@ -85,6 +85,7 @@ global function CheckRate
 global bool g_bIs1v1 //used in all modes
 global bool g_bLGmode //used in all modes
 global bool g_bGiveTactical //used in all modes
+global bool g_bRestMsg // used in antiafk
 global float COMMAND_RATE_LIMIT = 0.200 //used in all client commands
 //
 ////////////////////////////////////
@@ -869,6 +870,7 @@ void function INIT_fastComputes()
 {
 	g_bIs1v1 = GetCurrentPlaylistName() == "fs_1v1" ? true : false;
 	g_bLGmode = GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false )
+	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false)
 	file.LogOn = GetCurrentPlaylistVarBool("logging_enabled", false)
 	file.LogE = GetCurrentPlaylistVarBool("logging_encryption", false)
 }
@@ -1112,6 +1114,8 @@ void function Init_NewGame()
 		{
 			if (!CheckRate( player )) return false
 			
+			player.p.messagetime = Time()
+			
 			if ( args.len() < 1)
 			{	
 				Message( player, "\n\n\nUsage: ", " showdata argument \n\n\n Arguments:\n map - Shows current map name \n round - Shows current round number \n input - Shows a list of players and their current input", 5 )
@@ -1160,6 +1164,12 @@ void function Init_NewGame()
 							
 							try
 							{	
+								
+								if ( param.len() > 16 )
+								{
+									Message( player, "Failed", "Input exceeds char limit. ")
+									return true;
+								}
 								
 								entity l_player = GetPlayer( param )
 								
@@ -1574,9 +1584,10 @@ void function Init_NewGame()
 		string admins_list;
 		string pair;
 		
-		if( SQ_GetSetting("settings.ADMINS") != "" )
+		admins_list = SQ_GetSetting("settings.ADMINS")
+		
+		if( admins_list != "" )
 		{
-			admins_list = SQ_GetSetting("settings.ADMINS")
 			#if DEVELOPER 
 			sqprint("Admins loaded from r5r_dev.json")
 			#endif
@@ -1645,8 +1656,7 @@ void function Init_NewGame()
 			
 		} else { return false }
 
-
-		
+		player.p.messagetime = Time()	
 		
 		string command = "";
 		string param = "";
@@ -2732,10 +2742,8 @@ void function Commands( entity player, array<string> args )
 	{	
 		case "/wait":
 		case "\\wait":
-			if ( args.len() >= 1 )
-			{
-				ClientCommand_mkos_LGDuel_IBMM_wait( player, args )
-			}	
+			args.remove(0)
+			ClientCommand_mkos_LGDuel_IBMM_wait( player, args )
 			break			
 		case "/rest":
 		case "\\rest":
@@ -2743,7 +2751,13 @@ void function Commands( entity player, array<string> args )
 			break
 		case "/info":
 		case "\\info":
-			ClientCommand_mkos_test_return_data( player, ["player",player.GetPlayerName()] )
+			args.remove(0)
+			args.insert(0, "player")
+			if(args.len() < 2)
+			{
+				args.append(player.p.name)
+			}
+			ClientCommand_mkos_test_return_data( player, args )
 			break 
 		case "/id":
 		case "\\id":

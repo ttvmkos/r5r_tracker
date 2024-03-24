@@ -1370,35 +1370,6 @@ void function PlayerRestoreHP_1v1(entity player, float health, float shields)
 	player.SetShieldHealth( shields )
 }
 
-void function giveWeaponInRandomWeaponPool(entity player)
-{
-	if(!IsValid(player)) return
-	try
-	{
-		EnableOffhandWeapons( player )
-		DeployAndEnableWeapons( player )
-
-		TakeAllWeapons(player)
-
-	    GiveRandomPrimaryWeaponMetagame(player)
-		GiveRandomSecondaryWeaponMetagame(player)
-		if(!isPlayerInRestingList(player))
-	    	
-			if (g_bLGmode)
-			{	
-				player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-				player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
-			}
-		
-		//hack to fix first reload -- who did this? Surely can be fixed with control flow
-		player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_1)
-		player.SetActiveWeaponBySlot(eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0)
-		player.ClearFirstDeployForAllWeapons()
-	}
-	catch (e)
-	{}
-}
-
 bool function isGroupValid(soloGroupStruct group)
 {
 	if(!IsValid(group)) return false
@@ -1622,7 +1593,7 @@ void function _soloModeInit(string mapName)
 
 		WeaponsSecondary = [
 		
-			//default flowstate
+			//default R5R.DEV selection
 			"mp_weapon_wingman optic_cq_hcog_classic sniper_mag_l1",
 			"mp_weapon_energy_shotgun shotgun_bolt_l1",
 			"mp_weapon_mastiff shotgun_bolt_l2",

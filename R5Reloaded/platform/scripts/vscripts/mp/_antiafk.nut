@@ -78,7 +78,7 @@ void function CheckAfkKickThread(entity player)
 			continue
 		
 		//another mkos mod
-		if ( GetCurrentPlaylistName() == "fs_1v1" && isPlayerInRestingList( player ) && GetCurrentPlaylistVarBool( "rest_msg", false) )
+		if ( g_bIs1v1 && isPlayerInRestingList( player ) && g_bRestMsg )
 		{	
 			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 25 )
 			{	
