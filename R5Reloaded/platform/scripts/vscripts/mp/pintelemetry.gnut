@@ -1259,6 +1259,32 @@ void function Init_NewGame()
 						
 						return true;
 						
+				case "inputs":
+				
+						int controllerCount = 0;
+						int mnkCount = 0;
+						
+						foreach ( active_player in GetPlayerArray() )
+						{
+							if ( active_player.p.input == 0 )
+							{
+								mnkCount++;
+							}
+							else if ( active_player.p.input == 1 )
+							{
+								controllerCount++;
+							}
+						}
+						
+						string cplural = controllerCount > 1 || controllerCount == 0 ? "s" : "";
+						string mplural = mnkCount > 1 || mnkCount == 0 ? "s" : "";
+						
+						
+						string countMsg = format("%d controller player%s \n %d mnk player%s", controllerCount, cplural, mnkCount, mplural );
+						Message( player, "There is currently", countMsg, 7 )
+						
+						return true;
+						
 				case "stats":
 						
 						string data = "";
@@ -2766,6 +2792,10 @@ void function Commands( entity player, array<string> args )
 		case "/aa":
 		case "\\aa":
 			ClientCommand_mkos_test_return_data( player, ["aa"] )
+			break
+		case "/inputs":
+		case "\\inputs":
+			ClientCommand_mkos_test_return_data( player, ["inputs"] )
 			break
 	}
 }
