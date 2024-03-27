@@ -6,6 +6,17 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 ______________________________________________________________
 
 
+3/27/2024
+
+Added a challenge system for locking 1v1s.
+
+- /chal [playername/id]  - challenges a player to 1v1 
+- /accept [playername/id] - accepts a specific challenge or the most recent if none specified 
+- /list - lists all challenges and time of challenge \n /end - ends and removes current challenge 
+- /remove [playername/id] - removes challenge from list by player name. 
+- /clear - clears all incoming challenges 
+- /revoke [playername/id] - Revokes a challenge sent to a player 
+- To disable, toggle lock1v1 button in rest area
 
 
 3/23/2024

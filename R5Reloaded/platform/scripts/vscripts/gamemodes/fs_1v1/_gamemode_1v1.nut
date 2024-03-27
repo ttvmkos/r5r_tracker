@@ -41,6 +41,12 @@ global struct soloPlayerStruct
 	bool IsTimeOut = false
 }
 
+struct ChallengesStruct
+{
+	entity player 
+	table<entity,float> challengers // challenging entity, float Time()
+}
+
 array< bool > realmSlots
 
 LocPair WaitingRoom
@@ -73,6 +79,9 @@ struct {
 	
 	bool IS_CHINESE_SERVER = false
 	bool APlayerHasMessage = false
+	
+	array<ChallengesStruct> allChallenges
+	table<entity,entity> acceptedChallenges
 
 } file
 
@@ -92,6 +101,8 @@ vector IBMM_COORDINATES
 vector IBMM_ANGLES
 bool bIsKarma
 float REST_GRACE = 5.0
+
+const int MAX_CHALLENGERS = 12
 
 
 table<int, soloGroupStruct> function getGroupsInProgress()
@@ -317,7 +328,7 @@ int function getTimeOutPlayerAmount()
 	
     foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting) 
 	{
-        if ( IsValid(eachPlayerStruct) && eachPlayerStruct.IsTimeOut ) 
+        if ( IsValid(eachPlayerStruct) && eachPlayerStruct.IsTimeOut && !eachPlayerStruct.player.p.waitingFor1v1 ) 
 		{
             timeOutPlayerAmount++;
         }
@@ -329,13 +340,15 @@ entity function getTimeOutPlayer()
 {
     foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting ) 
 	{
-        if (eachPlayerStruct.IsTimeOut) 
+        if ( eachPlayerStruct.IsTimeOut ) 
 		{
-			if(!IsValid(eachPlayerStruct) || !IsValid(eachPlayerStruct.player) )
+			if(!IsValid(eachPlayerStruct) || !IsValid(eachPlayerStruct.player) || eachPlayerStruct.player.p.waitingFor1v1  )
 			{
 				continue
 			}
 			
+			//string set = eachPlayerStruct.player.p.waitingFor1v1 ? "true" : "false";
+			//sqprint(format("TIMEOUTPLAYER IS player: %s setting for waiting is: %s", eachPlayerStruct.player.p.name, set))
             return eachPlayerStruct.player;
         }
     }
@@ -735,10 +748,552 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 	//TakeAllWeapons( player )	
 	player.p.lastRestUsedTime = Time()
 
-
 	return true
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////// mkos challenge system  ///////////////////////////////////////
+//client command: challenge
+
+bool function ClientCommand_mkos_challenge(entity player, array<string> args)
+{
+	if (!CheckRate( player )) return false
+	
+	player.p.messagetime = Time()
+	
+	if ( args.len() < 1)
+	{	
+		Message( player, "\n\n\nUsage: ", "challenge chal [playername/id] - Challenges a player to 1v1 \n challenge accept [playername/id] - Accepts challenge by playername or id. If no player is specified accepts most recent challenge \n challenge list - Shows a list of all challenges and their times", 5 )
+		return true;	
+	}
+	
+	string requestedData = args[0];
+	string param = "";
+	
+	if ( args.len() >= 2 )
+	{
+		param = args[1]
+	}
+
+	switch(requestedData)
+	{
+		
+		case "challenge":
+		case "chal":
+		
+			if( args.len() < 2 )
+			{
+				Message( player, "CHALLENGES", "/chal [playername/id]  - challenges a player to 1v1 \n /accept [playername/id] - accepts a specific challenge or the most recent if none specified \n /list - lists all challenges and time of challenge \n /end - ends and removes current challenge \n /remove [playername/id] - removes challenge from list by player name. \n /clear - clears all incoming challenges \n /revoke [playername/id] - Revokes a challenge sent to a player \n\n To disable, toggle lock1v1 button in rest area")			
+			}
+			else 
+			{	
+				entity challengedPlayer;
+				challengedPlayer = GetPlayer(param)
+				
+				if( player == challengedPlayer)
+				{
+					Message( player, "CANT CHALLENGE SELF")
+					return true
+				}
+
+				if (IsValid(challengedPlayer))
+				{
+					int result = addToChallenges( player, challengedPlayer )
+					string error = ""
+					
+					switch(result)
+					{
+						case 1: 
+							Message( player, "CHALLENGE SENT", "", 5)
+							string details = format("Player: %s wants to 1v1. \n\n Type /accept to accept the most recent challenge \n\n  or /accept [playername] to accept a specific 1v1 ", player.p.name  )
+							Message( challengedPlayer, "NEW REQUEST", details , 5 )
+							break; 
+						
+						case 2:
+							error = "Player has recieved too many challenges";
+							break;
+						
+						case 3:
+							error = "Too many requests sent, please wait a moment and try again";
+							break;
+						
+						case 4:
+							error = "Player has disabled 1v1 requests";
+							break
+							
+						case 5:
+							error = "Player not initialized";
+							break
+					}
+					
+					if(result > 1)
+					{
+						Message( player, "FAILED", "Couldn't add challenge: " + error, 5)
+					}
+					
+				}
+				else 
+				{
+					Message( player, "INVALID PLAYER...", "", 1)
+				}
+			}
+			return true //end chal
+		
+		case "accept":
+			
+			if( args.len() <= 1 )
+			{
+				acceptRecentChallenge( player )		
+			}
+			else 
+			{
+				entity challenger = GetPlayer( param )
+				
+				if(!IsValid( challenger ))
+				{
+					Message( player, "INVALID PLAYER")
+					return true
+				}
+				
+				if (acceptChallenge( player, challenger ))
+				{
+					sqprint("success")
+				}
+				else 
+				{
+					sqprint("failure")
+				}
+			}
+			return true;
+			
+		case "list":
+		
+			string list = listPlayerChallenges( player )
+			string title = "CURRENT CHALLENGERS";
+			
+			if( ( list.len() + title.len() ) > 599 )
+			{
+				Message( player, "Failed", "Cannot execute this command due to return result of overflow")
+			}
+			else 
+			{
+				Message( player, title, list, 20 )
+			}
+				
+			return true
+
+		case "end":
+			
+			endLock1v1( player )
+		
+		case "remove":
+		
+			entity challenger = GetPlayer( param )
+			
+			if( IsValid( challenger ) )
+			{
+				if (removeChallenger( player, challenger ))
+				{
+					Message( player, "REMOVED " + challenger.p.name )
+				}
+				else 
+				{
+					Message( player, "PLAYER NOT IN CHALLENGES" )
+				}
+				
+				endLock1v1( player, false )
+			}
+			return true 
+			
+		case "clear":
+			
+			player.p.waitingFor1v1 = false
+			getChallengeListForPlayer( player ).challengers.clear()
+			endLock1v1( player, false )
+			Message( player, "CHALLENGERS CLEARED")
+			return true
+			
+		case "revoke":
+		
+			entity playerToRevoke = GetPlayer( param )
+			
+			if(IsValid( playerToRevoke ))
+			{
+				if(removeChallenger( playerToRevoke, player ))
+				{
+					endLock1v1( player, false, true )
+					Message( player, "Challenge revoked")
+				}
+				else 
+				{
+					endLock1v1( player, false, false )
+					Message( player, "PLAYER NOT IN CHALLENGES" )
+				}
+			}
+			else
+			{
+				Message( player, "Player QUIT")
+			}
+			
+			return true
+		
+		default:
+			Message( player, "Failed: ", "Unknown command \n", 5 )
+			return true
+	}
+	return false;
+}
+
+
+void function INIT_playerChallengesStruct( entity player )
+{
+	ChallengesStruct chalStruct;
+	
+	chalStruct.player = player
+	
+	file.allChallenges.append(chalStruct)
+}
+
+int function addToChallenges( entity challenger, entity challengedPlayer )
+{
+	ChallengesStruct chalStruct = getChallengeListForPlayer( challengedPlayer )
+	
+	if( !IsValid( chalStruct.player ) )
+	{
+		return 5;
+	}
+	
+	if( !challengedPlayer.p.lock1v1_setting )
+	{
+		return 4;
+	}
+	
+	if ( Time() - checkChallengeTime( challenger, challengedPlayer ) <= 10 )
+	{
+		return 3;
+	}
+	
+	if ( chalStruct.challengers.len() >= MAX_CHALLENGERS )
+	{
+		return 2;
+	}
+	
+	//add challenger to table
+	chalStruct.challengers[challenger] <- Time()
+	
+	return 1;
+	
+}
+
+
+float function checkChallengeTime( entity challenger, entity challengedPlayer )
+{
+	if( challenger in getChallengeListForPlayer( challengedPlayer ).challengers )
+	{
+		return getChallengeListForPlayer( challengedPlayer ).challengers[challenger]
+	}
+	
+	return 0.0
+}
+
+
+ChallengesStruct function getChallengeListForPlayer( entity player )
+{
+	ChallengesStruct chalStruct;
+	
+	if( !IsValid( player ) )
+	{
+		return chalStruct;
+	}
+	
+	foreach ( challengeStruct in file.allChallenges )
+	{
+		if ( challengeStruct.player == player )
+		{
+			return challengeStruct
+		}
+	}
+	
+	return chalStruct;
+}
+
+
+string function listPlayerChallenges( entity player )
+{
+	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+	string list = "";
+	
+	if ( !IsValid(chalStruct) )
+	{
+		return list;
+	}
+	
+	if( chalStruct.challengers.len() == 0 )
+	{
+		list = "No challenges yet...";
+	}
+	
+	foreach ( challenger, chalTime in chalStruct.challengers )
+	{
+		
+		if (IsValid (challenger))
+		{
+			list += format("Challenger: %s, Seconds ago: %d \n", challenger.p.name, Time() - chalTime )
+		}
+		else 
+		{
+			removeChallenger( player, challenger)
+		}
+	}
+
+	return list;
+}
+
+
+bool function removeChallenger( entity player, entity challenger )
+{
+	if ( challenger in getChallengeListForPlayer( player ).challengers )
+	{
+		delete getChallengeListForPlayer( player ).challengers[challenger]
+		return true
+	}
+	
+	return false
+}
+
+
+bool function acceptChallenge( entity player, entity challenger )
+{
+	//todo, Assert? 
+	if( !IsValid(challenger))
+	{
+		return false
+	}
+	
+	if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
+	{
+		Message( player, "ALREADY IN CHALLENGE", "do /end or /clear to finish" )
+		return true
+	} 
+	
+	if( isPlayerPendingChallenge( challenger ) ||  isPlayerPendingLockOpponent( challenger ) )
+	{
+		Message( player, "PLAYER ALREADY IN CHALLENGE" )
+	}
+	
+	//sqprint("accepted")
+	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+	
+	if ( challenger in chalStruct.challengers )
+	{
+		file.acceptedChallenges[player] <- challenger 
+		player.p.waitingFor1v1 = true 
+		challenger.p.waitingFor1v1 = true
+		Message( player, "CHALLENGE ACCEPTED")
+		Message( challenger, "CHALLENGE ACCEPTED")
+	}
+	else 
+	{
+		Message( player, "NO CHALLENGES FROM PLAYER", "Maybe revoked? Check with /list")
+		return false 
+	}
+	
+	return true
+}
+
+bool function acceptRecentChallenge( entity player )
+{
+	if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
+	{
+		Message( player, "ALREADY IN CHALLENGE", "do /end or /clear to finish" )
+		return true
+	} 
+	
+	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+	
+	if(!IsValid( chalStruct ))
+	{
+		return false;
+	}
+	
+	if( chalStruct.challengers.len() <= 0 )
+	{
+		Message( player, "NO CHALLENGES", "Maybe revoked? Check with /list")
+		return false
+	}
+	
+	entity recentChallenger;
+	
+	float mostRecentTime = 0.0;
+	
+	foreach ( challenger, chalTime in chalStruct.challengers )
+	{
+		mostRecentTime = chalTime 
+		
+		if( chalTime >= mostRecentTime )
+		{
+			recentChallenger = challenger
+		}
+	}
+		
+	if( !IsValid(recentChallenger) )
+	{
+		if (removeChallenger( player, recentChallenger ))
+		{
+			Message( player, "CHALLENGER QUIT" )
+		}
+		else 
+		{
+			Message( player, "PLAYER NOT IN CHALLENGES" )
+		}
+		
+		return false
+	}
+	
+	if( isPlayerPendingChallenge( recentChallenger ) ||  isPlayerPendingLockOpponent( recentChallenger ) )
+	{
+		Message( player, "PLAYER ALREADY IN CHALLENGE")
+	}
+	//sqprint("accepted")
+	
+	file.acceptedChallenges[player] <- recentChallenger 
+	player.p.waitingFor1v1 = true 
+	recentChallenger.p.waitingFor1v1 = true
+	
+	Message( player, "CHALLENGE ACCEPTED")
+	Message( recentChallenger, "CHALLENGE ACCEPTED")
+	
+	return true
+}
+
+bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false )
+{
+	int iRemoveOpponent = 0
+	entity opponent = getLock1v1OpponentOfPlayer( player )
+	entity challenged;
+	
+	if( player in file.acceptedChallenges )
+	{
+		delete file.acceptedChallenges[player]
+		iRemoveOpponent = 1
+	}
+	else 
+	{
+		challenged = returnChallengedPlayer( player )
+		
+		if ( IsValid( challenged ) )
+		{	
+			if( challenged in file.acceptedChallenges )
+			{
+				delete file.acceptedChallenges[challenged]
+				iRemoveOpponent = 2
+			}			
+		}
+		else
+		{
+			if(addmsg)
+			{
+				Message( player, "NO CHALLENGE TO END")
+				return true
+			}
+		}
+		
+	}
+	
+	if( iRemoveOpponent == 1 && IsValid( opponent ))
+	{
+		if(addmsg || revoke)
+		{
+			Message( opponent, "CHALLENGE ENDED")
+		}
+		
+		removeChallenger( player, opponent )
+		player.p.waitingFor1v1 = false
+		opponent.p.waitingFor1v1 = false
+	}
+	
+	if ( iRemoveOpponent == 2 && IsValid( challenged ) )
+	{
+		if(addmsg || revoke)
+		{
+			Message( challenged, "CHALLENGE ENDED")	
+		}
+		
+		removeChallenger( challenged, player )
+		player.p.waitingFor1v1 = false
+		challenged.p.waitingFor1v1 = false
+	}
+	
+	soloGroupStruct group = returnSoloGroupOfPlayer( player )
+	
+	if( IsValid( group ) )
+	{	
+		group.IsKeep = false;
+		group.IsFinished = true;
+	}
+	
+	if(addmsg)
+	{
+		Message( player, "CHALLENGE ENDED")
+	}
+	return true
+}
+
+bool function isPlayerPendingChallenge( entity player )
+{
+	return ( player in file.acceptedChallenges )
+}
+
+bool function isPlayerPendingLockOpponent( entity player )
+{
+	foreach ( challenged, opponent in file.acceptedChallenges )
+	{
+		if ( player == opponent )
+		{
+			return true
+		}
+	}
+	
+	return false
+}
+
+entity function returnChallengedPlayer( entity player )
+{
+	entity p
+	
+	foreach( challenged, challenger in file.acceptedChallenges )
+	{
+		if ( challenger == player )
+		{
+			return challenged
+		}
+	}
+	
+	return p
+}
+
+entity function getLock1v1OpponentOfPlayer( entity player )
+{
+	entity p;
+	
+	if( player in file.acceptedChallenges )
+	{
+		if( IsValid( file.acceptedChallenges[player] ))
+		{
+			if( file.acceptedChallenges[player].p.handle in file.soloPlayersWaiting )
+			{
+				return file.acceptedChallenges[player]
+			}
+		}
+	}
+	
+	return p
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //modified by mkos
 bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args )
@@ -950,11 +1505,13 @@ entity function getRandomOpponentOfPlayer(entity player)
 			return p
 		}
 		
-        if (IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player)
-            if (eachPlayerStruct.player.p.input == player.p.input || (eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player(player) == true))
+        if ( IsValid(eachPlayerStruct.player) && player != eachPlayerStruct.player && !eachPlayerStruct.player.p.waitingFor1v1 )
+		{
+            if ( eachPlayerStruct.player.p.input == player.p.input || (eachPlayerStruct.IBMM_Timeout_Reached == true && Fetch_IBMM_Timeout_For_Player(player) == true))
             {
                 eligible.append(eachPlayerStruct.player);
             }
+		}
     }
 	
 	int count = eligible.len()
@@ -964,6 +1521,8 @@ entity function getRandomOpponentOfPlayer(entity player)
 		entity foundOpponent = eligible[RandomIntRangeInclusive( 0, count - 1 )]
 		if(IsValid(foundOpponent))
 		{
+			//string set = foundOpponent.p.waitingFor1v1 ? "true" : "false";
+			//sqprint(format("FOUDN player: %s setting for waiting is: %s", foundOpponent.p.name, set))
 			return foundOpponent
 		}
 	}
@@ -2715,11 +3274,13 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		// printt("------------------more than 2 player in solo waiting array,matching------------------")
 		soloGroupStruct newGroup
 		entity opponent
+		bool skipMessage = false
 		//优先处理超时玩家
 		//player1:超时的玩家,player2:随机从等待队列里找一个玩家
-
+		
 		if(getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
 		{
+			//sqprint("TIME OUT MATCHING")
 			// Warning("Time out matching")
 			newGroup.player1 = getTimeOutPlayer()  //获取超时的玩家
 			if(IsValid(newGroup.player1))//存在超时等待玩家
@@ -2758,83 +3319,113 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				float selfKd = eachPlayerStruct.kd
 				table <entity,float> properOpponentTable
 				
-				
-				foreach ( opponentEntity, eachOpponentPlayerStruct in file.soloPlayersWaiting ) //找player2
-				{	
-					
-					entity eachOpponent = eachOpponentPlayerStruct.player
-					float opponentKd = eachOpponentPlayerStruct.kd
-					bool opponent_IBMM_timeout = eachOpponentPlayerStruct.IBMM_Timeout_Reached
-					
-					//this makes sure we don't compare same player as opponent during MM -- mkos clarification
-					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
-						continue
-						
-					if(fabs(selfKd - opponentKd) > file.SBMM_kd_difference ) //过滤kd差值
-						continue
-						
-					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
-					
-					//mkos - keep building a list of candidates who are not timed out with same input
-					if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
-					{
-						//sqprint("Waiting for input match...");
-						continue		
-					} 
-					
-					
-					
-				}
-
-				float lowestKd = 999
-				entity bestOpponent
-				entity scondBestOpponent//防止bestOpponent是上一局的对手
-				foreach (opponentt,kd in properOpponentTable)
+				//challenge system
+				if( isPlayerPendingChallenge(playerSelf) )
 				{
+					entity Lock1v1Opponent = getLock1v1OpponentOfPlayer( playerSelf )
 					
-					if(kd < lowestKd)
+					if (IsValid(Lock1v1Opponent))
 					{
-						scondBestOpponent = bestOpponent
-						bestOpponent = opponentt
-						lowestKd = kd
+						//sqprint("HERE IT IS")
+						newGroup.player1 = playerSelf
+						newGroup.player2 = Lock1v1Opponent
+						
+						newGroup.IsKeep = true
+						newGroup.player1.p.waitingFor1v1 = false 
+						newGroup.player2.p.waitingFor1v1 = false
+						Message(newGroup.player1, "1v1 CHALLENGE STARTED")
+						Message(newGroup.player2, "1v1 CHALLENGE STARTED")
+						skipMessage = true
+						break
+					}
+					else 
+					{
+						//sqprint("waiting for lockmatch TIMEOUT matching")
+						continue //these guys are still waiting for each other
 					}
 				}
+				//else 
+				//{
+				
+					foreach ( opponentHandle, eachOpponentPlayerStruct in file.soloPlayersWaiting ) //找player2
+					{					
+						entity eachOpponent = eachOpponentPlayerStruct.player
+						float opponentKd = eachOpponentPlayerStruct.kd
+						bool opponent_IBMM_timeout = eachOpponentPlayerStruct.IBMM_Timeout_Reached
+						
+						if( isPlayerPendingChallenge(eachOpponent) || isPlayerPendingLockOpponent(eachOpponent) )
+						{
+							//sqprint("waiting for lockmatch main matching")
+							continue //these guys are trying to lock with each other
+						}
+						
+						//this makes sure we don't compare same player as opponent during MM -- mkos clarification
+						if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
+							continue
+							
+						if(fabs(selfKd - opponentKd) > file.SBMM_kd_difference ) //过滤kd差值
+							continue
+							
+						properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
+						
+						//mkos - keep building a list of candidates who are not timed out with same input
+						if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
+						{
+							//sqprint("Waiting for input match...");
+							continue		
+						} 	
+					}
 
-				entity lastOpponent = eachPlayerStruct.lastOpponent
+					float lowestKd = 999
+					entity bestOpponent
+					entity scondBestOpponent//防止bestOpponent是上一局的对手
+					foreach (opponentt,kd in properOpponentTable)
+					{
+						
+						if(kd < lowestKd)
+						{
+							scondBestOpponent = bestOpponent
+							bestOpponent = opponentt
+							lowestKd = kd
+						}
+					}
 
-				if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
-				if( (bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == true && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
-				{		
+					entity lastOpponent = eachPlayerStruct.lastOpponent
+
+					if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
+					if( (bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == true && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
+					{		
+							
+							bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
+							
+							//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(bestOpponent), inputresult  ));
 						
-						bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
+							// Warning("Best opponent, kd gap: " + lowestKd)
+							newGroup.player1 = playerSelf
+							newGroup.player2 = bestOpponent			
 						
-						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(bestOpponent), inputresult  ));
-					
-						// Warning("Best opponent, kd gap: " + lowestKd)
-						newGroup.player1 = playerSelf
-						newGroup.player2 = bestOpponent			
-					
-						break
-					
-				}
-				else if ( IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
-				{	
+							break
 						
-						//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
-						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(scondBestOpponent), inputresult  ));
-					
-						// Warning("Secondary opponent, kd gap: " + lowestKd)
-						newGroup.player1 = playerSelf
-						newGroup.player2 = scondBestOpponent
+					}
+					else if ( IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
+					{	
+							
+							//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
+							//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(scondBestOpponent), inputresult  ));
 						
-						break
-					
-				}
-				else
-				{
-					// Warning("Only last opponent found, waiting for time out")
-					continue //上局对手是最合适玩家,且没有第二合适对手,开始为下一位玩家匹配
-				}
+							// Warning("Secondary opponent, kd gap: " + lowestKd)
+							newGroup.player1 = playerSelf
+							newGroup.player2 = scondBestOpponent
+							
+							break
+						
+					}
+					else
+					{
+						// Warning("Only last opponent found, waiting for time out")
+						continue //上局对手是最合适玩家,且没有第二合适对手,开始为下一位玩家匹配
+					}
+				//}//lock1v1
 			}//foreach
 		}//else
 
@@ -2852,64 +3443,100 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			}
 			continue;
 		}
+		
+		//don't pair players if they are waiting for their chal player
+		if( !newGroup.player1.p.waitingFor1v1 && !newGroup.player2.p.waitingFor1v1 )
+		{		
 
+			//already matched two players
+			array<entity> players = [newGroup.player1,newGroup.player2]
+		
+			//mkos
+			if ( Fetch_IBMM_Timeout_For_Player( newGroup.player1 ) == false || Fetch_IBMM_Timeout_For_Player( newGroup.player2 ) == false && newGroup.player1.p.input == newGroup.player2.p.input )
+			{			
+				newGroup.GROUP_INPUT_LOCKED = true;
+			} 
+			else 
+			{
+				newGroup.GROUP_INPUT_LOCKED = false;
+			}
+			
+			thread soloModePlayerToInProgressList(newGroup)
 
-		//already matched two players
-		array<entity> players = [newGroup.player1,newGroup.player2]
-	
-		//mkos
-		if ( Fetch_IBMM_Timeout_For_Player( newGroup.player1 ) == false || Fetch_IBMM_Timeout_For_Player( newGroup.player2 ) == false && newGroup.player1.p.input == newGroup.player2.p.input )
-		{			
-			newGroup.GROUP_INPUT_LOCKED = true;
-		} 
-		else 
-		{
-			newGroup.GROUP_INPUT_LOCKED = false;
-		}
-		
-		thread soloModePlayerToInProgressList(newGroup)
+			foreach (index,eachPlayer in players )
+			{
+				EnableOffhandWeapons( eachPlayer )
+				DeployAndEnableWeapons( eachPlayer )
+				thread respawnInSoloMode(eachPlayer, index)
+			}
+			
+			GiveWeaponsToGroup( players )
 
-		foreach (index,eachPlayer in players )
+			FS_SetRealmForPlayer( newGroup.player1, newGroup.slotIndex )
+			FS_SetRealmForPlayer( newGroup.player2, newGroup.slotIndex )		
+			
+			//mkos
+			
+			string e_str = "";
+			
+			if ( newGroup.GROUP_INPUT_LOCKED == true )
+			{	
+				//sqprint(format("Starting watch thread for: %s", newGroup.player1.GetPlayerName() ))
+				thread InputWatchdog( newGroup.player1, newGroup.player2, newGroup ); 
+				e_str = " INPUT LOCKED " 
+			}
+			else 
+			{ 	
+				e_str = "COULDNT LOCK SAME INPUT " 
+			}
+			
+			if ( newGroup.player1.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
+			{ e_str = "ANY INPUT"; }
+			
+			if(newGroup.player1.p.enable_input_banner && !skipMessage )
+			{
+				Message( newGroup.player1 , e_str, "VS: " + newGroup.player2.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player2 ) , 2.5)
+			}
+			
+			if ( newGroup.player2.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
+			{ e_str = "ANY INPUT"; }
+			
+			if(newGroup.player2.p.enable_input_banner && !skipMessage )
+			{
+				Message( newGroup.player2 , e_str, "VS: " + newGroup.player1.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player1 ) , 2.5)
+			}
+		} //not waiting
+		
+		array<entity> deletions
+		
+		//cleanup lock1v1 table
+		foreach( player1, player2 in file.acceptedChallenges ) 
 		{
-			EnableOffhandWeapons( eachPlayer )
-			DeployAndEnableWeapons( eachPlayer )
-			thread respawnInSoloMode(eachPlayer, index)
+			if ( !IsValid(player1) || !IsValid(player2) ) 
+			{
+				
+				if( IsValid(player1 ) )
+				{
+					player1.p.waitingFor1v1 = false
+				}
+				
+				if( IsValid( player2 ) )
+				{
+					player2.p.waitingFor1v1 = false
+				}
+				
+				deletions.append(player1);
+			}
 		}
 		
-		GiveWeaponsToGroup( players )
-
-		FS_SetRealmForPlayer( newGroup.player1, newGroup.slotIndex )
-		FS_SetRealmForPlayer( newGroup.player2, newGroup.slotIndex )		
-		
-		//mkos
-		
-		string e_str = "";
-		
-		if ( newGroup.GROUP_INPUT_LOCKED == true )
-		{	
-			//sqprint(format("Starting watch thread for: %s", newGroup.player1.GetPlayerName() ))
-			thread InputWatchdog( newGroup.player1, newGroup.player2, newGroup ); 
-			e_str = " INPUT LOCKED " 
-		}
-		else 
-		{ 	
-			e_str = "COULDNT LOCK SAME INPUT " 
-		}
-		
-		if ( newGroup.player1.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
-		{ e_str = "ANY INPUT"; }
-		
-		if(newGroup.player1.p.enable_input_banner)
+		if( deletions.len() > 0 )
 		{
-			Message( newGroup.player1 , e_str, "VS: " + newGroup.player2.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player2 ) , 2.5)
-		}
-		
-		if ( newGroup.player2.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
-		{ e_str = "ANY INPUT"; }
-		
-		if(newGroup.player2.p.enable_input_banner)
-		{
-			Message( newGroup.player2 , e_str, "VS: " + newGroup.player1.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player1 ) , 2.5)
+			foreach( playerKey in deletions ) 
+			{
+				delete file.acceptedChallenges[playerKey];
+			}
+			
+			deletions.resize(0)
 		}
 
 	}//while(true)

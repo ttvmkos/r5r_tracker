@@ -597,8 +597,8 @@ void function SetPlayerKD( entity player )
 			string playtime = (SYNC_Data_length > 3) ? SYNC_Data[3] : "";
 			string gamesplayed = (SYNC_Data_length > 4) ? SYNC_Data[4] : "";
 			string synced_score = (SYNC_Data_length > 5) ? SYNC_Data[5] : "";
-			string synced_wait_time = (SYNC_Data_length > 6) ?ReturnValue(SYNC_Data[6]) : "";
-			string synced_weapon_loadout = (SYNC_Data_length > 7) ?ReturnValue(SYNC_Data[7]) : "";
+			string synced_wait_time = (SYNC_Data_length > 6) ? ReturnValue(SYNC_Data[6]) : "";
+			string synced_weapon_loadout = (SYNC_Data_length > 7) ? ReturnValue(SYNC_Data[7]) : "";
 			string synced_lock1v1_setting = (SYNC_Data_length > 8) ? ReturnValue(SYNC_Data[8]) : "";
 			string synced_start_in_rest_setting = (SYNC_Data_length > 9) ? ReturnValue(SYNC_Data[9]) : "";
 			string synced_enable_input_banner_setting = (SYNC_Data_length > 10) ? ReturnValue(SYNC_Data[10]) : "";
@@ -742,6 +742,10 @@ void function SetPlayerKD( entity player )
 			player.p.lifetime_gamesplayed = player_lifetime_gamesplayed;
 			player.p.lifetime_score = player_lifetime_score;
 			
+			if( g_bIs1v1 )
+			{
+				INIT_playerChallengesStruct( player )
+			}		
 			
 			break
 		}
@@ -2770,11 +2774,13 @@ void function Commands( entity player, array<string> args )
 		case "\\wait":
 			args.remove(0)
 			ClientCommand_mkos_LGDuel_IBMM_wait( player, args )
-			break			
+			break
+			
 		case "/rest":
 		case "\\rest":
 			ClientCommand_Maki_SoloModeRest( player, [] )
 			break
+			
 		case "/info":
 		case "\\info":
 			args.remove(0)
@@ -2785,18 +2791,73 @@ void function Commands( entity player, array<string> args )
 			}
 			ClientCommand_mkos_test_return_data( player, args )
 			break 
+			
 		case "/id":
 		case "\\id":
 			ClientCommand_mkos_test_return_data( player, ["id"] )
 			break
+			
 		case "/aa":
 		case "\\aa":
 			ClientCommand_mkos_test_return_data( player, ["aa"] )
 			break
+			
 		case "/inputs":
 		case "\\inputs":
 			ClientCommand_mkos_test_return_data( player, ["inputs"] )
 			break
+			
+		case "/challenge":
+		case "\\challenge":
+		case "/chal":
+		case "\\chal":
+			args.remove(0)
+			args.insert(0, "chal")
+			ClientCommand_mkos_challenge( player, args )
+			break
+		
+		case "/accept":
+		case "\\accept":
+			args.remove(0)
+			args.insert(0, "accept")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/list":
+		case "\\list":
+			args.remove(0)
+			args.insert(0, "list")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/end":
+		case "\\end":
+			args.remove(0)
+			args.insert(0, "end")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/remove":
+		case "\\remove":
+			args.remove(0)
+			args.insert(0, "remove")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/clear":
+		case "\\clear":
+			args.remove(0)
+			args.insert(0, "clear")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/revoke":
+		case "\\revoke":
+			args.remove(0)
+			args.insert(0, "revoke")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
 	}
 }
 
