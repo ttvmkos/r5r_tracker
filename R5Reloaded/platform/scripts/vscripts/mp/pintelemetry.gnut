@@ -2770,7 +2770,7 @@ void function Commands( entity player, array<string> args )
 	
 	switch( args[0].tolower() )
 	{	
-		case "!":
+		case "!wait":
 		case "/wait":
 		case "\\wait":
 			args.remove(0)
