@@ -337,7 +337,7 @@ int function getTimeOutPlayerAmount()
 {
     int timeOutPlayerAmount = 0;
 	
-    foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting) 
+    foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting ) 
 	{
         if ( IsValid(eachPlayerStruct) && eachPlayerStruct.IsTimeOut && !eachPlayerStruct.player.p.waitingFor1v1 ) 
 		{
@@ -795,7 +795,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 		
 			if( args.len() < 2 )
 			{
-				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id]  - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id] - Revokes a challenge sent to a player\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n\nTo disable, toggle lock1v1 button in rest area", 25 )			
+				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id] - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id/all] - Revokes a challenge sent to a player or all players\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n\nTo disable, toggle lock1v1 button in rest area", 30 )			
 			}
 			else 
 			{	
@@ -944,6 +944,32 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			
 		case "revoke":
 		
+			if( param == "all" )
+			{
+				int revoked = 0
+				string removed = "";
+				
+				foreach ( revokedFromPlayer in GetPlayerArray() )
+				{
+					if(removeChallenger( revokedFromPlayer, player ))
+					{
+						revoked++;
+						removed += player.p.name + "\n";
+					}
+				}
+				
+				if ( revoked > 0 )
+				{
+					Message( player, format( "REVOKED %d CHALLENGES", revoked ), format( "\n----FROM PLAYERS---- \n\n %s", removed ), 10 )
+				}
+				else 
+				{
+					Message( player, "NO CHALLENGES TO REMOVE" )
+				}
+				
+				return true
+			}
+			
 			entity playerToRevoke = GetPlayer( param )
 			
 			if(IsValid( playerToRevoke ))
@@ -1581,14 +1607,7 @@ entity function getRandomOpponentOfPlayer(entity player)
     array<entity> eligible = [];
 
     foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting )
-    {   
-		/*
-		if(!IsValid(player))
-		{
-			return p
-		}
-		*/
-		
+    {   		
 		if( !playerHandle || (!IsValid(eachPlayerStruct)) )
 		{
 			return p
@@ -1843,8 +1862,15 @@ void function soloModePlayerToRestingList(entity player)
 		
 		removeGroup(group) //mkos remove -- 销毁这个group
 
-		if(IsValid(opponent)) //找不到对手
+		if(IsValid(opponent))
+		{		//找不到对手
 			soloModePlayerToWaitingList(opponent) //将对手放回waiting list
+		}
+		
+		if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
+		{
+			endLock1v1( player, true )
+		}
 	}
 
 	//deleteSoloPlayerResting( player ) // ??why do we do this (replaced with my functions as well)
@@ -3381,7 +3407,44 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		//优先处理超时玩家
 		//player1:超时的玩家,player2:随机从等待队列里找一个玩家
 		
-		if(getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
+		//check challenges first
+		foreach ( playerHandle, eachPlayerStruct in file.soloPlayersWaiting ) //找player1
+		{	
+			if(!IsValid(eachPlayerStruct))
+			{
+				continue
+			}					
+			
+			entity playerSelf = eachPlayerStruct.player
+			bool player_IBMM_timeout = eachPlayerStruct.IBMM_Timeout_Reached		
+			//challenge system
+			if( isPlayerPendingChallenge(playerSelf) )
+			{
+				entity Lock1v1Opponent = getLock1v1OpponentOfPlayer( playerSelf )
+				
+				if (IsValid(Lock1v1Opponent))
+				{
+					//sqprint("HERE IT IS")
+					newGroup.player1 = playerSelf
+					newGroup.player2 = Lock1v1Opponent
+					
+					newGroup.IsKeep = true
+					newGroup.player1.p.waitingFor1v1 = false 
+					newGroup.player2.p.waitingFor1v1 = false
+					Message(newGroup.player1, "1v1 CHALLENGE STARTED")
+					Message(newGroup.player2, "1v1 CHALLENGE STARTED")
+					skipMessage = true
+					break
+				}
+				else 
+				{
+					//sqprint("waiting for lockmatch TIMEOUT matching")
+					continue //these guys are still waiting for each other
+				}
+			}
+		}
+	
+		if( getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
 		{
 			//sqprint("TIME OUT MATCHING")
 			// Warning("Time out matching")
@@ -3422,113 +3485,84 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				float selfKd = eachPlayerStruct.kd
 				table <entity,float> properOpponentTable
 				
-				//challenge system
-				if( isPlayerPendingChallenge(playerSelf) )
-				{
-					entity Lock1v1Opponent = getLock1v1OpponentOfPlayer( playerSelf )
+				foreach ( opponentHandle, eachOpponentPlayerStruct in file.soloPlayersWaiting ) //找player2
+				{					
+					entity eachOpponent = eachOpponentPlayerStruct.player
+					float opponentKd = eachOpponentPlayerStruct.kd
+					bool opponent_IBMM_timeout = eachOpponentPlayerStruct.IBMM_Timeout_Reached
 					
-					if (IsValid(Lock1v1Opponent))
+					if( isPlayerPendingChallenge(eachOpponent) || isPlayerPendingLockOpponent(eachOpponent) )
 					{
-						//sqprint("HERE IT IS")
-						newGroup.player1 = playerSelf
-						newGroup.player2 = Lock1v1Opponent
-						
-						newGroup.IsKeep = true
-						newGroup.player1.p.waitingFor1v1 = false 
-						newGroup.player2.p.waitingFor1v1 = false
-						Message(newGroup.player1, "1v1 CHALLENGE STARTED")
-						Message(newGroup.player2, "1v1 CHALLENGE STARTED")
-						skipMessage = true
-						break
+						//sqprint("waiting for lockmatch main matching")
+						continue //these guys are trying to lock with each other
 					}
-					else 
+					
+					//this makes sure we don't compare same player as opponent during MM -- mkos clarification
+					if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
+						continue
+						
+					if(fabs(selfKd - opponentKd) > file.SBMM_kd_difference ) //过滤kd差值
+						continue
+						
+					properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
+					
+					//mkos - keep building a list of candidates who are not timed out with same input
+					if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
 					{
-						//sqprint("waiting for lockmatch TIMEOUT matching")
-						continue //these guys are still waiting for each other
+						//sqprint("Waiting for input match...");
+						continue		
+					} 	
+				}
+
+				float lowestKd = 999
+				entity bestOpponent
+				entity scondBestOpponent//防止bestOpponent是上一局的对手
+				foreach (opponentt,kd in properOpponentTable)
+				{
+					
+					if(kd < lowestKd)
+					{
+						scondBestOpponent = bestOpponent
+						bestOpponent = opponentt
+						lowestKd = kd
 					}
 				}
-				//else 
-				//{
-				
-					foreach ( opponentHandle, eachOpponentPlayerStruct in file.soloPlayersWaiting ) //找player2
-					{					
-						entity eachOpponent = eachOpponentPlayerStruct.player
-						float opponentKd = eachOpponentPlayerStruct.kd
-						bool opponent_IBMM_timeout = eachOpponentPlayerStruct.IBMM_Timeout_Reached
-						
-						if( isPlayerPendingChallenge(eachOpponent) || isPlayerPendingLockOpponent(eachOpponent) )
-						{
-							//sqprint("waiting for lockmatch main matching")
-							continue //these guys are trying to lock with each other
-						}
-						
-						//this makes sure we don't compare same player as opponent during MM -- mkos clarification
-						if(playerSelf == eachOpponent || !IsValid(eachOpponent))//过滤非法对手
-							continue
-							
-						if(fabs(selfKd - opponentKd) > file.SBMM_kd_difference ) //过滤kd差值
-							continue
-							
-						properOpponentTable[eachOpponent] <- fabs(selfKd - opponentKd)
-						
-						//mkos - keep building a list of candidates who are not timed out with same input
-						if( playerSelf.p.input != eachOpponent.p.input && player_IBMM_timeout == false && opponent_IBMM_timeout == false )
-						{
-							//sqprint("Waiting for input match...");
-							continue		
-						} 	
-					}
 
-					float lowestKd = 999
-					entity bestOpponent
-					entity scondBestOpponent//防止bestOpponent是上一局的对手
-					foreach (opponentt,kd in properOpponentTable)
-					{
-						
-						if(kd < lowestKd)
-						{
-							scondBestOpponent = bestOpponent
-							bestOpponent = opponentt
-							lowestKd = kd
-						}
-					}
+				entity lastOpponent = eachPlayerStruct.lastOpponent
 
-					entity lastOpponent = eachPlayerStruct.lastOpponent
-
-					if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
-					if( (bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == true && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
-					{		
-							
-							bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
-							
-							//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(bestOpponent), inputresult  ));
+				if(!IsValid(bestOpponent)) continue//没找到最合适玩家,为下一位玩家匹配
+				if( (bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == true && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true ) || ( bestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( bestOpponent ) == false && playerSelf.p.input == bestOpponent.p.input ) ) //最合适玩家是上局对手,用第二合适玩家代替
+				{		
 						
-							// Warning("Best opponent, kd gap: " + lowestKd)
-							newGroup.player1 = playerSelf
-							newGroup.player2 = bestOpponent			
+						bool inputresult = playerSelf.p.input == bestOpponent.p.input ? true : false;
 						
-							break
+						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(bestOpponent), inputresult  ));
+					
+						// Warning("Best opponent, kd gap: " + lowestKd)
+						newGroup.player1 = playerSelf
+						newGroup.player2 = bestOpponent			
+					
+						break
+					
+				}
+				else if ( IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
+				{	
 						
-					}
-					else if ( IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == true && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == true || IsValid(scondBestOpponent) && scondBestOpponent != lastOpponent && Fetch_IBMM_Timeout_For_Player( playerSelf ) == false && Fetch_IBMM_Timeout_For_Player( scondBestOpponent ) == false && playerSelf.p.input == scondBestOpponent.p.input )
-					{	
-							
-							//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
-							//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(scondBestOpponent), inputresult  ));
+						//bool inputresult = playerSelf.p.input == scondBestOpponent.p.input ? true : false;
+						//sqprint(format("Player found: ibmm timeout: %s, INputs are same?: ", Fetch_IBMM_Timeout_For_Player(scondBestOpponent), inputresult  ));
+					
+						// Warning("Secondary opponent, kd gap: " + lowestKd)
+						newGroup.player1 = playerSelf
+						newGroup.player2 = scondBestOpponent
 						
-							// Warning("Secondary opponent, kd gap: " + lowestKd)
-							newGroup.player1 = playerSelf
-							newGroup.player2 = scondBestOpponent
-							
-							break
-						
-					}
-					else
-					{
-						// Warning("Only last opponent found, waiting for time out")
-						continue //上局对手是最合适玩家,且没有第二合适对手,开始为下一位玩家匹配
-					}
-				//}//lock1v1
+						break
+					
+				}
+				else
+				{
+					// Warning("Only last opponent found, waiting for time out")
+					continue //上局对手是最合适玩家,且没有第二合适对手,开始为下一位玩家匹配
+				}
 			}//foreach
 		}//else
 

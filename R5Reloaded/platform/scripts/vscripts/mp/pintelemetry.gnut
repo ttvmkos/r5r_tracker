@@ -2770,17 +2770,20 @@ void function Commands( entity player, array<string> args )
 	
 	switch( args[0].tolower() )
 	{	
+		case "!":
 		case "/wait":
 		case "\\wait":
 			args.remove(0)
 			ClientCommand_mkos_LGDuel_IBMM_wait( player, args )
 			break
 			
+		case "!rest":
 		case "/rest":
 		case "\\rest":
 			ClientCommand_Maki_SoloModeRest( player, [] )
 			break
 			
+		case "!info":
 		case "/info":
 		case "\\info":
 			args.remove(0)
@@ -2792,21 +2795,25 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_test_return_data( player, args )
 			break 
 			
+		case "!id":
 		case "/id":
 		case "\\id":
 			ClientCommand_mkos_test_return_data( player, ["id"] )
 			break
 			
+		case "!aa":
 		case "/aa":
 		case "\\aa":
 			ClientCommand_mkos_test_return_data( player, ["aa"] )
 			break
 			
+		case "!inputs":
 		case "/inputs":
 		case "\\inputs":
 			ClientCommand_mkos_test_return_data( player, ["inputs"] )
 			break
 			
+		case "!challenge":
 		case "/challenge":
 		case "\\challenge":
 		case "/chal":
@@ -2816,6 +2823,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 		
+		case "!accept":
 		case "/accept":
 		case "\\accept":
 			args.remove(0)
@@ -2823,6 +2831,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!list":
 		case "/list":
 		case "\\list":
 			args.remove(0)
@@ -2830,6 +2839,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!end":
 		case "/end":
 		case "\\end":
 			args.remove(0)
@@ -2837,6 +2847,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!remove":
 		case "/remove":
 		case "\\remove":
 			args.remove(0)
@@ -2844,6 +2855,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!clear":
 		case "/clear":
 		case "\\clear":
 			args.remove(0)
@@ -2851,6 +2863,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!revoke":
 		case "/revoke":
 		case "\\revoke":
 			args.remove(0)
@@ -2858,6 +2871,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
+		case "!cycle":
 		case "/cycle":
 		case "\\cycle":
 			args.remove(0)
@@ -2865,6 +2879,7 @@ void function Commands( entity player, array<string> args )
 			ClientCommand_mkos_challenge( player, args )
 			break
 		
+		case "!swap":
 		case "/swap":
 		case "\\swap":
 			args.remove(0)

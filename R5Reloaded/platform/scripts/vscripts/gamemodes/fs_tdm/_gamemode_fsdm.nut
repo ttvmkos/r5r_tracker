@@ -259,6 +259,7 @@ void function Init_IBMM( entity player )
 	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
 	AddClientCommandCallback("lock1v1", ClientCommand_mkos_lock1v1_setting )
 	AddClientCommandCallback("start_in_rest", ClientCommand_mkos_start_in_rest_setting ) 
+	AddClientCommandCallback("enable_input_banner", ClientCommand_enable_input_banner )
 	AddClientCommandCallback("challenge", ClientCommand_mkos_challenge )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
@@ -819,7 +820,7 @@ bool function ClientCommand_enable_input_banner( entity player, array<string> ar
 	
 		if (args.len() < 1)
 		{
-			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n START IN REST SETTING:", " Type into console: start_in_rest # \n replacing # with 'on' or 'off'.  \n\n On: When the round/game starts or you join, you will start in rest and have to join the queue manually. \n\n Off: You will join the queue automatically.", 15)
+			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n START IN REST SETTING:", " Type into console: enable_input_banner # \n replacing # with 'on' or 'off'.  ", 15)
 			return true
 		}				
 		
