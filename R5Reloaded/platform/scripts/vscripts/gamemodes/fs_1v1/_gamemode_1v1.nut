@@ -2,7 +2,30 @@
 //made by __makimakima__
 //redesigned by mkos [refactored/coderewrite/ibmm/sbmm]
 
-globalize_all_functions // why?
+//globalize_all_functions // why?
+
+global function isPlayerInRestingList
+global function mkos_Force_Rest
+global function INIT_playerChallengesStruct
+global function GetScore
+global function getSbmmSetting
+global function setSbmmSetting
+global function getGroupsInProgress
+global function getPlayerToGroupMap
+global function ClientCommand_Maki_SoloModeRest
+global function ClientCommand_mkos_challenge
+global function endSpectate
+global function notify_thread
+global function _soloModeInit
+global function resetChallenges
+global function soloModefixDelayStart
+global function setChineseServer
+global function isPlayerInWaitingList
+global function getWaitingRoomLocation
+global function maki_tp_player
+global function returnSoloGroupOfPlayer
+global function soloModePlayerToWaitingList
+global function ForceAllRoundsToFinish_solomode
 
 global struct soloLocStruct
 {
@@ -56,11 +79,10 @@ LocPair WaitingRoom
 //this is fine
 array <soloLocStruct> soloLocations //all respawn location stored here
 
-//TODO:: move to r5rdev_config.json arrays to store loaded custom weapons from playlist once in init -- mkos //########
+//TODO:: move to r5rdev_config.json-- mkos
 array <string> custom_weapons_primary = [] 
 array <string> custom_weapons_secondary = [] 
 
-// SBMM vars
 struct {
 
 	float lifetime_kd_weight
