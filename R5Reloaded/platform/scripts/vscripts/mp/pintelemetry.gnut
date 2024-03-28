@@ -742,11 +742,6 @@ void function SetPlayerKD( entity player )
 			player.p.lifetime_gamesplayed = player_lifetime_gamesplayed;
 			player.p.lifetime_score = player_lifetime_score;
 			
-			if( g_bIs1v1 )
-			{
-				INIT_playerChallengesStruct( player )
-			}		
-			
 			break
 		}
 		
@@ -756,6 +751,11 @@ void function SetPlayerKD( entity player )
 	
 	player.p.stats_done_loading = true;
 
+	if( g_bIs1v1 )
+	{
+		INIT_playerChallengesStruct( player )
+	}		
+			
 	wait 0.2
 	SQ_ResetStats( OID )
 	
@@ -2855,6 +2855,20 @@ void function Commands( entity player, array<string> args )
 		case "\\revoke":
 			args.remove(0)
 			args.insert(0, "revoke")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "/cycle":
+		case "\\cycle":
+			args.remove(0)
+			args.insert(0, "cycle")
+			ClientCommand_mkos_challenge( player, args )
+			break
+		
+		case "/swap":
+		case "\\swap":
+			args.remove(0)
+			args.insert(0, "swap")
 			ClientCommand_mkos_challenge( player, args )
 			break
 			
@@ -5635,17 +5649,15 @@ bool function Is_Bool(string str)
 
 entity function GetPlayerEntityByName( string name )
 {	
-	entity p;
-
+	entity p;	
+	name = name.tolower()
+	
 	foreach ( player in GetPlayerArray() )
 	{
-	
-		if ( player.GetPlayerName() == name ){
-			
-			return player;
-		
-		}
-	
+		if ( player.GetPlayerName().tolower() == name )
+		{		
+			return player;	
+		}	
 	}
 	
 	return p;
@@ -5722,9 +5734,7 @@ entity function GetPlayer( string str )
 	
 	if ( IsValidOID( str ) )
 	{
-	
-		return GetPlayerEntityByOID( str )
-	
+		return GetPlayerEntityByOID( str )	
 	}
 	else
 	{

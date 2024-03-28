@@ -25,6 +25,8 @@ global struct soloGroupStruct
 	bool GROUP_INPUT_LOCKED = false //lock group to their input - mkos
 	bool IsFinished = false //player1 or player2 is died, set this to true and soloModeThread() will handle this
 	bool IsKeep = false //player may want to play with current opponent,so we will keep this group
+	bool cycle = false // locked 1v1s can choose to cycle spawns
+	bool swap = false // locked 1v1s can have random side they spawn on
 	
 	float startTime
 }
@@ -104,6 +106,15 @@ float REST_GRACE = 5.0
 
 const int MAX_CHALLENGERS = 12
 
+void function resetChallenges()
+{
+	foreach ( chalStruct in file.allChallenges )
+	{
+		chalStruct.challengers.clear()
+	}
+	
+	file.acceptedChallenges.clear()
+}
 
 table<int, soloGroupStruct> function getGroupsInProgress()
 {
@@ -764,7 +775,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 	
 	if ( args.len() < 1)
 	{	
-		Message( player, "\n\n\nUsage: ", "challenge chal [playername/id] - Challenges a player to 1v1 \n challenge accept [playername/id] - Accepts challenge by playername or id. If no player is specified accepts most recent challenge \n challenge list - Shows a list of all challenges and their times", 5 )
+		Message( player, "\n\n\nUsage: ", "challenge chal [playername/id] - Challenges a player to 1v1 \n challenge accept [playername/id] - Accepts challenge by playername or id. If no player is specified accepts most recent challenge \n challenge list - Shows a list of all challenges and their times \n ", 5 )
 		return true;	
 	}
 	
@@ -784,14 +795,31 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 		
 			if( args.len() < 2 )
 			{
-				Message( player, "CHALLENGES", "/chal [playername/id]  - challenges a player to 1v1 \n /accept [playername/id] - accepts a specific challenge or the most recent if none specified \n /list - lists all challenges and time of challenge \n /end - ends and removes current challenge \n /remove [playername/id] - removes challenge from list by player name. \n /clear - clears all incoming challenges \n /revoke [playername/id] - Revokes a challenge sent to a player \n\n To disable, toggle lock1v1 button in rest area")			
+				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id]  - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id] - Revokes a challenge sent to a player\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n\nTo disable, toggle lock1v1 button in rest area", 25 )			
 			}
 			else 
 			{	
 				entity challengedPlayer;
-				challengedPlayer = GetPlayer(param)
 				
-				if( player == challengedPlayer)
+				if ( param == "player" )
+				{				
+					soloGroupStruct group = returnSoloGroupOfPlayer( player )
+					
+					if( !IsValid( group.player1 ) )
+					{
+						Message( player, "NOT IN A FIGHT")
+						return true
+					}
+					
+					challengedPlayer = player == group.player1 ? group.player2 : group.player1;
+					
+				}
+				else 
+				{
+					challengedPlayer = GetPlayer(param)
+				}
+				
+				if( player == challengedPlayer )
 				{
 					Message( player, "CANT CHALLENGE SELF")
 					return true
@@ -934,6 +962,67 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			else
 			{
 				Message( player, "Player QUIT")
+			}
+			
+			return true
+			
+		case "cycle":
+		
+			if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ) )
+			{}
+			else 
+			{
+				Message( player, "NOT IN CHALLENGE" )
+				return true
+			}
+			
+			soloGroupStruct group = returnSoloGroupOfPlayer( player )
+			
+			if(IsValid( group ))
+			{
+				if(group.cycle)
+				{
+					group.cycle = false;
+					Message( group.player1, "SPAWN CYCLE DISABLED" )
+					Message( group.player2, "SPAWN CYCLE DISABLED" )
+				}
+				else 
+				{
+					group.cycle = true;
+					Message( group.player1, "SPAWN CYCLE ENABLED" )
+					Message( group.player2, "SPAWN CYCLE ENABLED" )
+				}
+			}
+			
+			return true
+			
+			
+		case "swap":
+		
+			if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ) )
+			{}
+			else 
+			{
+				Message( player, "NOT IN CHALLENGE" )
+				return true
+			}
+			
+			soloGroupStruct group = returnSoloGroupOfPlayer( player )
+			
+			if(IsValid( group ))
+			{
+				if(group.swap)
+				{
+					group.swap = false;
+					Message( group.player1, "SPAWN SWAP DISABLED" )
+					Message( group.player2, "SPAWN SWAP DISABLED" )
+				}
+				else 
+				{
+					group.swap = true;
+					Message( group.player1, "SPAWN SWAP ENABLED" )
+					Message( group.player2, "SPAWN SWAP ENABLED" )
+				}
 			}
 			
 			return true
@@ -1771,7 +1860,7 @@ void function soloModefixDelayStart(entity player)
 	
 	HolsterAndDisableWeapons(player)
 
-	wait 8
+	wait 12
 	
 	if(!IsValid(player))
 	{
@@ -3051,6 +3140,20 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				{
 					if (IsValid( group.player1 ) && IsValid( group.player2 ) &&  ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ) )) 
 					{
+						int p1 = 0
+						int p2 = 1
+						
+						if(group.cycle)
+						{
+							group.groupLocStruct = soloLocations.getrandom()	
+						}
+						
+						if(group.swap)
+						{
+							p1 = CoinFlip() ? 1 : 0;		
+							p2 = p1 == 0 ? 1 : 0;
+						}
+						
 						bool nowep = false;
 						if ( processRestRequest( group.player1 ))
 						{	
@@ -3059,7 +3162,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 						}
 						else 
 						{
-							thread respawnInSoloMode(group.player1, 0)
+							thread respawnInSoloMode(group.player1, p1)
 						}
 						
 						
@@ -3070,7 +3173,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 						}
 						else 
 						{
-							thread respawnInSoloMode(group.player2, 1)
+							thread respawnInSoloMode(group.player2, p2)
 						}
 						
 						if(!nowep)

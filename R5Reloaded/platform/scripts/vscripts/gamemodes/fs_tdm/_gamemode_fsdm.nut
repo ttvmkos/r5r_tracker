@@ -1217,6 +1217,11 @@ void function SetTdmStateToInProgress()
 		FlagSet("START_LOG")
 	}
 	
+	if(g_bIs1v1)
+	{
+		resetChallenges()
+	}
+	
 	file.tdmState = eTDMState.IN_PROGRESS
 	SetGlobalNetInt( "FSDM_GameState", file.tdmState )	
 }
