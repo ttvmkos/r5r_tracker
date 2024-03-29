@@ -1362,18 +1362,22 @@ bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false
 		challenged.p.waitingFor1v1 = false
 	}
 	
-	soloGroupStruct group = returnSoloGroupOfPlayer( player )
-	
-	if( IsValid( group ) )
-	{	
-		group.IsKeep = false;
-		group.IsFinished = true;
-	}
-	
-	if(addmsg)
+	if ( iRemoveOpponent > 0 && isPlayerInProgress( player ) )
 	{
-		Message( player, "CHALLENGE ENDED")
+		soloGroupStruct group = returnSoloGroupOfPlayer( player )
+		
+		if( IsValid( group ) )
+		{	
+			group.IsKeep = false;
+			group.IsFinished = true;
+		}
+		
+		if(addmsg)
+		{
+			Message( player, "CHALLENGE ENDED")
+		}
 	}
+	
 	return true
 }
 
