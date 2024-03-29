@@ -3425,7 +3425,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 		// printt("------------------more than 2 player in solo waiting array,matching------------------")
 		soloGroupStruct newGroup
 		entity opponent
-		bool skipMessage = false
+		bool bMatchFound = false
 		//优先处理超时玩家
 		//player1:超时的玩家,player2:随机从等待队列里找一个玩家
 		
@@ -3455,7 +3455,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					newGroup.player2.p.waitingFor1v1 = false
 					Message(newGroup.player1, "1v1 CHALLENGE STARTED")
 					Message(newGroup.player2, "1v1 CHALLENGE STARTED")
-					skipMessage = true
+					bMatchFound = true
 					break
 				}
 				else 
@@ -3466,7 +3466,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			}
 		}
 	
-		if( getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
+		if( !bMatchFound && getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
 		{
 			//sqprint("TIME OUT MATCHING")
 			// Warning("Time out matching")
@@ -3491,7 +3491,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 							
 			}
 		}//超时玩家处理结束
-		else//不存在已超时玩家,正常按照kd匹配	
+		else if ( !bMatchFound )//不存在已超时玩家,正常按照kd匹配	
 		{	
 		
 			// Warning("Normal matching")
@@ -3652,7 +3652,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			if ( newGroup.player1.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
 			{ e_str = "ANY INPUT"; }
 			
-			if(newGroup.player1.p.enable_input_banner && !skipMessage )
+			if(newGroup.player1.p.enable_input_banner && !bMatchFound )
 			{
 				Message( newGroup.player1 , e_str, "VS: " + newGroup.player2.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player2 ) , 2.5)
 			}
@@ -3660,7 +3660,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			if ( newGroup.player2.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
 			{ e_str = "ANY INPUT"; }
 			
-			if(newGroup.player2.p.enable_input_banner && !skipMessage )
+			if(newGroup.player2.p.enable_input_banner && !bMatchFound )
 			{
 				Message( newGroup.player2 , e_str, "VS: " + newGroup.player1.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player1 ) , 2.5)
 			}
