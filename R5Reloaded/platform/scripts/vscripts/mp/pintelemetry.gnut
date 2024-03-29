@@ -2649,6 +2649,26 @@ void function Init_NewGame()
 			
 					Message(player, "\"playerToGroupMap\"", getPlayerToGroupMap().len().tostring())
 					return true
+					
+			case "end":
+			
+					DestroyAllTeslaTrapsForPlayer( player )	// no signal for destroying by owner.. (designed to persist)
+					player.Signal( "OnDestroy" ) //this takes care of most tacticals
+					//player.Signal( "CleanupPlayerPermanents" ) //needs implemented 
+					
+					if( IsValid( CryptoDrone_GetPlayerDrone( player ) ) )
+					{
+						GetPlayerOutOfCamera( player )// why isn't this set up? -> Signal( "ExitCameraView" )
+						CryptoDrone_GetPlayerDrone( player ).Destroy()
+					}
+					
+					if( IsValid(player.p.lastDecoy) )
+					{
+						player.p.lastDecoy.Destroy()
+					}
+							
+					Message( player, "DESTROYED" )
+					return true
 				
 					
 			default:
@@ -2884,6 +2904,14 @@ void function Commands( entity player, array<string> args )
 		case "\\swap":
 			args.remove(0)
 			args.insert(0, "swap")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!legend":
+		case "/legend":
+		case "\\legend":
+			args.remove(0)
+			args.insert(0, "legend")
 			ClientCommand_mkos_challenge( player, args )
 			break
 			

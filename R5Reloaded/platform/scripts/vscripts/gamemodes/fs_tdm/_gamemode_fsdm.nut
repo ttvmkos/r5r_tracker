@@ -279,7 +279,7 @@ void function Thread_CheckInput( entity player )
 
     while ( true ) 
 	{
-		wait 0.2
+		wait 0.2 //was 0.1
 		
 		if( !IsValid( player ) )
 			break
@@ -309,6 +309,7 @@ void function Thread_CheckInput( entity player )
 					
                         //sqprint("Player did change input! Old: " + player.p.input.tostring() + " - New: " + typeOfInput.tostring());
                         player.p.input = typeOfInput;
+						player.Signal("InputChanged") //registered signal in CPlayer class
 						
                     }
 					continue
@@ -2061,12 +2062,19 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
         else
         {
             if(!player.p.storedWeapons.len())
+			{
 				DecideRespawnPlayer(player, true)
+			}
             else
             {
 				DecideRespawnPlayer(player, false)
                 GiveWeaponsFromStoredArray(player, player.p.storedWeapons)
             }
+			
+			if( g_bIs1v1 )
+			{
+				player.TakeOffhandWeapon( OFFHAND_MELEE )
+			}		
         }
     }
 
@@ -2121,7 +2129,8 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
 			{
 				player.GiveWeapon( "mp_weapon_melee_halo", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
 				player.GiveOffhandWeapon( "melee_pilot_emptyhanded_halo", OFFHAND_MELEE, [] )
-			}else
+			}
+			else
 			{
 				player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
 				player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
@@ -2158,9 +2167,10 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
 
 			GiveRandomPrimaryWeapon(player)
 			GiveRandomSecondaryWeapon(player)
-
-            player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-            player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
+			
+		
+           player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
+           player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
 		} catch (e420) {}
     } else if(FlowState_RandomGunsMetagame() && !FlowState_Gungame() && IsValid( player ))
 	{
@@ -2171,6 +2181,7 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
 			GiveRandomPrimaryWeaponMetagame(player)
 			GiveRandomSecondaryWeaponMetagame(player)
 
+			
             player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
             player.GiveOffhandWeapon( "melee_pilot_emptyhandede", OFFHAND_MELEE, [] )
 		} catch (e420) {}
@@ -2200,6 +2211,7 @@ void function _HandleRespawn(entity player, bool isDroppodSpawn = false)
         GiveRandomSecondaryWeapon( player)
         GiveRandomTac(player)
         GiveRandomUlt(player)
+		
         player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
         player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
 		}catch(e420){}
@@ -4678,6 +4690,7 @@ void function CharSelect( entity player)
 	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
 	player.TakeOffhandWeapon( OFFHAND_MELEE )
 	player.TakeOffhandWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+	
 	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
 	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
 }
@@ -5958,6 +5971,7 @@ void function GivePlayerRandomCharacter(entity player)
 	TakeAllWeapons(player)
     GiveRandomPrimaryWeaponMetagame(player)
 	GiveRandomSecondaryWeaponMetagame(player)
+	
 	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
     player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
     GiveRandomTac(player)
