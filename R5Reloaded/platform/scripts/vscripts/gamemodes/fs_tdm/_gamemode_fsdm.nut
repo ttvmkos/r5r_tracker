@@ -1225,7 +1225,7 @@ void function SetTdmStateToInProgress()
 	}
 	
 	file.tdmState = eTDMState.IN_PROGRESS
-	SetGlobalNetInt( "FSDM_GameState", file.tdmState )	
+	SetGlobalNetInt( "FSDM_GameState", file.tdmState )
 }
 
 void function Flowstate_ServerSaveChat()
@@ -3696,7 +3696,7 @@ void function SimpleChampionUI()
 	if( GetCurrentPlaylistName() == "fs_dm" || GetCurrentPlaylistVarBool( "is_halo_gamemode", false ) )
 		wait Flowstate_StartTimeDelay
 
-	SetGameState( eGameState.Playing )
+	//SetGameState( eGameState.Playing )
 	SetTdmStateToInProgress()
 
 	if( GetCurrentPlaylistVarBool( "enable_oddball_gamemode", false ) )

@@ -14,6 +14,9 @@
     },
     "settings": {
         "PLAYER_WHITELIST": "1007946891142",
-        "ADMINS": ""
+        "ADMINS": "",
+        "ENABLE_CHATBOT": "true",
+        "CHATBOT_PREFIX": "SERVER",
+        "INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per second. |end= This message displays at the end. "
     }
 }

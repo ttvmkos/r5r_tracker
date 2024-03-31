@@ -26,6 +26,9 @@ global function maki_tp_player
 global function returnSoloGroupOfPlayer
 global function soloModePlayerToWaitingList
 global function ForceAllRoundsToFinish_solomode
+global function addStatsToGroup
+global function getBotSpawn
+global function RechargePlayerTactical //for testing
 
 global struct soloLocStruct
 {
@@ -35,6 +38,18 @@ global struct soloLocStruct
 	vector Center //center of Loc1 and Loc2
 	entity Panel //keep current opponent panel
 }
+
+global struct groupStats 
+{
+	entity player
+	string displayname
+	float damage = 0
+	int hits = 0
+	int shots = 0
+	int kills = 0
+	int deaths = 0
+}	
+
 global struct soloGroupStruct
 {
 	int groupHandle
@@ -55,6 +70,7 @@ global struct soloGroupStruct
 	bool swap = false // locked 1v1s can have random side they spawn on
 	
 	float startTime
+	table <entity,groupStats> statsRecap
 }
 global struct soloPlayerStruct
 {
@@ -121,6 +137,8 @@ bool bMap_mp_rr_canyonlands_64k_x_64k
 bool bMap_mp_rr_aqueduct
 bool bMap_mp_rr_arena_composite
 bool bGiveSameRandomLegendToBothPlayers
+bool bAllowLegend
+bool bAllowTactical
 
 array<string> Weapons = []
 array<string> WeaponsSecondary = []
@@ -216,7 +234,6 @@ bool function setSbmmSetting( string setting, float value )
 	unreachable
 }
 
-
 bool function isPlayerInProgress( entity player )
 {
 	if ( !IsValid( player ) )
@@ -240,6 +257,8 @@ void function INIT_Flags()
 {
 	bGiveSameRandomLegendToBothPlayers = GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false )
 	bIsKarma = GetCurrentPlaylistVarBool( "karma_server", false )
+	bAllowLegend = GetCurrentPlaylistVarBool( "give_legend", true )
+	bAllowTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", true ) //challenge only
 }
 
 int function GetUniqueID() 
@@ -807,6 +826,12 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////// mkos challenge system  ///////////////////////////////////////
 //client command: challenge
 
@@ -879,6 +904,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 							Message( player, "CHALLENGE SENT", "", 5)
 							string details = format("Player: %s wants to 1v1. \n\n Type /accept to accept the most recent challenge \n\n  or /accept [playername] to accept a specific 1v1 ", player.p.name  )
 							Message( challengedPlayer, "NEW REQUEST", details , 5 )
+							challengedPlayer.p.messagetime = Time()
 							break; 
 						
 						case 2:
@@ -1067,7 +1093,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			
 			
 		case "swap":
-		
+			
 			if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ) )
 			{}
 			else 
@@ -1098,6 +1124,12 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			
 		case "legend":
 		
+			if(!bAllowLegend)
+			{
+				Message( player, "Admin has disabled legends" )
+				return true
+			}
+			
 			if( param == "" )
 			{
 				string legendList = "";
@@ -1114,7 +1146,6 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			}
 		
 			string legend = "undefined";
-			//TODO: map legend to index. 
 			int index;
 			int indexMapLen = charIndexMap.len();
 			
@@ -1172,6 +1203,11 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			{
 				ItemFlavor select_character = characters[characterslist[index]]
 				CharacterSelect_AssignCharacter( ToEHI( player ), select_character )
+				
+				if(!bAllowTactical)
+				{
+					player.TakeOffhandWeapon(OFFHAND_TACTICAL)
+				}
 			}
 			else 
 			{
@@ -1184,6 +1220,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			Message( player, "Failed: ", "Unknown command \n", 5 )
 			return true
 	}
+	
 	return false;
 }
 
@@ -1225,7 +1262,6 @@ int function addToChallenges( entity challenger, entity challengedPlayer )
 	chalStruct.challengers[challenger] <- Time()
 	
 	return 1;
-	
 }
 
 
@@ -1471,15 +1507,18 @@ bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false
 	{
 		soloGroupStruct group = returnSoloGroupOfPlayer( player )
 		
-		if( IsValid( group ) )
-		{	
-			group.IsKeep = false;
-			group.IsFinished = true;
-		}
-		
 		if(addmsg)
 		{
 			Message( player, "CHALLENGE ENDED")
+		}
+		
+		if( IsValid( group ) )
+		{	
+			sendGroupRecapsToPlayers( group )
+			group.IsKeep = false;
+			group.IsFinished = true;
+			mkos_Force_Rest( group.player1, [] )
+			mkos_Force_Rest( group.player2 , [] )
 		}
 	}
 	
@@ -1537,6 +1576,82 @@ entity function getLock1v1OpponentOfPlayer( entity player )
 	return p
 }
 
+void function sendGroupRecapsToPlayers( soloGroupStruct group )
+{
+	groupStats player1 = group.statsRecap[group.player1]
+	groupStats player2 = group.statsRecap[group.player2]
+	
+	groupRecapStats( group.player1, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, player2.displayname, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, group.startTime ) 
+	groupRecapStats( group.player2, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, player1.displayname, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, group.startTime ) 
+}
+
+void function addStatsToGroup( entity player, soloGroupStruct group, float damage, int hits, int shots, bool isKill )
+{
+	if ( !( player in group.statsRecap ) )
+	{
+		groupStats gS;	
+		group.statsRecap[player] <- gS
+		group.statsRecap[player].player = player 
+		group.statsRecap[player].displayname = player.p.name
+	}
+	
+	group.statsRecap[player].damage += damage
+	group.statsRecap[player].hits += hits
+	group.statsRecap[player].shots += shots
+	
+	if(isKill)
+	{
+		group.statsRecap[player].kills++;
+	}
+	else 
+	{
+		group.statsRecap[player].deaths++;
+	}	
+}
+
+void function groupRecapStats(entity player, float damage, int hits, int shots, int kills, int deaths, string opponent, float opponentdamage, int opponenthits, int opponentshots, int opponentkills, int opponentdeaths, float startTime ) 
+{
+    float accuracy = 0.0;
+    float opponent_accuracy = 0.0;
+	
+    if (shots > 0.0) 
+	{
+        accuracy = (hits.tofloat() / shots.tofloat() ) * 100.0;
+		
+        if (accuracy >= 100.0) 
+		{
+            accuracy = 100.0;
+        }
+    }
+	
+	float kd = deaths > 0 ? kills.tofloat() / deaths.tofloat() : kills.tofloat()
+	float opponentkd = opponentdeaths > 0 ? opponentkills.tofloat() / opponentdeaths.tofloat() : opponentkills.tofloat()
+	
+    if (opponentshots > 0.0) 
+	{
+        opponent_accuracy = (opponenthits.tofloat() / opponentshots.tofloat() ) * 100.0;
+		
+        if (opponent_accuracy >= 100.0) 
+		{
+            opponent_accuracy = 100.0;
+        }
+    }
+
+	float lasted = Time() - startTime;
+    string print_totals = format("\n Fight lasted %d seconds. \n\n\n Your Dmg: %d \n Hits: %d \n Shots %d \n Your Accuracy: %d%% \n Your Kills: %d \n Your Deaths: %d \n Challenge KD: %.2f \n\n\n\n %s's Dmg: %d \n %s's Hits: %d \n %s's Shots %d \n %s's Accuracy: %d%% \n %s's Kills: %d \n %s's Deaths: %d \n %s's Challenge KD: %.2f", lasted, damage, hits, shots, accuracy, kills, deaths, kd, opponent, opponentdamage, opponent, opponenthits, opponent, opponentshots, opponent, opponent_accuracy, opponent, opponentkills, opponent, opponentdeaths, opponent, opponentkd);
+ 
+	if(IsValid(player))
+	{
+		player.p.messagetime = Time()
+		Message( player, "\n\n\n\n\n\n Recap vs: " + opponent, print_totals, 30 );
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2324,7 +2439,7 @@ void function _decideLegend( soloGroupStruct group )
 		else 
 		{
 			SetPlayerCustomModel( group.player1, group.p1LegendIndex )
-		}
+		}	
 	}
 
 	if ( IsValid(group.player2) && group.p2LegendIndex > 0 )
@@ -2339,6 +2454,17 @@ void function _decideLegend( soloGroupStruct group )
 			SetPlayerCustomModel( group.player2, group.p2LegendIndex )
 		}
 	}	
+	
+	if(!bAllowTactical)
+	{
+		group.player1.TakeOffhandWeapon(OFFHAND_TACTICAL)
+		group.player2.TakeOffhandWeapon(OFFHAND_TACTICAL)
+	}
+	else 
+	{
+		RechargePlayerTactical( group.player1 )
+		RechargePlayerTactical( group.player2 )
+	}
 }
 
 void function GivePlayerCustomPlayerModel( entity ent )
@@ -3620,7 +3746,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 	
 		if( !bMatchFound && getTimeOutPlayerAmount() > 0 )//存在已经超时的玩家
 		{
-			sqprint("TIME OUT MATCHING")
+			//sqprint("TIME OUT MATCHING")
 			// Warning("Time out matching")
 			newGroup.player1 = getTimeOutPlayer()  //获取超时的玩家
 			if(IsValid(newGroup.player1))//存在超时等待玩家
@@ -3996,7 +4122,7 @@ void function GiveWeaponsToGroup( array<entity> players )
 			
 			DeployAndEnableWeapons( player )
 
-			if ( !(player.GetPlayerName() in weaponlist))//avoid give weapon twice if player saved his guns
+			if ( !(player.GetPlayerName() in weaponlist))//avoid give weapon twice if player saved his guns //TODO: change to eHandle - mkos
 			{
 				TakeAllWeapons(player)
 
@@ -4090,7 +4216,7 @@ void function ForceAllRoundsToFinish_solomode()
 				player.SetPlayerNetInt( "spectatorTargetCount", 0 )
 				player.p.isSpectating = false
 				player.SetSpecReplayDelay( 0 )
-				//player.SetObserverTarget( null )
+				player.SetObserverTarget( null )
 				player.StopObserverMode()
 				Remote_CallFunction_NonReplay(player, "ServerCallback_KillReplayHud_Deactivate")
 				player.MakeVisible()
@@ -4116,6 +4242,7 @@ void function ForceAllRoundsToFinish_solomode()
 		
 		soloModePlayerToWaitingList( player )
 		FS_ClearRealmsAndAddPlayerToAllRealms( player )
+		HolsterAndDisableWeapons( player )
 	}
 	
 	
@@ -4388,5 +4515,53 @@ void function _CleanupPlayerEntities( entity player )
 	if( IsValid(player.p.lastDecoy) )
 	{
 		player.p.lastDecoy.Destroy()
+	}
+}
+
+LocPair function getBotSpawn()
+{	
+	LocPair move;
+	switch(GetMapName())
+	{
+		case "mp_rr_arena_composite":
+			move.origin = < 4.00458, -219.602, 202.3 >
+			move.angles = < 9.97307, 83.8519, 0 >
+			break
+		case "mp_rr_aqueduct":
+			move.origin = < 1044.03, -5510.88, 336.031 >
+			move.angles = < 12.4284, 314.095, 0 >
+			break	
+		case "mp_rr_party_crasher":
+			move.origin = < 2065.89, -4216.35, 626.106 >
+			move.angles = < 15.6277, 115.51, 0 >
+			break
+			
+		default: 
+		move.origin = <0,0,0>
+		move.angles = <0,0,0>
+	}
+	
+	return move
+}
+
+//taken from _clientcommands.gnut & CTF
+
+void function RechargePlayerTactical( entity player )
+{
+	ItemFlavor character = LoadoutSlot_WaitForItemFlavor( ToEHI( player ), Loadout_CharacterClass() )
+	//ItemFlavor ultiamteAbility = CharacterClass_GetUltimateAbility( character )
+	ItemFlavor tacticalAbility = CharacterClass_GetTacticalAbility( character )
+	player.GiveOffhandWeapon(CharacterAbility_GetWeaponClassname(tacticalAbility), OFFHAND_TACTICAL, [] )
+	//player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( ultiamteAbility ), OFFHAND_ULTIMATE, [] )
+	
+	if(IsValid(player.GetOffhandWeapon( OFFHAND_INVENTORY )))
+	player.GetOffhandWeapon( OFFHAND_INVENTORY ).SetWeaponPrimaryClipCount( player.GetOffhandWeapon( OFFHAND_INVENTORY ).GetWeaponPrimaryClipCountMax() )
+
+	if(IsValid(player.GetOffhandWeapon( OFFHAND_LEFT )))
+	{
+		player.GetOffhandWeapon( OFFHAND_LEFT ).SetWeaponPrimaryClipCount( player.GetOffhandWeapon( OFFHAND_LEFT ).GetWeaponPrimaryClipCountMax() )
+		
+		//Fix for grapple not recharging after grappling server created props
+		player.SetSuitGrapplePower(100)
 	}
 }

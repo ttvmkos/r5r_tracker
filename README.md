@@ -5,6 +5,43 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 ______________________________________________________________
 
+3/31/2024
+
+This update extends the challenge system with new commands, new features, new settings in playlist patch, and new settings in r5rdev_config.json
+
+- Updated challenge system to include stat recap after doing /end in a challenge.
+- Added the ability to choose legends, and use tactical abilities in challenge fights only. Cleanup of left over abilities happens on either player death. 
+
+- Configurable playlist options:
+
+- give_legend_tactical	1 //gives player tactical ability for legend on spawn
+- give_legend 		1 // allows giving legend ( during challenge only )
+
+- Extended /chat commands with:
+- /cycle
+- /swap
+
+- Cycle will cycle map spawns every death during challenge. Swap randomly swaps the sides each player spawns on. Can enable either/or both at same time. 
+
+- !!NEW!! Feature: ChatBot
+- Define custom messages to display as [SERVER] or [YOURCHOICE] (really your choice) in the chat. Messages can be defined by intervals of seconds in multiples of 10, or on events, such as start= end=.  Multiple messages can be defined for the same interval or event. 
+
+- New settings for the r5rdev_config control this feature, and can be configured here: https://r5r.dev/cp/?tab=config
+- For manual configuraiton see settings section in template in this repo EXAMPLES folder
+
+        "ENABLE_CHATBOT": "true",
+        "CHATBOT_PREFIX": "SERVER",
+        "INTERVAL_MESSAGES": "start=Welcome to an official R5R.DEV server. |start= Have suggestions? Open a ticket on www.r5r.dev |60=Stats tracking by www.R5R.DEV"
+
+
+- General code reformation, refactor
+- Changed input thread to use signal method registered in CPlayer class
+- Fixed a possible crash where wattson fences have possibility of having invalid ignoreents 
+- Fixed wrong vars used in acccuracy stats on lg duel recap ( client side only feature - doesn't effect global stats )
+- Added extra cc commands for debugability 
+- Implemented and registered a few new (temporary) sdk functions to achieve chatbot functionality until a full fledged package solution can be implemented. 
+
+______________________________________________________________
 
 3/27/2024
 
@@ -18,6 +55,7 @@ Added a challenge system for locking 1v1s.
 - /revoke [playername/id] - Revokes a challenge sent to a player 
 - To disable, toggle lock1v1 button in rest area
 
+______________________________________________________________
 
 3/23/2024
 
@@ -342,13 +380,14 @@ ______________________________________________________________________
 	default_lock1v1_setting					1 // 1 = allow locking.  default setting for player preference
 	end_match_message			// 0/1 disable or enable eng game messages
 	endgame_delay 				// time in seconds 
-	give_random_legend_on_spawn             1  // gives both opponents same random legend
+	give_random_legend_on_spawn             1  // gives both opponents same random legend ( all realms )
 	default_start_in_rest_setting			0
 	enable_voice				1
 	default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
 	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all client commands
 	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
-	give_legend_tactical		0 //gives player tactical ability for legend on spawn
+	give_legend_tactical		1 //gives player tactical ability for legend on spawn (challenge realm only)
+	give_legend 			1 // allows giving legend ( during challenge only )
 	rest_grace 			5.0 // time required from start of fight 
 					// or since last damage to rest during a fight 
 					// if player tries to rest, it will send them to rest after fight 

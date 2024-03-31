@@ -18,6 +18,11 @@
 #include "vscript/languages/squirrel_re/include/sqvm.h"
 #include "vscript_shared.h"
 #include "game/server/logger.h"
+#include "game/server/gameinterface.h"
+#include "common/callback.h"
+#ifndef CLIENT_DLL
+#include "engine/server/server.h"
+#endif // !CLIENT_DLL
 #include <random>
 
 namespace VScriptCode
@@ -415,6 +420,64 @@ namespace VScriptCode
             return SQ_OK;
         }
 
+        SQRESULT Shared::SQ_ServerMsg(HSQUIRRELVM v)
+        {
+            SQChar* msg = sq_getstring(v, 1);
+            int senderId = sq_getinteger(v, 2);
+            void* thisptr = nullptr;
+            CServerGameDLL::OnReceivedSayTextMessage(thisptr, senderId, msg, false);
+            return SQ_OK;
+        }
+
+        SQRESULT Shared::SQ_CreateServerBot(HSQUIRRELVM v)
+        {
+            if (!g_pServer->IsActive())
+            {
+                return SQ_OK;
+            }
+
+            std::string ImmutableName = sq_getstring(v, 1);
+            std::vector<std::string> args = { "sv_addbot", "[" + ImmutableName + "]", "1" };
+
+            const char* c_args[3];
+
+            for ( size_t i = 0; i < args.size(); ++i ) 
+            {
+                c_args[i] = args[i].c_str();
+            }
+
+            CCommand cmd(3, c_args, cmd_source_t::kCommandSrcUserInput);
+            CC_CreateFakePlayer_f(cmd);
+
+            for (int i = 0; i < g_ServerGlobalVariables->m_nMaxClients; i++)
+            {
+                CClient* pClient = g_pServer->GetClient(i);
+                if (!pClient)
+                {
+                    continue;
+                }
+
+                if (!pClient->IsHumanPlayer())
+                {
+                    const CNetChan* pNetChan = pClient->GetNetChan();
+
+                    if ( pNetChan->GetName() == "[" + ImmutableName + "]" )
+                    {
+                        int ID = pClient->GetUserID();
+
+                        if (ID >= 0 && ID < 119)
+                        {
+                            sq_newarray(v, 0);
+                            sq_pushinteger(v, static_cast<int>(pClient->GetHandle()));
+                            sq_arrayappend(v, -2);
+                            return SQ_OK;
+                        }
+                    }
+                }
+            }
+
+            return SQ_OK;
+        }
     }
 }
 
@@ -465,6 +528,10 @@ void Script_RegisterCommonAbstractions(CSquirrelVM* s)
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, SQ_ResetStats, "Sets map value for player_oid stats to empty string", "void", "string");
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, LoadBatchKDStrings, "Fetches batch player stats queries", "void", "string"); 
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, FetchGlobalSettingsFromR5RDEV, "Fetches global settings based on query", "string", "string");
+
+    //send a message as a bot.
+    DEFINE_SHARED_SCRIPTFUNC_NAMED(s, SQ_CreateServerBot, "Creates a bot to send messages", "array< int >", "string");
+    DEFINE_SHARED_SCRIPTFUNC_NAMED(s, SQ_ServerMsg, "Says message from specified senderId", "void", "string,int");
   
 }
 

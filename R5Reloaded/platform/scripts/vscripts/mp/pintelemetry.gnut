@@ -58,6 +58,7 @@ global function bGlobalStats
 global function bLog
 global function bEnc
 global function ClientCommand_mkos_test_return_data
+global function __executeEventStart_messages
 
 //admin util
 global function GetAdminList
@@ -80,6 +81,7 @@ global function LineBreak
 global function printarray
 global function CheckRate
 
+
 ////////////////////////////////////
 //
 global bool g_bIs1v1 //used in all modes
@@ -90,14 +92,22 @@ global float COMMAND_RATE_LIMIT = 0.200 //used in all client commands
 //
 ////////////////////////////////////
 
+
 const float MAX_WAIT_FOR_LOGGING_THREAD = 10 //5 seconds
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
-const int MAX_SAY_MSG = 100;
+const int MAX_SAY_MSG = 255;
 const SQ_MAX_INT_32 = 2147483647;
 const SQ_MIN_INT_32 = -2147483647;
 const RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
 const REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
 const float T_VERS = 2.1
+
+const array<string> EventTypes = [
+
+		"start",
+		"end"
+		
+	]
 
 //(respawns) game summary
 
@@ -211,7 +221,6 @@ struct {
 struct {
 	
 	table<int,PlayerData> HandleToPlayerData
-	table < int, array<string> > MessageEvents
 	array <string> ADMINS
 	
 	table <string,string> Global_R5RDEV_StringSettings
@@ -241,6 +250,18 @@ struct {
 	string DISCORD_MATCHES_WEBHOOK
 	string superglide_msg
 	string superglidetitle
+	
+	//ServerMessages
+	bool bChatbotEnabled
+	bool bIntervalThreadRunning
+	bool bKillIntervalThread
+	string sBotName
+	int iBotID
+	entity eBotEnt
+	
+	table < int, array<string> > MessageEvents
+	array<string> Messages_EventStart
+	array<string> Messages_EventEnd
 	
 } file
 
@@ -785,6 +806,12 @@ void function __CONTROLLED_LogInit()
 void function PIN_Init()
 {	
 	INIT_fastComputes()
+	INIT_IntervalMessages()
+	
+	if(file.bChatbotEnabled)
+	{
+		thread __LoadServerBot()
+	}
 	
 	if( file.LogOn )
 	{
@@ -802,6 +829,7 @@ void function PIN_Init()
 	//FlagInit("DeleteEvents")
 	//thread EventManager()
 	
+		AddCallback_GameStateEnter( eGameState.Playing, __executeEventStart_messages )
 		AddCallback_OnClientConnected(PlayerConnectedCallback);
 		AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data )
 		
@@ -877,6 +905,12 @@ void function INIT_fastComputes()
 	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false)
 	file.LogOn = GetCurrentPlaylistVarBool("logging_enabled", false)
 	file.LogE = GetCurrentPlaylistVarBool("logging_encryption", false)
+	file.bChatbotEnabled = SQ_GetSetting("settings.ENABLE_CHATBOT") == "true" ? true : false;
+	
+	if(file.bChatbotEnabled)
+	{
+		file.sBotName = SQ_GetSetting("settings.CHATBOT_PREFIX")
+	}	
 }
 
 void function UpdateFromLocalPersistence( entity player )
@@ -1078,7 +1112,6 @@ void function Init_NewGame()
 	///////////////////////////////////////////////////////////
 	
 	// Round started, make a new log. r5r.dev
-	//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
 	LogEvent(
 	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS,GetCurrentRound().tostring(), GetUnixTimestamp()),
 	file.LogE
@@ -2521,7 +2554,7 @@ void function Init_NewGame()
 				
 				break;
 				
-			case "serversay":
+			case "msg":
 			
 						if ( args.len() < 2)
 						{
@@ -2650,27 +2683,23 @@ void function Init_NewGame()
 					Message(player, "\"playerToGroupMap\"", getPlayerToGroupMap().len().tostring())
 					return true
 					
-			case "end":
+			case "start_interval_thread":
+
+					if(file.bIntervalThreadRunning)
+					{
+						Message( player, "Interval thread is already running." )
+						return true 
+					}
+					
+					thread IntervalThread()
+					return true 
+					
+			case "kill_interval_thread":
 			
-					DestroyAllTeslaTrapsForPlayer( player )	// no signal for destroying by owner.. (designed to persist)
-					player.Signal( "OnDestroy" ) //this takes care of most tacticals
-					//player.Signal( "CleanupPlayerPermanents" ) //needs implemented 
-					
-					if( IsValid( CryptoDrone_GetPlayerDrone( player ) ) )
-					{
-						GetPlayerOutOfCamera( player )// why isn't this set up? -> Signal( "ExitCameraView" )
-						CryptoDrone_GetPlayerDrone( player ).Destroy()
-					}
-					
-					if( IsValid(player.p.lastDecoy) )
-					{
-						player.p.lastDecoy.Destroy()
-					}
-							
-					Message( player, "DESTROYED" )
+					file.bKillIntervalThread = true;
+					Message( player, "INTERVAL THREAD STOPPING" )
 					return true
-				
-					
+
 			default:
 			
 						Message( player, "Usage", "cc #command #param1 #param2 #para...." )
@@ -2706,6 +2735,8 @@ void function RunUpdateMsg()
 			Message( player, update_title, update_msg, 3 )
 		}
 		
+		SendServerMessage(update_title)
+		
 		wait 3.6
 		
 	}
@@ -2728,48 +2759,192 @@ bool function EnableVoice()
 }
 
 //returns true if message was sent without truncation, false if truncated. 
-bool function SendServerMessage( string append_msg )
+bool function SendServerMessage( string _msg )
 {	
-	bool status = true;
-	
-	string send_msg = "[SERVER] " + append_msg;
-	
-	int msg_length = send_msg.len();
+	bool status = true;	
+	int msg_length = _msg.len();
 	
 	if ( msg_length > MAX_SAY_MSG )
 	{
-		send_msg = truncate( send_msg, MAX_SAY_MSG )
+		_msg = truncate( _msg, MAX_SAY_MSG )
 		sqerror("Message contained " + msg_length.tostring() + " characters ( " + (msg_length - MAX_SAY_MSG).tostring() + " too many ) and was truncated. Maxlength: " + MAX_SAY_MSG.tostring() )
 		status = false;
 	}
 	
-	//function to post the msg 
-	// ?
+	SQ_ServerMsg( sanitize( _msg ), file.iBotID )
 	
 	//if cafe's save chat log enabled
-	ReturnChatArray().append(send_msg)
-	
+	//ReturnChatArray().append(_msg)
 	return status
 }
 
-void function InitIntervalMessages()
+void function INIT_IntervalMessages()
 {
+	string msg_ArrayString = trim( SQ_GetSetting("settings.INTERVAL_MESSAGES") )
 	
+	if( msg_ArrayString.len() == 0 )
+	{
+		return
+	}
+	
+	array<string> interval_settings = split( msg_ArrayString , "|")
+	
+	int iMessageNum = 0
+	
+	foreach( msg_string in interval_settings )
+	{
+		iMessageNum++;
+		
+		array<string> _msg = split( trim(msg_string), "=" )
+		if( _msg.len() > 1 )
+		{
+			string sM0 = trim(_msg[0])
+			string sM1 = trim(_msg[1])
+			
+			#if DEVELOPER
+			sqprint(format("interval found: %s  ;message: %s", sM0, sM1))
+			#endif
+			
+			string sm0Match = sM0.tolower()
+			
+			if( IsNumeric( sM0, FS_RoundTime() ) && sM1.len() > 0 && sM1.len() < 1000 )
+			{
+				try
+				{
+					string sMsg = sanitize( sM1 )
+					
+					int convert = sM0.tointeger()
+					float iRound10 = ceil(float(convert) / 10.0) * 10
+					int interval = (iRound10 / 10).tointeger()
+					
+					if ( !( interval in file.MessageEvents ) )
+					{
+						array<string> messages;
+						
+						messages.append( sMsg )
+						
+						file.MessageEvents[interval] <- messages
+					}
+					else 
+					{
+						file.MessageEvents[interval].append( sMsg )
+					}
+				}
+				catch(c_err)
+				{
+					sqerror(format("Cannot add msg #[ %d ] to MessageEvents, improper format", iMessageNum ))
+				}
+			}
+			else if( EventTypes.find( sm0Match ) > -1 && sM1.len() > 0 && sM1.len() < 1000 )
+			{
+				switch( sm0Match )
+				{
+					case "start":
+						file.Messages_EventStart.append(sM1)
+						break
+					case "end":
+						file.Messages_EventEnd.append(sM1)
+						break
+				}
+			}
+			else 
+			{
+				sqerror("InitIntervalMessages parsing error")
+			}
+		}
+	}
+}
+
+
+void function __executeEventStart_messages()
+{	
+	if( file.Messages_EventStart.len() == 0 )
+	{
+		return 
+	}
+	
+	foreach ( message in file.Messages_EventStart )
+	{
+		SendServerMessage( message )
+	}
+}
+
+void function __executeEventEnd_messages()
+{
+	if( file.Messages_EventEnd.len() == 0 )
+	{
+		return 
+	}
+	
+	foreach ( message in file.Messages_EventEnd )
+	{
+		SendServerMessage( message )
+	}
 }
 
 void function InitPlayerWelcomeMessage()
 {
-
+	//requires filter recipient
 }
 
 void function IntervalThread()
 {
-
+	if(file.bIntervalThreadRunning)
+	{
+		sqerror( "Interval thread is already running." )
+		return
+	}
+	
+	int count = 0;
+	file.bIntervalThreadRunning = true
+	
+	while(true)
+	{	
+		if(file.bKillIntervalThread){ break }
+		
+		wait 10
+		count += 1;
+		
+		foreach(interval, msgs in file.MessageEvents) 
+		{
+			if ( ( count % interval) == 0 ) 
+			{
+				foreach( index, _msg in msgs ) 
+				{
+					SendServerMessage( _msg );
+				}
+			}
+		}	
+	}
+	
+	file.bIntervalThreadRunning = false
 }
 
 void function EventMessageSystem()
 {
+	//TODO
+}
 
+void function __LoadServerBot()
+{
+	wait 2
+	
+	array<int> result = SQ_CreateServerBot(file.sBotName)
+	
+	if( result.len() < 1 )
+	{
+		return
+	}
+	
+	file.iBotID = result[0]
+	
+	if(file.iBotID == -1)
+	{
+		return
+	}
+	
+	//file.iBotHandle = result[1]
+	//sqprint(format( "Bot id is: %d", file.iBotID ))
 }
 
 //chat commands
@@ -3142,14 +3317,13 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		
 		if ( totalDamageToVictim <= 0 )
 		{
-			return
-			
-			/*REPORT_STATS = false;
+			//return	
+			REPORT_STATS = false;
 			DeleteEvents Event;
 			Event.attacker_handle = attacker_handle 
 			Event.victim_handle = victim_handle
 			AddEventTask( Event, false )
-			return*/
+			return
 		}
 		
 		#if DEVELOPER
@@ -3361,6 +3535,8 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 						attackerShots += event_hitcount;
 					}	
 				}
+				
+				playerTotalShots[i] += attackerShots;
 			}
 		
 			logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
@@ -3378,7 +3554,18 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 									{
 										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.p.name, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
 									}
-								}					
+								}
+								
+								if( g_bIs1v1 )
+								{
+									soloGroupStruct group = returnSoloGroupOfPlayer( attacker )
+									
+									if( group.IsKeep )
+									{
+										addStatsToGroup( attacker, group, playerTotalDamages[i], playerTotalHits[i], playerTotalShots[i], true )
+									}
+								}
+								
 		}
 		
 		
@@ -3425,6 +3612,16 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 				{
 					RecapStats( victim, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat(), playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat()  )
 				}
+			}
+		}
+		
+		if( g_bIs1v1 )
+		{
+			soloGroupStruct group = returnSoloGroupOfPlayer( victim )
+			
+			if( group.IsKeep )
+			{
+				addStatsToGroup( victim, group, victimTotalDamage, victimTotalHits, victimTotalShots, false )
 			}
 		}
 			
@@ -3752,7 +3949,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
     float damageAmount = DamageInfo_GetDamage(damageInfo);
 
 	#if DEVELOPER
-	sqprint(format("Source ID: %d, Weapon Source: %d, Damage Amount: %.2f", weaponSource, weaponSource, damageAmount));
+	sqprint(format("Weapon Source: %d, Damage Amount: %.2f", weaponSource, damageAmount));
 	#endif
 
 	int attackerHandle = 0  
@@ -4179,7 +4376,7 @@ int function InitializePlayerMetricsStructForPlayerByUID( string playerID )
 		
 	PlayerMetrics NewMetrics;
 	NewMetrics.playerID = playerID
-		NewMetrics.playername = ""
+	NewMetrics.playername = ""
     NewMetrics.JumpTimestamps = []
     NewMetrics.WeaponShotsTimestamps = {}
 	NewMetrics.SuperglideTimestamps = []
@@ -4790,6 +4987,7 @@ void function PIN_RoundEnd( int roundnum )
 {	
 	if ( process_end_round_complete == true )
 	{
+		__executeEventEnd_messages()
 		thread FinishGameStatsRound()
 	}
 }
@@ -4892,6 +5090,25 @@ void function PIN_AddPlayer( entity player )
 {	
 	if(!IsValid(player)) return 
 	
+	if( file.bChatbotEnabled && player.GetPlayerName() == "["+ file.sBotName +"]")
+	{
+		file.eBotEnt = player 
+		
+		if( IsValid(file.eBotEnt) )
+		{
+			mkos_Force_Rest( file.eBotEnt, [] )
+			file.eBotEnt.p.start_in_rest_setting = true;
+			thread BotInvis( player )
+			thread IntervalThread()
+		}
+		else 
+		{
+			sqerror("ServerBot Entity Error")
+		}
+		
+		return
+	}
+	
 	string UID = player.GetPlatformUID()
 	InitializePlayerMetricsStructForPlayer( player )
 	
@@ -4933,11 +5150,7 @@ void function PIN_AddPlayer( entity player )
 	
 	if ( file.LogOn && isLogging() && IsValid( player ) )
 	{	
-	
-		string pName = player.GetPlatformUID();
 		string p_ea_name = player.GetPlayerName();
-		
-
 		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n\n\n\n\n " , 10)	
 
 		
@@ -4971,7 +5184,7 @@ void function PIN_AddPlayer( entity player )
 				if (IsValid(player)) 
 				{
 					LogEvent(format("^^,%s,0,%s,%d,,,,%i,,,,,%s\n",
-					   pName,
+					   UID,
 					   GetNumTeamsRemaining().tostring(),
 					   GetUnixTimestamp(),
 					   timeRemaining,
@@ -4985,7 +5198,16 @@ void function PIN_AddPlayer( entity player )
 			catch (error) 
 			{}		
 	}	
-	
+}
+
+void function BotInvis( entity bot )
+{	
+	maki_tp_player( bot, getBotSpawn() )
+	wait 7
+	maki_tp_player( bot, getBotSpawn() )
+	bot.MakeInvisible()
+	wait 2
+	bot.MakeInvisible()
 }
 
 void function PIN_PlayerLeft( entity player, string reason )

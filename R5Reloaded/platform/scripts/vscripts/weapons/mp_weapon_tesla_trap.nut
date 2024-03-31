@@ -496,16 +496,22 @@ TeslaTrapPlacementInfo function TeslaTrap_GetPlacementInfo( entity player, entit
 	vector traceOffset = TESLA_TRAP_PLACEMENT_TRACE_OFFSET_UPDATE
 
 	array<entity> ignoreEnts = TeslaTrap_GetAllDead()
-	ignoreEnts.extend( GetFriendlySquadArrayForPlayer_AliveConnected( player ) )
+	ignoreEnts.extend( GetFriendlySquadArrayForPlayer_AliveConnected( player ) )	
 	ignoreEnts.append( player )
 	ignoreEnts.append( proxy )
 
 	if ( ignorePlacedTraps )
+	{
 		ignoreEnts.extend( TeslaTrap_GetAll() )
+	}
 
-	foreach( ignoredEnt in ignoreEnts )
-		if( !IsValid( ignoredEnt ) )
-			ignoreEnts.fastremovebyvalue( ignoredEnt )
+	for ( int i = ignoreEnts.len() - 1; i >= 0; i-- )
+	{
+		if ( !IsValid(ignoreEnts[i]) )
+		{
+			ignoreEnts.remove(i);
+		}
+	}
 
 	TraceResults viewTraceResults = TraceLine( eyePos, eyePos + player.GetViewVector() * (file.balance_teslaTrapRange * 2), ignoreEnts, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE, player )
 	if ( viewTraceResults.fraction < 1.0 )

@@ -214,13 +214,34 @@ void function AddButtonReleasedPlayerInputCallback( entity player, int buttonEnu
 	AddPlayerInputEventCallback_Internal( player, callbackStruct )
 }
 
+
+string function sTimeToString( float time, bool msec = false, bool msecExpanded = false )
+{
+	int minsleft = int( time / 60 )
+	int secsleft = int( time ) % 60
+	if ( msec )
+	{
+		float msecsleft = time - int( time )
+		if ( msecExpanded )
+			return format( "%02d:%02d:%02d", minsleft, secsleft, msecsleft * 100 )
+		else
+			return format( "%02d:%02d", secsleft, msecsleft * 100 )
+	}
+
+	return format( "%02d:%02d", minsleft, secsleft )
+}
+
 void function RemoveButtonReleasedPlayerInputCallback( entity player, int buttonEnum, void functionref( entity player ) callbackFunc )
 {
+	//float timestart = Time()
 	PlayerInputEventCallbackStruct callbackStruct
 	callbackStruct.cmdsReleasedBitMask = buttonEnum
 	callbackStruct.callbackFunc = callbackFunc
 
 	RemovePlayerInputEventCallback_Internal( player, callbackStruct )
+	//float timeend = Time()
+	
+	//sqprint(format("[RemoveButtonReleasedPlayerInputCallback] execution time: %.15f", timeend - timestart))
 }
 
 
