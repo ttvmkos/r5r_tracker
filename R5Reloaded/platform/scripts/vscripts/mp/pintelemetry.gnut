@@ -3007,7 +3007,11 @@ void function Commands( entity player, array<string> args )
 		case "\\inputs":
 			ClientCommand_mkos_test_return_data( player, ["inputs"] )
 			break
-			
+		
+		case "!chal":
+		case "!chall":
+		case "/chall":
+		case "\\chall":
 		case "!challenge":
 		case "/challenge":
 		case "\\challenge":
@@ -5079,6 +5083,7 @@ void function PIN_GameEnd()
 	
 	if ( process_end_round_complete == true )
 	{
+		file.bKillIntervalThread = true; //TEST
 		thread FinishGameStatsRound()
 	}
 }

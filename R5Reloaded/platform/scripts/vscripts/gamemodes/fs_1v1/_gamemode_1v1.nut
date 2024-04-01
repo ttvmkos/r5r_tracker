@@ -838,8 +838,13 @@ bool function mkos_Force_Rest(entity player, array<string> args)
 bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 {
 	if (!CheckRate( player )) return false
-	
 	player.p.messagetime = Time()
+	
+	if( GetTDMState() != eTDMState.IN_PROGRESS )
+	{
+		Message( player, "Game is not playing" )
+		return true
+	}
 	
 	if ( args.len() < 1)
 	{	
@@ -1020,15 +1025,19 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 				
 				foreach ( revokedFromPlayer in GetPlayerArray() )
 				{
-					if(removeChallenger( revokedFromPlayer, player ))
+					if( IsValid(revokedFromPlayer) )
 					{
-						revoked++;
-						removed += player.p.name + "\n";
+						if(removeChallenger( revokedFromPlayer, player ))
+						{
+							revoked++;
+							removed += revokedFromPlayer.p.name + "\n";
+						}
 					}
 				}
 				
 				if ( revoked > 0 )
 				{
+					endLock1v1( player, false )
 					Message( player, format( "REVOKED %d CHALLENGES", revoked ), format( "\n----FROM PLAYERS---- \n\n %s", removed ), 10 )
 				}
 				else 
@@ -1301,6 +1310,22 @@ string function listPlayerChallenges( entity player )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
 	string list = "";
+	string emphasis = ""
+	entity opponent
+	
+	if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
+	{
+		opponent = getLock1v1OpponentOfPlayer( player )
+		
+		if( IsValid(opponent) )
+		{
+			list += format("***ACTIVE CHALLENGE***: %s \n\n", opponent.p.name )
+		}	
+	}
+	else 
+	{
+		list += "No active challenge yet... \n\n";
+	}
 	
 	if ( !IsValid(chalStruct) )
 	{
@@ -1309,14 +1334,14 @@ string function listPlayerChallenges( entity player )
 	
 	if( chalStruct.challengers.len() == 0 )
 	{
-		list = "No challenges yet...";
+		list += "No incoming challenges yet...";
 	}
 	
 	foreach ( challenger, chalTime in chalStruct.challengers )
 	{
 		
 		if (IsValid (challenger))
-		{
+		{		
 			list += format("Challenger: %s, Seconds ago: %d \n", challenger.p.name, Time() - chalTime )
 		}
 		else 
@@ -1549,6 +1574,11 @@ entity function returnChallengedPlayer( entity player )
 	
 	foreach( challenged, challenger in file.acceptedChallenges )
 	{
+		if(!IsValid(challenged) || !IsValid(challenger))
+		{
+			continue
+		}
+		
 		if ( challenger == player )
 		{
 			return challenged
@@ -1578,6 +1608,16 @@ entity function getLock1v1OpponentOfPlayer( entity player )
 
 void function sendGroupRecapsToPlayers( soloGroupStruct group )
 {
+	if( !IsValid(group) || !IsValid(group.player1) || !IsValid(group.player2) )
+	{
+		return
+	}
+	
+	if ( !( group.player1 in group.statsRecap ) || !( group.player2 in group.statsRecap ) )
+	{
+		return
+	}
+	
 	groupStats player1 = group.statsRecap[group.player1]
 	groupStats player2 = group.statsRecap[group.player2]
 	
@@ -1585,7 +1625,7 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 	groupRecapStats( group.player2, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, player1.displayname, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, group.startTime ) 
 }
 
-void function addStatsToGroup( entity player, soloGroupStruct group, float damage, int hits, int shots, bool isKill )
+void function addStatsToGroup( entity player, soloGroupStruct group, float damage, int hits, int shots, bool bIsKill )
 {
 	if ( !( player in group.statsRecap ) )
 	{
@@ -1599,7 +1639,7 @@ void function addStatsToGroup( entity player, soloGroupStruct group, float damag
 	group.statsRecap[player].hits += hits
 	group.statsRecap[player].shots += shots
 	
-	if(isKill)
+	if(bIsKill)
 	{
 		group.statsRecap[player].kills++;
 	}
@@ -1785,9 +1825,8 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 
 		}
 		
-		thread respawnInSoloMode(player)
-		
 		HolsterAndDisableWeapons(player)
+		thread respawnInSoloMode(player)
 		//TakeAllWeapons( player )
 	}
 	
@@ -1834,9 +1873,8 @@ void function expliciteRest( entity player )
 	}
 	catch (error){}
 	
-	thread respawnInSoloMode(player)
-	
 	HolsterAndDisableWeapons(player)
+	thread respawnInSoloMode(player)
 	//TakeAllWeapons( player )
 	
 	player.p.lastRestUsedTime = Time()
