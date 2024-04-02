@@ -5,6 +5,9 @@ Moved updates to changelog.
 
 - fixed bugs, refactor.
 - version ready for a battle test
+- new playlist settings:
+
+- challenge_recap_server_message	1 //enables quick kill/death recap msg in chat (requires chat bot enabled in r5rdev_config.json)
 
 ______________________________________________________________
 
