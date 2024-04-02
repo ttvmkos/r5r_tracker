@@ -61,6 +61,7 @@ global function ClientCommand_mkos_test_return_data
 global function __executeEventStart_messages
 global function eMessageBot
 global function SendServerMessage
+global function bBotEnabled
 
 //admin util
 global function GetAdminList
@@ -2951,6 +2952,11 @@ void function __LoadServerBot()
 entity function eMessageBot() //global
 {
 	return file.eBotEnt
+}
+
+bool function bBotEnabled()
+{
+	return file.bChatbotEnabled
 }
 
 //chat commands
