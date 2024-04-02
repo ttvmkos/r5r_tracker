@@ -111,7 +111,7 @@ There will be an automatic file generator on r5r.dev for creating these files wi
 	"ADMINS": "R5mkos-1007946891142",
        	"ENABLE_CHATBOT": "true",
         	"CHATBOT_PREFIX": "SERVER",
-        	"INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per second. |end= This message displays at the end. "
+        	"INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per minute. |end= This message displays at the end. "
     }
 }
 
