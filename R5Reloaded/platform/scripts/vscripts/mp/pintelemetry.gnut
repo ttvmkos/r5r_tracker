@@ -6372,8 +6372,8 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_plasma_grenade_halomod"] = 230,
 	["mp_weapon_oddball_primary"] = 231,
 	["melee_oddball"] = 232,
+	["mp_weapon_clickweaponauto"] = 233,
 	// lies
-	["mp_weapon_grenade_bangalore"] = 233,
 	["mp_weapon_grenade_creeping_bombardment"] = 234,
 	["mp_ability_area_sonar_scan"] = 235,
 	["mp_ability_hunt_mode"] = 236,
@@ -6395,7 +6395,9 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_tesla_trap"] = 252,
 	["mp_weapon_trophy_defense_system"] = 253,
 	["mp_ability_phase_walk"] = 254,
-	["mp_weapon_phase_tunnel"] = 255
+	["mp_weapon_phase_tunnel"] = 255,
+	["mp_weapon_grenade_bangalore"] = 256
+	
 
 };
 

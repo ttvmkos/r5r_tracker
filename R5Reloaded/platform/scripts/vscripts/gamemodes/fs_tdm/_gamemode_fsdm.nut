@@ -986,7 +986,7 @@ void function _CustomTDM_Init()
 
         UpdatePlayerCounts()
 		
-		if ( GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
+		if ( g_bLGmode )
 		{
 			INIT_LGDuels( player );
 		}
@@ -1760,7 +1760,7 @@ void function _OnPlayerDied(entity victim, entity attacker, var damageInfo)
 				if( !IsValid(victim) )
 					return
 				
-				if ( !GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
+				if ( !g_bLGmode )
 				{
 					if( victim == file.previousChallenger && victim != GetKillLeader() && victim != GetChampion() )
 						PlayAnnounce( "diag_ap_aiNotify_challengerEliminated_01" )
@@ -1843,7 +1843,7 @@ void function _OnPlayerDied(entity victim, entity attacker, var damageInfo)
 	    			GameRules_SetTeamScore(attacker.GetTeam(), GameRules_GetTeamScore(attacker.GetTeam()) + 1)
 					
 					//lg_duel mkos
-					if ( !GetCurrentPlaylistVarBool("lg_duel_mode_60p", false) )
+					if ( !g_bLGmode )
 					{
 						if( attacker == GetChampion() )
 							PlayerKillStreakAnnounce( attacker, "diag_ap_aiNotify_championDoubleKill_01", "diag_ap_aiNotify_championTripleKill_01" )
@@ -4054,7 +4054,7 @@ void function SimpleChampionUI()
 		//cycle map /mkos
 		string to_map = GetMapName();
 
-		if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) 
+		if ( g_bLGmode ) 
 		{
 			to_map = "mp_rr_canyonlands_staging";
 		} 

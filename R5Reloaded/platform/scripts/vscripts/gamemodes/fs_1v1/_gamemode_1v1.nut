@@ -2638,7 +2638,7 @@ void function _soloModeInit(string mapName)
 	characterslist = [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
 	
 	//INIT PRIMARY WEAPON SELECTION
-	if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) 
+	if ( g_bLGmode ) 
 	{
 		Weapons = [
 			"mp_weapon_clickweaponauto" //Lg_Duel beta
@@ -2674,7 +2674,7 @@ void function _soloModeInit(string mapName)
 	
 	
 	//INIT SECONDARY WEAPON SELECTION	
-	if (GetCurrentPlaylistVarBool("lg_duel_mode_60p", false)) {
+	if ( g_bLGmode ) {
 
 		WeaponsSecondary = [
 			"mp_weapon_clickweaponauto" //Lg_Duel beta
