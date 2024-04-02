@@ -2625,7 +2625,8 @@ void function SetPlayerCustomModel( entity ent, int index )
 
 void function _soloModeInit(string mapName)
 {	
-	RegisterSignal("On1v1Death")
+	//RegisterSignal("On1v1Death") //TODO
+	RegisterSignal( "NotificationChanged" )
 	INIT_1v1_sbmm()
 	INIT_Flags()
 	
@@ -4612,7 +4613,6 @@ void function notify_thread( entity player ) //whole thing is convoluted as fuck
 		return //this is threaded off so we want to check again
 	}
 	
-	RegisterSignal( "NotificationChanged" )
 	EndSignal( player, "PlayerDisconnected" )
 	
 	int id = player.p.handle + 1
