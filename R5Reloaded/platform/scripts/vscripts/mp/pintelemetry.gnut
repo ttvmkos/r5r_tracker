@@ -3527,7 +3527,10 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		//This for loop is fine, it should never really exceed 2-5 attackers on the same victim. Even if it's server limit, it's relatively close to O(1)	
 		for ( int i = 0; i < player_handles.len(); ++i ) 
 		{
-		
+			
+			attackerShots = 0
+			attackerSuperglides = 0
+			attackerJumps = 0
 			//attackers jumps & total shots for fight
 			int attackerIndex = GetPlayerMetricsIndexByUID( GetPlayerIdFromHandle(player_handles[i]) ); 
 			
@@ -3772,8 +3775,8 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 	//TODO redesign delete thread
 	void function EventManager() 
 	{		
-		if (DeleteEventTaskList.len() > 0)
-		{	
+		while ( DeleteEventTaskList.len() > 0 )
+		{				
 			int victim_handle = DeleteEventTaskList[0].victim_handle;
 			int attacker_handle = DeleteEventTaskList[0].attacker_handle;
 			RemoveEvents( victim_handle, attacker_handle );	
@@ -3826,7 +3829,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		#if DEVELOPER
 				foreach (event in allDamageEvents) 
 				{
-					sqprint(format( "Remaining event handle: dealer: %d, reciever: ", event.attackerHandle, event.victimHandle ));
+					sqprint(format( "Remaining event handle: dealer: %d, reciever: %d ", event.attackerHandle, event.victimHandle ));
 				}
 			sqprint(format("Total remaining events: %d, Total removed: %d", allDamageEvents.len(), removed));
 		#endif
@@ -3965,7 +3968,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
     float damageAmount = DamageInfo_GetDamage(damageInfo);
 
 	#if DEVELOPER
-	sqprint(format("Weapon Source: %d, Damage Amount: %.2f", weaponSource, damageAmount));
+	//sqprint(format("Weapon Source: %d, Damage Amount: %.2f", weaponSource, damageAmount));
 	#endif
 
 	int attackerHandle = 0  
