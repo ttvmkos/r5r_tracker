@@ -992,7 +992,7 @@ void function _CustomTDM_Init()
 		}
 		
 		// init for IBMM
-		if (g_bIs1v1)
+		if ( g_bIs1v1 && !player.p.bIsChatbot )
 		{	
 			Init_IBMM ( player )
 		}
@@ -4024,9 +4024,13 @@ void function SimpleChampionUI()
 	if( file.currentRound == Flowstate_AutoChangeLevelRounds() && Flowstate_EnableAutoChangeLevel() )
 	{
 	
-		
-		// foreach( player in GetPlayerArray() )
-			// Message( player, "We have reached the round to change levels.", "Total Round: " + file.currentRound, 6.0 )
+		foreach( player in GetPlayerArray() )
+		{
+			if (player.p.isSpectating)
+			{
+				endSpectate( player )
+			}
+		}	
 		
 		string matchEndingTitle = GetCurrentPlaylistVarString( "custom_match_ending_title", "Server clean up incoming" )
 		string matchEndingMessage = GetCurrentPlaylistVarString( "custom_match_ending_message", "Don't leave. Server is going to reload to avoid lag." )

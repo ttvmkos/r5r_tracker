@@ -5,239 +5,11 @@ Drag and drop files into your R5Reloaded folder. For: Flowstate 4.1
 
 ______________________________________________________________
 
-3/31/2024
 
-This update extends the challenge system with new commands, new features, new settings in playlist patch, and new settings in r5rdev_config.json
-
-- Updated challenge system to include stat recap after doing /end in a challenge.
-- Added the ability to choose legends, and use tactical abilities in challenge fights only. Cleanup of left over abilities happens on either player death. 
-
-- Configurable playlist options:
-
-- give_legend_tactical	1 //gives player tactical ability for legend on spawn
-- give_legend 		1 // allows giving legend ( during challenge only )
-
-- Extended /chat commands with:
-- /cycle
-- /swap
-
-- Cycle will cycle map spawns every death during challenge. Swap randomly swaps the sides each player spawns on. Can enable either/or both at same time. 
-
-- !!NEW!! Feature: ChatBot
-- Define custom messages to display as [SERVER] or [YOURCHOICE] (really your choice) in the chat. Messages can be defined by intervals of seconds in multiples of 10, or on events, such as start= end=.  Multiple messages can be defined for the same interval or event. 
-
-- New settings for the r5rdev_config control this feature, and can be configured here: https://r5r.dev/cp/?tab=config
-- For manual configuraiton see settings section in template in this repo EXAMPLES folder
-
-        "ENABLE_CHATBOT": "true",
-        "CHATBOT_PREFIX": "SERVER",
-        "INTERVAL_MESSAGES": "start=Welcome to an official R5R.DEV server. |start= Have suggestions? Open a ticket on www.r5r.dev |60=Stats tracking by www.R5R.DEV"
-
-
-- General code reformation, refactor
-- Changed input thread to use signal method registered in CPlayer class
-- Fixed a possible crash where wattson fences have possibility of having invalid ignoreents 
-- Fixed wrong vars used in acccuracy stats on lg duel recap ( client side only feature - doesn't effect global stats )
-- Added extra cc commands for debugability 
-- Implemented and registered a few new (temporary) sdk functions to achieve chatbot functionality until a full fledged package solution can be implemented. 
+If you are a verified host, request verified status on https://r5r.dev
+This will give you access to your control panel, where you can generate your api key, and create your config file.
 
 ______________________________________________________________
-
-3/27/2024
-
-Added a challenge system for locking 1v1s.
-
-- /chal [playername/id]  - challenges a player to 1v1 
-- /accept [playername/id] - accepts a specific challenge or the most recent if none specified 
-- /list - lists all challenges and time of challenge \n /end - ends and removes current challenge 
-- /remove [playername/id] - removes challenge from list by player name. 
-- /clear - clears all incoming challenges 
-- /revoke [playername/id] - Revokes a challenge sent to a player 
-- To disable, toggle lock1v1 button in rest area
-
-______________________________________________________________
-
-3/23/2024
-
-- Patched return to spawn with weapons
-- Patched worldspawn info
-
-- New feature, playlist setting: rest_grace  
-- time required from start of fight or since last damage to rest during a fight if player tries to rest, it will send them to rest after fight and tell them they can try again in (n) seconds. Default if not specified in playlist is 0.0 (disabled)
-
-- Decluttered global name space
-- Fixed discord hooks
-______________________________________________________________
-
-3/19/2024
-
-- Fixed a client side crash bug server sided:
-- Removed the ability to spectate after eTDMstate is not game playing.
-- Forced all spectators to stop spectating after playing state finishes.
-
-- Fixed a realms exploit that could crash the server
-
-______________________________________________________________
-
-!! NEW 3/14/2024 [PERFORMANCE inspired rewrite]
-
-- ## Redesigned tracker engine code
-- ## With it: New setting for r5rdev.config (see examples folder for template):
-
- -       "DELETE_ALL_LOGS": true,
- -       "CVAR_MAX_BUFFER": 100
-
-- DELETE_ALL_LOGS, with auto delete on, will delete the game data logs after sending.
-- CVAR_MAX_BUFFER allows you to experiment with different buffer sizes, that which controls the active writer. 
-
-- ## new play list options ##: 
-
-- default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
-- COMMAND_RATE_LIMIT		0.200 //Rate limiting for all commands
-- enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
-
-- ## dev notes ##:
-
-- fixed movement input callbacks
-- reworked tracker engine/ tracker scripts / 1v1 game mode
-- redesigned struct methods to use constant time operations
-- replaced loops with constant time operatons
-- converted string comparisons to int ref
-- created several new utility functions and "systems"
-- focused primarily on performance
-- fixed numerous bugs and issues
-
-- still much more to do..
-
-
-______________________________________________________________
-
-NEW 3/13/2024 [NIGHT update]
-
-- Added rotate feature. To configure, add a list of comma separated maps for:
-- maplist "mp_rr_arena_composite,mp_rr_aqueduct,mp_rr_party_crasher"
-- rotate_map 		1 // rotatesmaps in maplist
-
-- Added new 1v1 map with spawns: mp_rr_party_crasher - to enable add mp_rr_party_crasher to fs_1v1 maps in playlist
-
-
-______________________________________________________________
-
-NEW 3/13/2024
-
-- General code improvements.
-- Complete synced settings query system
-
-Added persistence setting:
-- start_in_rest (players start match in rest)
-
-Added synced stat:
-- score (from global tracker)
-
-Added playlist vars:
-- restricted_rank  200 // int for minimum rank allowed to join restricted_server 1
-- give_random_legend_on_spawn             0  //  0/1
-- default_lock1v1_setting       1      //default setting for users without preference
-- enable_voice   1    //enables all_chat and enables voice convars on start (if not already enabled)
-
-
-
-Added new cc commands:
-
-- cc sayto [player] [title] [msg] [duration]     //only needs player and title - sends message only to specified player
-- cc vc [0/1]  //enables or disables voice chat
-- cc startbr  //starts br without minimum players reached
-
-Added to r5rdev_config.json: (playername-oid comma separated list) 
-- "ADMINS": ""
-
-indev:
-
-- custom chat messages sent at configured intervals
-- voice / chat muting. voice overlay
-- challenge system
-
-___________________________________________________________________
-
-NEW 3/8/2024
-
-Refactored/Reworked various code
-Added persistence system for various settings (with stats)
-
-- saved weapons
-- lock1v1 setting
-- wait time
-
-I reccomend using a unique identifier of your choosing. Servers are identified by ip:identifier
-The identifier must be alphanumeric, underscore  hypen only, less than 30 characters. identifiers that fail the check are set as 'none'
-
-
-Added playlist settings:
-
-end_match_message // 0/1 disable or enable eng game messages
-endgame_delay // time in seconds 
-
-
-NEW 3/7/2024
-
-added playlist setting:  enable_lock1v1 0/1  //0 = removes panels for locking 1v1s
-added panels for player wait time / lock1v1 settings
-
-New client command: lock1v1 1/0 or on/off or true/false -- 
-
-
-
-NEW 3/6/2024
-
-THE CONFIG FILE TEMPLATE WAS MOVED TO THE EXAMPLE FOLDER. In order for the config file to be used it must be within your platform folder.  This move makes sure future udpates don't overwrite your saved configs.
-
-
-To configure restricted servers, the following lines can be added to your playlist patch file:
-
-// restricted servers
-restricted_server 1			// 1 = restrictions enabled
-
-restricted_join_message "Welcome to the R5R.DEV elite server. \n\n You meet the minimum requirements to play on this server."
-restricted_whitelist_message "You're whitelisted for the R5R.DEV elite server"
-
-restricted_kills 500			// minimum kills required to play
-restricted_kd 0.7  			// minimum kd ratio
-restricted_playtime 10000 		// minimum play time in seconds
-restricted_gamesplayed 10 		// minimum games played
-
-
-// END ########
-Additionally, to include a whitelist of players that will always bypass any requirements, a new setting has been added to the r5rdev_config.json file:
-
-"settings": {
-        "PLAYER_WHITELIST": "1007946891142"
-    }
-
-Add a list of comma-seperated OID (uid) here. For example
-
-"PLAYER_WHITELIST": "1007946891142,12312123,5555555555"
-
-See the config file located in example folder
-I highly reccomend adding your admins to the whitelist. 
-To get a good idea of default settings for your restricted server you can always browse https://r5r.dev/hs
-
-
-
-Commands added:
-
-aa - players can type aa in console to see current aim assist values on server.
-
-cc restricted 0/1 - temporarily disabled/enables restricted mode on server mid-round (wont save on reload)
-cc reload_config - reloads the r5rdev_config.json file  (similar to reload_playlists)
-
-
-
-
-2/1/2024:
-
-Webhook urls can still be placed in the playlists file, 
-but due to security concerns, it is highly reccomended
-to use the config file in platform/r5rdev_config.JSON
 
 
 THE CONFIG FILE:
@@ -288,6 +60,30 @@ PLAYER_WHITELIST
 	
 	comma separated list of user id's to bypass restricted 'elite' servers.
 
+ADMINS
+
+	comma separated list of EAusername-uid separated players
+
+ENABLE_CHATBOT
+        
+	if set to true, enables server chat bot
+
+CHATBOT_PREFIX 
+
+	sets the name the serverbot is prefixed with. SERVER, would result in the chatbot being named [SERVER]
+
+INTERVAL_MESSAGES
+
+	configure messages based on events and interval seconds. syntax is   interval= message |interval= message
+	If a message exceeds 255 characters, it will be truncated at the 255th character and sent anyway.
+
+	An example configuration where 2 start messages, 1 interval in seconds, and 1 end message are configured is:
+
+	start=Welcome to server |start= Enjoy |60= This message repeats every 60 seconds |end= The game is over, hope it was good!
+
+
+
+
 You may also add your own key values, and they will be parsed into an unordered map in the sdk. 
 You can access these via the scripts as well using SQ_GetSetting("name_of_your_key") for example.
 If a key contains another key, it is parsed into an object style syntax.
@@ -312,7 +108,10 @@ There will be an automatic file generator on r5r.dev for creating these files wi
     },
     "settings": {
 	"PLAYER_WHITELIST": "",
-	"ADMINS": "R5mkos-1007946891142"
+	"ADMINS": "R5mkos-1007946891142",
+       	"ENABLE_CHATBOT": "true",
+        	"CHATBOT_PREFIX": "SERVER",
+        	"INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per second. |end= This message displays at the end. "
     }
 }
 
@@ -329,11 +128,11 @@ ______________________________________________________________________
 	logging_enabled 						1 //enables logging system
 	logging_encryption						1 //encrypts data for transfer (reccomended)
 	logging_shipstats 						1 // connects to tracker server to keep player stats up to date (only verified servers count towards leaderboard)
-	default_ibmm_wait						5 //0 for instant queue any input
-	ibmm_wait_limit							15 //maximum wait time allowed to match input
+	default_ibmm_wait						5 //0 for instant queue any input (reccomend 0 as a default)
+	ibmm_wait_limit						15 //maximum wait time allowed to match input
 	lg_duel_mode_60p						0  //enables beta lg mode
 				
-	rest_msg								1 // displays block message during rest with helpful commands information
+	rest_msg							1 // displays block message during rest with helpful commands information
 	afk_to_rest_bool						1 // makes player rest when afk instead of kick
 	enable_ping_kick						0 // 0 disables ping kick for this mode
 	enable_afk_thread 						1 //0 disables afk thread for this mode
@@ -386,8 +185,13 @@ ______________________________________________________________________
 	default_enable_input_banner_setting     0  ///disables spammy player input banner on spawn
 	COMMAND_RATE_LIMIT		0.200 //Rate limiting for all client commands
 	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
+	
+	//challenges
 	give_legend_tactical		1 //gives player tactical ability for legend on spawn (challenge realm only)
 	give_legend 			1 // allows giving legend ( during challenge only )
+	challenge_recap_server_message	1 //enables quick kill/death recap msg in chat (requires chat bot enabled in r5rdev_config.json)
+
+
 	rest_grace 			5.0 // time required from start of fight 
 					// or since last damage to rest during a fight 
 					// if player tries to rest, it will send them to rest after fight 

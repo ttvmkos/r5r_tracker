@@ -749,6 +749,8 @@ global struct ServerPlayerStruct
 	string hitsound
 	int input
 	string inputmode
+	bool challengenotify = false //need to make a notify system
+	entity eLastChallenger
 	bool notify = false
 	bool has_notify = false
 	bool destroynotify = false
@@ -771,6 +773,7 @@ global struct ServerPlayerStruct
 	float ratelimit
 	bool rest_request = false
 	bool waitingFor1v1 = false
+	bool bIsChatbot = false
 	
 	//MovementGym
 	bool isTimerActive = false

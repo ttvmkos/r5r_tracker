@@ -59,6 +59,8 @@ global function bLog
 global function bEnc
 global function ClientCommand_mkos_test_return_data
 global function __executeEventStart_messages
+global function eMessageBot
+global function SendServerMessage
 
 //admin util
 global function GetAdminList
@@ -852,6 +854,7 @@ void function PIN_Init()
 			file.FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
 	
+	//moved to r5rdev_config.json
 	file.DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	file.DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	
@@ -860,16 +863,12 @@ void function PIN_Init()
 	INIT_MapNames()
 	INIT_playeradmins()
 	
-	//init bools (must be before string inits)
-	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
-	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
-	
 	if (file.restricted_server) 
 	{
 		INIT_player_whitelist()
 	}
 	
-	//init strings
+	//init superglide strings
 	file.sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false )
 	file.superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
 	file.superglidetitle = file.global_stats ? "Season Glides" : "Glides";
@@ -886,17 +885,12 @@ void function PIN_Init()
 		EnableVoice()
 	}
 	
-	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
-	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
-	
 	if( GetCurrentPlaylistVarBool( "enable_chat_commands", true ) )
 	{
 		AddClientCommandCallback( "say", ClientCommand_ParseSay )
 	}
 	
 }
-
-
 
 void function INIT_fastComputes()
 {
@@ -905,12 +899,19 @@ void function INIT_fastComputes()
 	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false)
 	file.LogOn = GetCurrentPlaylistVarBool("logging_enabled", false)
 	file.LogE = GetCurrentPlaylistVarBool("logging_encryption", false)
-	file.bChatbotEnabled = SQ_GetSetting("settings.ENABLE_CHATBOT") == "true" ? true : false;
+	file.bChatbotEnabled = !IsLobby() && SQ_GetSetting("settings.ENABLE_CHATBOT") == "true" ? true : false;
 	
 	if(file.bChatbotEnabled)
 	{
 		file.sBotName = SQ_GetSetting("settings.CHATBOT_PREFIX")
 	}	
+	
+	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
+	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
+	
+	//init stat bools (must be before string inits)
+	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
+	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
 }
 
 void function UpdateFromLocalPersistence( entity player )
@@ -2947,6 +2948,11 @@ void function __LoadServerBot()
 	//sqprint(format( "Bot id is: %d", file.iBotID ))
 }
 
+entity function eMessageBot() //global
+{
+	return file.eBotEnt
+}
+
 //chat commands
 bool function ClientCommand_ParseSay( entity player, array<string> args )
 {		
@@ -3822,7 +3828,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 
 
 // these need replaced with global CONST to make future updates seamless
-table<int,float> DamagePerBullet = {
+const table<int,float> DamagePerBullet = {
 
  [54] = 7.00, //mp_weapon_shotgun
  [55] = 11.00, //mp_weapon_mastiff
@@ -3832,7 +3838,7 @@ table<int,float> DamagePerBullet = {
  
 }
 
-table<int,int> SpecialWeaponsBulletsPerShot = {
+const table<int,int> SpecialWeaponsBulletsPerShot = {
 
  [54] = 8, //mp_weapon_shotgun
  [55] = 8, //mp_weapon_mastiff
@@ -4967,8 +4973,9 @@ void function WeaponAttack(entity player, entity weapon, string weaponName, int 
 
 /**** END JUMPS SHOTS SUPERGLIDES ************************************************************/
 
-void function PlayerDisconnectedCallback(entity player) 
+void function PlayerDisconnectedCallback( entity player ) 
 {	
+	player.Signal( "PlayerDisconnected" )
     string reason = "Disconnection";
     PIN_PlayerLeft(player, reason);
 }
@@ -5071,16 +5078,7 @@ void function FinishGameStatsRound()
 
 
 void function PIN_GameEnd()
-{
-
-	foreach( player in GetPlayerArray() )
-	{
-		if (player.p.isSpectating)
-		{
-			endSpectate( player )
-		}
-	}
-	
+{	
 	if ( process_end_round_complete == true )
 	{
 		file.bKillIntervalThread = true; //TEST
@@ -5101,6 +5099,7 @@ void function PIN_AddPlayer( entity player )
 		
 		if( IsValid(file.eBotEnt) )
 		{
+			player.p.bIsChatbot = true
 			mkos_Force_Rest( file.eBotEnt, [] )
 			file.eBotEnt.p.start_in_rest_setting = true;
 			thread BotInvis( player )

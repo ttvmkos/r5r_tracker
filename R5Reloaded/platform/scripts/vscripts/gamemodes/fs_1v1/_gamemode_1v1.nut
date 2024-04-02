@@ -139,6 +139,7 @@ bool bMap_mp_rr_arena_composite
 bool bGiveSameRandomLegendToBothPlayers
 bool bAllowLegend
 bool bAllowTactical
+bool bChalServerMsg
 
 array<string> Weapons = []
 array<string> WeaponsSecondary = []
@@ -259,6 +260,7 @@ void function INIT_Flags()
 	bIsKarma = GetCurrentPlaylistVarBool( "karma_server", false )
 	bAllowLegend = GetCurrentPlaylistVarBool( "give_legend", true )
 	bAllowTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", true ) //challenge only
+	bChalServerMsg = bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
 }
 
 int function GetUniqueID() 
@@ -906,10 +908,10 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 					switch(result)
 					{
 						case 1: 
-							Message( player, "CHALLENGE SENT", "", 5)
-							string details = format("Player: %s wants to 1v1. \n\n Type /accept to accept the most recent challenge \n\n  or /accept [playername] to accept a specific 1v1 ", player.p.name  )
-							Message( challengedPlayer, "NEW REQUEST", details , 5 )
 							challengedPlayer.p.messagetime = Time()
+							Message( player, "CHALLENGE SENT", "", 5)
+							string details = format("Player: %s wants to 1v1. \n Type /accept to accept the most recent challenge \n or /accept [playername] to accept a specific 1v1 ", player.p.name  )
+							Message( challengedPlayer, "NEW REQUEST", details , 10 )
 							break; 
 						
 						case 2:
@@ -1315,11 +1317,11 @@ string function listPlayerChallenges( entity player )
 	
 	if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
 	{
-		opponent = getLock1v1OpponentOfPlayer( player )
+		opponent = returnChallengedPlayer( player )
 		
 		if( IsValid(opponent) )
 		{
-			list += format("***ACTIVE CHALLENGE***: %s \n\n", opponent.p.name )
+			list += format("***ACTIVE CHALLENGE***:[ %s ]\n\n", opponent.p.name )
 		}	
 	}
 	else 
@@ -1390,11 +1392,8 @@ bool function acceptChallenge( entity player, entity challenger )
 	
 	if ( challenger in chalStruct.challengers )
 	{
-		file.acceptedChallenges[player] <- challenger 
-		player.p.waitingFor1v1 = true 
-		challenger.p.waitingFor1v1 = true
-		Message( player, "CHALLENGE ACCEPTED")
-		Message( challenger, "CHALLENGE ACCEPTED")
+		file.acceptedChallenges[player] <- challenger 	
+		SetUpChallengeNotifications( player, challenger )
 	}
 	else 
 	{
@@ -1461,17 +1460,38 @@ bool function acceptRecentChallenge( entity player )
 	//sqprint("accepted")
 	
 	file.acceptedChallenges[player] <- recentChallenger 
-	player.p.waitingFor1v1 = true 
-	recentChallenger.p.waitingFor1v1 = true
-	
-	Message( player, "CHALLENGE ACCEPTED")
-	Message( recentChallenger, "CHALLENGE ACCEPTED")
+	SetUpChallengeNotifications( player, recentChallenger )
 	
 	return true
 }
 
+void function SetUpChallengeNotifications( entity player, entity challenger ) //this shit needs a system
+{
+	player.p.waitingFor1v1 = true 
+	challenger.p.waitingFor1v1 = true
+	Message( player, "CHALLENGE ACCEPTED")
+	Message( challenger, "CHALLENGE ACCEPTED")
+	SetChallengeNotifications( [player,challenger], true )
+	player.p.eLastChallenger = challenger
+	challenger.p.eLastChallenger = player
+	player.p.destroynotify = true
+	challenger.p.destroynotify = true
+	RemovePanelText( player, player.p.handle )
+	RemovePanelText( player, challenger.p.handle )
+}
+
+void function SetChallengeNotifications( array<entity> players, bool setting )
+{
+	foreach ( player in players )
+	{
+		if( !IsValid( player ) ){continue}	
+		player.p.challengenotify = setting
+	}
+}
+
 bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false )
 {
+	player.Signal( "NotificationChanged" )
 	int iRemoveOpponent = 0
 	entity opponent = getLock1v1OpponentOfPlayer( player )
 	entity challenged;
@@ -1547,6 +1567,24 @@ bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false
 		}
 	}
 	
+	if( iRemoveOpponent > 0 )
+	{
+		entity opp;
+		
+		if(IsValid(opponent))
+		{
+			opponent.Signal( "NotificationChanged" )
+			opp = opponent
+		}
+		else if( IsValid(challenged) )
+		{
+			challenged.Signal( "NotificationChanged" )
+			opp = challenged
+		}
+		
+		SetChallengeNotifications( [player,opp], false )
+	}
+	
 	return true
 }
 
@@ -1582,6 +1620,10 @@ entity function returnChallengedPlayer( entity player )
 		if ( challenger == player )
 		{
 			return challenged
+		}
+		else  if ( challenged == player )
+		{
+			return challenger
 		}
 	}
 	
@@ -1620,6 +1662,50 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 	
 	groupStats player1 = group.statsRecap[group.player1]
 	groupStats player2 = group.statsRecap[group.player2]
+	
+	string serverMsg = ""
+	string winner = ""
+	string defeated = ""
+	int winnerKills = 0
+	int defeatedDeaths = 0
+	bool tied = false
+	
+	if( bChalServerMsg )
+	{
+		if( player1.kills > player2.kills )
+		{
+			winner = group.player1.p.name 
+			winnerKills = player1.kills
+			defeated = group.player2.p.name 
+			defeatedDeaths = player2.kills
+		}
+		else if ( player2.kills > player1.kills )
+		{
+			winner = group.player2.p.name 
+			winnerKills = player2.kills
+			defeated = group.player1.p.name 
+			defeatedDeaths = player1.kills
+		}
+		else if ( player1.kills == player2.kills )
+		{
+			tied = true
+			winner = group.player1.p.name
+			winnerKills = player1.kills
+			defeated = group.player2.p.name 
+			defeatedDeaths = player2.kills
+		}
+		
+		if ( tied )
+		{
+			serverMsg = group.player1.p.name + " tied in a challenge vs " + group.player2.p.name 
+		}
+		else 
+		{
+			serverMsg = format(" %s won a challenge vs %s,  %d - %d", winner, defeated, winnerKills, defeatedDeaths )
+		}
+		
+		SendServerMessage( serverMsg )
+	}
 	
 	groupRecapStats( group.player1, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, player2.displayname, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, group.startTime ) 
 	groupRecapStats( group.player2, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, player1.displayname, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, group.startTime ) 
@@ -1669,7 +1755,7 @@ void function groupRecapStats(entity player, float damage, int hits, int shots, 
 	
     if (opponentshots > 0.0) 
 	{
-        opponent_accuracy = (opponenthits.tofloat() / opponentshots.tofloat() ) * 100.0;
+        opponent_accuracy = ( opponenthits.tofloat() / opponentshots.tofloat() ) * 100.0;
 		
         if (opponent_accuracy >= 100.0) 
 		{
@@ -1683,7 +1769,7 @@ void function groupRecapStats(entity player, float damage, int hits, int shots, 
 	if(IsValid(player))
 	{
 		player.p.messagetime = Time()
-		Message( player, "\n\n\n\n\n\n Recap vs: " + opponent, print_totals, 30 );
+		Message( player, "\n\n\n\n\n\n\n\n\n Recap vs: " + opponent, print_totals, 30 );
 	}
 }
 
@@ -2125,6 +2211,12 @@ void function soloModePlayerToRestingList(entity player)
 	soloGroupStruct group = returnSoloGroupOfPlayer(player)
 	if(IsValid(group))
 	{
+	
+		if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
+		{
+			endLock1v1( player, true )
+		}
+	
 		entity opponent = returnOpponentOfPlayer(player)
 
 		// if(IsValid(soloLocations[group.slotIndex].Panel)) //Panel in current Location
@@ -2150,11 +2242,6 @@ void function soloModePlayerToRestingList(entity player)
 		{		//找不到对手
 			soloModePlayerToWaitingList(opponent) //将对手放回waiting list
 		}
-	}
-	
-	if( isPlayerPendingChallenge( player ) || isPlayerPendingLockOpponent( player ))
-	{
-		endLock1v1( player, true )
 	}
 
 	//deleteSoloPlayerResting( player ) // ??why do we do this (replaced with my functions as well)
@@ -2404,8 +2491,10 @@ void function respawnInSoloMode(entity player, int respawnSlotIndex = -1) //复�
 
 	if( !isGroupValid( group ) )
 	{	
+		#if DEVELOPER
 		sqerror("group was invalid, err 007")
-		return //Is this group is available
+		#endif
+		return //Is this group available
 	}
 
 	if ( respawnSlotIndex == -1 ) 
@@ -2536,7 +2625,7 @@ void function SetPlayerCustomModel( entity ent, int index )
 
 void function _soloModeInit(string mapName)
 {	
-	
+	RegisterSignal("On1v1Death")
 	INIT_1v1_sbmm()
 	INIT_Flags()
 	
@@ -3168,7 +3257,7 @@ void function _soloModeInit(string mapName)
 	if(file.IS_CHINESE_SERVER)
 		buttonText3 = "%&use% 开始休息"
 	else
-		buttonText3 = "%&use% Toggle Rest"
+		buttonText3 = "%&use% Rest (or) Enter Queue"
 	
 	//mkos 
 	string buttonText4
@@ -3177,11 +3266,11 @@ void function _soloModeInit(string mapName)
 		
 	string buttonText5
 	
-		buttonText5 = "%&use% Toggle LOCK1V1 Setting";
+		buttonText5 = "%&use% Enable/Disable 1v1 Challenges";
 		
 	string buttonText6
 	
-		buttonText6 = "%&use% Toggle START_IN_REST Setting";
+		buttonText6 = "%&use% Toggle \"Start In Rest\" Setting";
 		
 	string buttonText7 
 	
@@ -3232,6 +3321,12 @@ void function _soloModeInit(string mapName)
 	    {
 	    	array<entity> enemiesArray = GetPlayerArray_Alive()
 			enemiesArray.fastremovebyvalue( user )
+			
+			if( IsValid ( eMessageBot() ) && IsAlive( eMessageBot() ) )
+			{
+				enemiesArray.fastremovebyvalue( eMessageBot() )
+			}
+			
 		    entity specTarget = enemiesArray.getrandom()
 
 	    	user.p.isSpectating = true
@@ -3299,13 +3394,13 @@ void function _soloModeInit(string mapName)
 		{
 			user.p.lock1v1_setting = false;
 			SavePlayer_lock1v1_setting( user, false )
-			Message( user, "Lock1v1 setting set to DISABLED.");
+			Message( user, "ACCEPT CHALLENGES DISABLED.");
 		}
 		else
 		{	
 			user.p.lock1v1_setting = true;
 			SavePlayer_lock1v1_setting( user, true )
-			Message( user, "Lock1v1 setting set to ENABLED.");
+			Message( user, "ACCEPT CHALLENGES ENABLED.");
 		}
 		
 	})
@@ -3500,7 +3595,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				
 				if ( !removed && group.IsKeep ) 
 				{
-					if (IsValid( group.player1 ) && IsValid( group.player2 ) &&  ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ) )) 
+					if (IsValid( group.player1 ) && IsValid( group.player2 ) && ( !IsAlive( group.player1 ) || !IsAlive( group.player2 ) )) 
 					{
 						int p1 = 0
 						int p2 = 1
@@ -3607,7 +3702,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			while(mGroupMutexLock) 
 			{	
 				#if DEVELOPER
-				sqprint("Waiting for lock to release arrayloop")
+				sqprint("Waiting for lock to release arrayloop") //no mutex print has ever happened in tests but its still possible
 				#endif
 				WaitFrame() 
 			}
@@ -3706,16 +3801,15 @@ void function soloModeThread(LocPair waitingRoomLocation)
 					continue
 				}
 				
-				if ( solostruct.waitingmsg == true )
+				if ( solostruct.waitingmsg == true && !solostruct.player.p.challengenotify )
 				{
 					if(!IsValid(solostruct) || !IsValid(solostruct.player))
 					{
 						continue
 					}
-					int id = solostruct.player.GetEncodedEHandle()
+					
 					Remote_CallFunction_NonReplay( solostruct.player, "ForceScoreboardLoseFocus" );
-					CreatePanelText(solostruct.player, "", "Waiting for\n   players...",IBMM_WFP_Coordinates(),IBMM_WFP_Angles(), false, 2.5, id)
-					//Message( solostruct.player, "\n\n\n\n Waiting for players...", "", 120 )
+					CreatePanelText(solostruct.player, "", "Waiting for\n   players...",IBMM_WFP_Coordinates(),IBMM_WFP_Angles(), false, 2.5, solostruct.player.p.handle )
 					SetMsg( solostruct.player, false )
 					file.APlayerHasMessage = true;	
 				}
@@ -3731,8 +3825,8 @@ void function soloModeThread(LocPair waitingRoomLocation)
 				{
 					continue
 				}
-				int id = player.GetEncodedEHandle()
-				RemovePanelText( player, id)
+				
+				RemovePanelText( player, player.p.handle )
 			}
 			
 			file.APlayerHasMessage = false;
@@ -4283,13 +4377,18 @@ void function ForceAllRoundsToFinish_solomode()
 		HolsterAndDisableWeapons( player )
 	}
 	
+	foreach( challengeStruct in file.allChallenges )
+	{
+		endLock1v1( challengeStruct.player )
+	}
 	
 	if(GetCurrentRound() > 0)
 	{
 		//soloPlayersInProgress.clear()
-		file.soloPlayersWaiting = {} //needed?
+		//file.soloPlayersWaiting = {} //needed?
 		file.groupsInProgress = {}
 		file.playerToGroupMap = {}
+		ClearAllNotifications()
 	}
 	
 }
@@ -4506,36 +4605,142 @@ vector function IBMM_WFP_Angles()
 }
 
 
-void function notify_thread( entity player )
+void function notify_thread( entity player ) //whole thing is convoluted as fuck
 {	
 	if ( !IsValid( player ) )
 	{
-		return
+		return //this is threaded off so we want to check again
 	}
 	
-	int id = player.GetEncodedEHandle() + 1
+	RegisterSignal( "NotificationChanged" )
+	EndSignal( player, "PlayerDisconnected" )
+	
+	int id = player.p.handle + 1
+	int iChallengeTextID = id + 1
+	int iStatusText = 0
+	
+	//challenges
+	bool waitingForSelfToJoin = false 
+	bool HasChalText = false
 	
 	while(true)
 	{		
-		//sqprint("notify thread running")
-		if (!IsValid( player )) break
+		//sqprint( "notify thread running for " + player.p.name )	
+		wait 1
+		
+		if (!IsValid( player )){break}
 		
 		if ( player.p.notify == true && player.p.has_notify == false )
 		{
+			//sqprint("CREATING 001")
 			Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );
-			CreatePanelText(player, "", "Matching for: " + FetchInputName( player ) , IBMM_COORDINATES, IBMM_ANGLES, false, 2, id)
+			CreatePanelText(player, "", "Matching for: " + FetchInputName( player ) , IBMM_COORDINATES, IBMM_ANGLES, false, 2, id )
 			//sqprint("Creating on screen match making for " + player.GetPlayerName() )
 			player.p.has_notify = true; //let thread self know not to create multiple displays	
 		}
 	
-		if ( player.p.notify == false && player.p.destroynotify == true )
-		{		
+		if ( player.p.destroynotify == true && player.p.notify == false )
+		{	
+			//sqprint("REMOVING 001")
 			RemovePanelText( player, id )
 			player.p.destroynotify = false;
 			player.p.has_notify = false;		
 		}
 		
-		wait 1	
+		///////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////////
+		
+		if( player.p.challengenotify )
+		{
+			if( !HasChalText )
+			{
+				//sqprint("CREATING 002")
+				RemovePanelText( player, player.p.handle ) //removes waiting for players
+				thread UpdateChallengeText( player, iChallengeTextID, "Challenge Started" )
+				HasChalText = true 
+				wait 2
+				if (!IsValid( player )){break}
+				iStatusText = 2
+			}
+		
+			if ( !isPlayerInWaitingList( player ) )
+			{			
+				if( iStatusText != 3 )
+				{
+					//sqprint("CREATING 003")
+					player.Signal( "NotificationChanged" )
+					thread UpdateChallengeText( player, iChallengeTextID, "Join the queue to start the challenge" )
+					iStatusText = 3
+				}
+				
+				wait 1
+				continue
+				if (!IsValid( player )){break}
+			}
+			
+			entity challenged = player.p.eLastChallenger
+			
+			if( !IsValid (challenged) )
+			{
+				continue //do something
+			}
+			else 
+			{			
+				if( !isPlayerInWaitingList(challenged) )
+				{			
+					wait 1
+						
+					if( iStatusText != 4 )
+					{
+						//sqprint("CREATING 004")	
+						Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" )
+						string alert = "Waiting for " + challenged.p.name + "\n to join the queue..."
+						if (!IsValid( player )){break}
+						player.Signal( "NotificationChanged" )
+						thread UpdateChallengeText( player, iChallengeTextID, alert )
+						iStatusText = 4
+					}
+				}
+			}
+		}
+		else 
+		{
+			HasChalText = false
+			iStatusText = 0			
+		}
+	}
+}
+
+void function UpdateChallengeText( entity player, int id, string text )
+{
+	wait .2
+	entity opponent = player.p.eLastChallenger
+	EndSignal( player, "NotificationChanged" )
+	EndSignal( opponent, "PlayerDisconnected" )
+	CreatePanelText( player, "", text, IBMM_COORDINATES, IBMM_ANGLES, false, 2, id )
+	
+	OnThreadEnd( function() : ( player, id )
+		{
+			if( IsValid( player ) )
+			{
+				//sqprint( format( "Removing panel for player %s id: %d", player.p.name, id ) )
+				RemovePanelText( player, id )
+			}
+		}
+	)
+	WaitForever()
+}
+
+void function ClearAllNotifications()
+{
+	foreach ( player in GetPlayerArray() )
+	{
+		if( !IsValid( player ) ){continue}
+		
+		RemovePanelText( player, player.p.handle )
+		RemovePanelText( player, player.p.handle + 1 )
+		RemovePanelText( player, player.p.handle + 2 )
 	}
 }
 
