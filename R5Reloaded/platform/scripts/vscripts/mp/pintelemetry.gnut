@@ -62,6 +62,7 @@ global function __executeEventStart_messages
 global function eMessageBot
 global function SendServerMessage
 global function bBotEnabled
+global function update
 
 //admin util
 global function GetAdminList
@@ -2745,6 +2746,12 @@ void function RunUpdateMsg()
 		wait 3.6
 		
 	}
+}
+
+void function update()
+{
+	file.stop_update_msg_flag = false;
+	thread RunUpdateMsg()
 }
 
 bool function EnableVoice()
