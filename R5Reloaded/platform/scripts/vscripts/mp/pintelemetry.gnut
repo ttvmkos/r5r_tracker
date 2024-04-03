@@ -258,6 +258,8 @@ struct {
 	bool bChatbotEnabled
 	bool bIntervalThreadRunning
 	bool bKillIntervalThread
+	int iLoopMessagesTime
+	
 	string sBotName
 	int iBotID
 	entity eBotEnt
@@ -265,6 +267,7 @@ struct {
 	table < int, array<string> > MessageEvents
 	array<string> Messages_EventStart
 	array<string> Messages_EventEnd
+	array<string> arrayLoopMessages = []
 	
 } file
 
@@ -2783,76 +2786,115 @@ bool function SendServerMessage( string _msg )
 void function INIT_IntervalMessages()
 {
 	string msg_ArrayString = trim( SQ_GetSetting("settings.INTERVAL_MESSAGES") )
+	bool gotoLoopMessage = false 
 	
 	if( msg_ArrayString.len() == 0 )
 	{
-		return
+		gotoLoopMessage = true
 	}
 	
-	array<string> interval_settings = split( msg_ArrayString , "|")
-	
-	int iMessageNum = 0
-	
-	foreach( msg_string in interval_settings )
+	if( !gotoLoopMessage )
 	{
-		iMessageNum++;
+		array<string> interval_settings = split( msg_ArrayString , "|")
 		
-		array<string> _msg = split( trim(msg_string), "=" )
-		if( _msg.len() > 1 )
+		int iMessageNum = 0
+		
+		foreach( msg_string in interval_settings )
 		{
-			string sM0 = trim(_msg[0])
-			string sM1 = trim(_msg[1])
+			iMessageNum++;
 			
+			array<string> _msg = split( trim(msg_string), "=" )
+			if( _msg.len() > 1 )
+			{
+				string sM0 = trim(_msg[0])
+				string sM1 = trim(_msg[1])
+				
+				#if DEVELOPER
+				sqprint(format("interval found: %s  ;message: %s", sM0, sM1))
+				#endif
+				
+				string sm0Match = sM0.tolower()
+				
+				if( IsNumeric( sM0, FS_RoundTime() ) && sM1.len() > 0 && sM1.len() < 1000 )
+				{
+					try
+					{
+						string sMsg = sanitize( sM1 )
+						
+						int convert = sM0.tointeger()
+						float iRound10 = ceil(float(convert) / 10.0) * 10
+						int interval = (iRound10 / 10).tointeger()
+						
+						if ( !( interval in file.MessageEvents ) )
+						{
+							array<string> messages;
+							
+							messages.append( sMsg )
+							
+							file.MessageEvents[interval] <- messages
+						}
+						else 
+						{
+							file.MessageEvents[interval].append( sMsg )
+						}
+					}
+					catch(c_err)
+					{
+						sqerror(format("Cannot add msg #[ %d ] to MessageEvents, improper format", iMessageNum ))
+					}
+				}
+				else if( EventTypes.find( sm0Match ) > -1 && sM1.len() > 0 && sM1.len() < 1000 )
+				{
+					switch( sm0Match )
+					{
+						case "start":
+							file.Messages_EventStart.append(sM1)
+							break
+						case "end":
+							file.Messages_EventEnd.append(sM1)
+							break
+					}
+				}
+				else 
+				{
+					sqerror("InitIntervalMessages parsing error")
+				}
+			}
+		}
+	}//goto
+	
+	//loop messages (every x seconds)
+	
+	string loopTime = SQ_GetSetting( "settings.LOOP_MESSAGES_INTERVAL" )
+	
+	if( IsNumeric( loopTime ) )
+	{
+		int convert = loopTime.tointeger()
+		float iRound10 = ceil(float(convert) / 10.0) * 10
+		int interval = (iRound10 / 10).tointeger()
+		file.iLoopMessagesTime = interval //seconds rounded to thread cycle as multiple of 10
+	}
+	else 
+	{
+		file.iLoopMessagesTime = 2 //20 seconds
+	}
+	
+	#if DEVELOPER
+	sqprint(format("file.iLoopMessagesTime is: %d ", file.iLoopMessagesTime ))
+	#endif
+		
+	string getLoopMessages = SQ_GetSetting( "settings.LOOP_MESSAGES" )
+
+	if( getLoopMessages != "" && getLoopMessages.find("|") )
+	{
+		array<string> aLoopMessages = split( getLoopMessages, "|" )
+		
+		foreach( message in aLoopMessages )
+		{
+			file.arrayLoopMessages.append( trim(message) )
 			#if DEVELOPER
-			sqprint(format("interval found: %s  ;message: %s", sM0, sM1))
+			sqprint( format("Initialized loop message: %s", message ) )
 			#endif
-			
-			string sm0Match = sM0.tolower()
-			
-			if( IsNumeric( sM0, FS_RoundTime() ) && sM1.len() > 0 && sM1.len() < 1000 )
-			{
-				try
-				{
-					string sMsg = sanitize( sM1 )
-					
-					int convert = sM0.tointeger()
-					float iRound10 = ceil(float(convert) / 10.0) * 10
-					int interval = (iRound10 / 10).tointeger()
-					
-					if ( !( interval in file.MessageEvents ) )
-					{
-						array<string> messages;
-						
-						messages.append( sMsg )
-						
-						file.MessageEvents[interval] <- messages
-					}
-					else 
-					{
-						file.MessageEvents[interval].append( sMsg )
-					}
-				}
-				catch(c_err)
-				{
-					sqerror(format("Cannot add msg #[ %d ] to MessageEvents, improper format", iMessageNum ))
-				}
-			}
-			else if( EventTypes.find( sm0Match ) > -1 && sM1.len() > 0 && sM1.len() < 1000 )
-			{
-				switch( sm0Match )
-				{
-					case "start":
-						file.Messages_EventStart.append(sM1)
-						break
-					case "end":
-						file.Messages_EventEnd.append(sM1)
-						break
-				}
-			}
-			else 
-			{
-				sqerror("InitIntervalMessages parsing error")
-			}
 		}
 	}
 }
@@ -2898,7 +2940,15 @@ void function IntervalThread()
 	}
 	
 	int count = 0;
+	int loopCount = 0; //gets reset when last message in loop messages is reached
 	file.bIntervalThreadRunning = true
+	
+	bool bLoopServerMessages = true 
+	
+	if( file.arrayLoopMessages.len() <= 0 )
+	{
+		bLoopServerMessages = false
+	}
 	
 	while(true)
 	{	
@@ -2907,6 +2957,7 @@ void function IntervalThread()
 		wait 10
 		count += 1;
 		
+		//events
 		foreach(interval, msgs in file.MessageEvents) 
 		{
 			if ( ( count % interval) == 0 ) 
@@ -2917,9 +2968,31 @@ void function IntervalThread()
 				}
 			}
 		}	
+		
+		//train (loopmessages)
+		if( bLoopServerMessages )
+		{
+			loopCount = SendLoopMessage( loopCount )
+		}
 	}
 	
 	file.bIntervalThreadRunning = false
+}
+
+int function SendLoopMessage( int loopCount )
+{
+	if( loopCount > file.arrayLoopMessages.len() )
+	{
+		loopCount = 1
+	}
+	
+	if( loopCount > 0 && loopCount % file.iLoopMessagesTime == 0  )
+	{
+		SendServerMessage( file.arrayLoopMessages[( loopCount - 1 )] )
+	}
+	
+	loopCount++;
+	return loopCount
 }
 
 void function EventMessageSystem()
@@ -3288,7 +3361,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		int attackerSuperglides = 0;
 		
 		
-		// collect all DamageEvents for victim and calculate total damage
+		// collect all DamageEvents on victim and calculate total damage
 		foreach ( DamageEvent event in allDamageEvents ) 
 		{
 			if ( event.victimHandle == victim.p.handle ) 
@@ -3316,7 +3389,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 			#if DEVELOPER 
 			else 
 			{
-				sqprint(format("event.attackerHandle does not equal victim.p.handle. values: %d, %d", event.attackerHandle, victim.p.handle))
+				sqprint(format("event.victimHandle does not equal event victim of: victim.p.handle. values: %d, %d", event.victimHandle, victim.p.handle))
 			}
 			#endif
 		}

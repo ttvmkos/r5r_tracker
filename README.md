@@ -81,6 +81,14 @@ INTERVAL_MESSAGES
 
 	start=Welcome to server |start= Enjoy |60= This message repeats every 60 seconds |end= The game is over, hope it was good!
 
+LOOP_MESSAGES_INTERVAL
+
+	Similar to interval messages, loop messages works by displaying a list of messages 1 by 1 every x seconds (intervals of 10)
+
+LOOP_MESSAGES
+
+	A list of pipe | separated messages to display 1 at a time, in order. Once the last message is reached, the list repeats. 
+
 
 
 
@@ -111,7 +119,9 @@ There will be an automatic file generator on r5r.dev for creating these files wi
 	"ADMINS": "R5mkos-1007946891142",
        	"ENABLE_CHATBOT": "true",
         	"CHATBOT_PREFIX": "SERVER",
-        	"INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per minute. |end= This message displays at the end. "
+        	"INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per minute. |end= This message displays at the end. ",
+        "LOOP_MESSAGES_INTERVAL": "10",
+        "LOOP_MESSAGES": "Loopity loop loop at 10 and 50|another loop|  yet another at 30 seconds| this one is 40"
     }
 }
 

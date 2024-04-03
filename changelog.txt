@@ -1,6 +1,17 @@
 
 4/2/2024
 
+Instead of using interval / event messages, you can train messages with:
+
+- "LOOP_MESSAGES_INTERVAL": "10",
+- "LOOP_MESSAGES": "Loopity loop loop at 10 and 50|another loop|  yet another at 30 seconds| this one is 40"
+
+- Once the array of messages has been sent, it will repeat from the first. Pipe separated list |
+
+______________________________________________________________
+
+4/2/2024
+
 Moved updates to changelog.
 
 - fixed bugs, refactor.
