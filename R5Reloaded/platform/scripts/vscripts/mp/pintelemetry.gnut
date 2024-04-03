@@ -2875,7 +2875,7 @@ void function INIT_IntervalMessages()
 	
 	string loopTime = SQ_GetSetting( "settings.LOOP_MESSAGES_INTERVAL" )
 	
-	if( IsNumeric( loopTime ) )
+	if( IsNumeric( loopTime, SQ_MAX_INT_32 ) )
 	{
 		int convert = loopTime.tointeger()
 		float iRound10 = ceil(float(convert) / 10.0) * 10
