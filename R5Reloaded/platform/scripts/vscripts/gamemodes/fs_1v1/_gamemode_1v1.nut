@@ -2373,7 +2373,7 @@ void function forbiddenZoneInit(string mapName)
 
 void function forbiddenZone_enter(entity trigger , entity ent)
 {
-	if(!IsValid( ent )) return
+	if( !IsValid( ent ) || !ent.IsPlayer() ) return
 	HolsterAndDisableWeapons( ent )
 	EntityOutOfBounds( trigger, ent, null, null )
 }
