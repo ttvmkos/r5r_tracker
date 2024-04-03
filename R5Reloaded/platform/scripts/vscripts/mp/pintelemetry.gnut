@@ -3411,7 +3411,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 			DeleteEvents Event;
 			Event.attacker_handle = attacker_handle 
 			Event.victim_handle = victim_handle
-			AddEventTask( Event, false )
+			AddEventTask( Event )
 			return
 		}
 		
@@ -3839,7 +3839,9 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 			if (REPORT_STATS && file.bSafeLog)
 			{
 				LogEvent(logString, file.LogE);
-				//sqprint(logString);
+				#if DEVELOPER
+				sqprint(logString);
+				#endif
 			}
 
             return;
@@ -3848,7 +3850,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 	//TODO redesign delete thread
 	void function EventManager() 
 	{		
-		while ( DeleteEventTaskList.len() > 0 )
+		if ( DeleteEventTaskList.len() > 0 )
 		{				
 			int victim_handle = DeleteEventTaskList[0].victim_handle;
 			int attacker_handle = DeleteEventTaskList[0].attacker_handle;
@@ -3857,14 +3859,10 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		}
 	}
 	
-	void function AddEventTask( DeleteEvents Event, bool flag = true ) 
+	void function AddEventTask( DeleteEvents Event ) 
 	{
 		DeleteEventTaskList.append( Event );
-		
-		if(flag)
-		{
-			EventManager()
-		}
+		EventManager()
 		//FlagSet("DeleteEvents")
 	}
 
