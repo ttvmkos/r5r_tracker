@@ -2947,8 +2947,8 @@ void function IntervalThread()
 		return
 	}
 	
-	int count = 0;
-	int loopCount = 0; //gets reset when last message in loop messages is reached
+	int threadCycleCount = 0;
+	int loopMsgCount = 1; //gets reset when last message in loop messages is reached
 	file.bIntervalThreadRunning = true
 	
 	bool bLoopServerMessages = true 
@@ -2963,12 +2963,12 @@ void function IntervalThread()
 		if(file.bKillIntervalThread){ break }
 		
 		wait 10
-		count += 1;
+		threadCycleCount += 1;
 		
 		//events
 		foreach(interval, msgs in file.MessageEvents) 
 		{
-			if ( ( count % interval) == 0 ) 
+			if ( ( threadCycleCount % interval) == 0 ) 
 			{
 				foreach( index, _msg in msgs ) 
 				{
@@ -2980,27 +2980,27 @@ void function IntervalThread()
 		//train (loopmessages)
 		if( bLoopServerMessages )
 		{
-			loopCount = SendLoopMessage( loopCount )
+			loopMsgCount = SendLoopMessage( threadCycleCount, loopMsgCount )
 		}
 	}
 	
 	file.bIntervalThreadRunning = false
 }
 
-int function SendLoopMessage( int loopCount )
+int function SendLoopMessage( int threadCycleCount, int loopMsgCount  )
 {
-	if( loopCount > file.arrayLoopMessages.len() )
+	if( loopMsgCount > file.arrayLoopMessages.len() )
 	{
-		loopCount = 1
+		loopMsgCount = 1
 	}
 	
-	if( loopCount > 0 && loopCount % file.iLoopMessagesTime == 0  )
+	if( loopMsgCount > 0 && threadCycleCount > 0 && threadCycleCount % file.iLoopMessagesTime == 0  )
 	{
-		SendServerMessage( file.arrayLoopMessages[( loopCount - 1 )] )
+		SendServerMessage( file.arrayLoopMessages[( loopMsgCount - 1 )] )
+		loopMsgCount++;
 	}
 	
-	loopCount++;
-	return loopCount
+	return loopMsgCount
 }
 
 void function EventMessageSystem()
