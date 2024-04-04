@@ -422,12 +422,28 @@ namespace VScriptCode
 
         SQRESULT Shared::SQ_ServerMsg(HSQUIRRELVM v)
         {
-            SQChar* msg = sq_getstring(v, 1);
-            int senderId = sq_getinteger(v, 2);
+            const SQChar* inMsg = sq_getstring(v, 1);
+            
+            if ( inMsg == nullptr )
+            {
+                return SQ_OK;
+            }
+
+            SQInteger senderId = sq_getinteger(v, 2);
+
+            if ( senderId < 0 || senderId > 255 )
+            {
+                return SQ_OK;
+            }
+
+            const std::string msg(inMsg);
+            
             void* thisptr = nullptr;
-            CServerGameDLL::OnReceivedSayTextMessage(thisptr, senderId, msg, false);
+            CServerGameDLL::OnReceivedSayTextMessage(thisptr, static_cast<int>(senderId), msg.c_str(), false);
+
             return SQ_OK;
         }
+
 
         SQRESULT Shared::SQ_CreateServerBot(HSQUIRRELVM v)
         {
@@ -452,6 +468,7 @@ namespace VScriptCode
             for (int i = 0; i < g_ServerGlobalVariables->m_nMaxClients; i++)
             {
                 CClient* pClient = g_pServer->GetClient(i);
+
                 if (!pClient)
                 {
                     continue;
