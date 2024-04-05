@@ -86,6 +86,7 @@ global function printarray
 global function CheckRate
 global function ParseWeapon
 global function IsWeaponValid
+global function ChatEffects
 
 
 ////////////////////////////////////
@@ -114,6 +115,7 @@ const array<string> EventTypes = [
 		"end"
 		
 	]
+	
 
 //(respawns) game summary
 
@@ -201,7 +203,7 @@ array<PlayerVerifyCount> playerVerifyCounts
 array< array< string > > list_maps
 array< array< string > > list_gamemodes
 array< string > whitelist
-array<DeleteEvents> DeleteEventTaskList // queue for managing event deletion
+array<DeleteEvents> DeleteEventTaskList // queue for managing event deletion //TODO rework
 
 #if SERVER   
 bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("logging_shipstats", false) }
@@ -272,8 +274,83 @@ struct {
 	array<string> Messages_EventEnd
 	array<string> arrayLoopMessages = []
 	
+	bool DefaultLock1v1Setting
+	bool DefaultEnableInputBannerSetting
+	bool DefaultStartInRestSetting
+	
 } file
 
+//CHAT EFFECTS
+struct {
+
+	table<string,string> effects = {
+	
+		["THUMBSUP"] = "󰉥",
+		["SKULL"] = "󰆿",
+		["PISTOL"] = "󰉅",
+		["ROOK"] = "󰈭",
+		["YELLOW_SKULL"] = "󰈫",
+		["NO_WEP"] = "󰈝",
+		["HEALTHKIT"] = "󰈘",
+		["PHOENIX"] = "󰈖",
+		["LOCKED"] = "󰈎",
+		["EYE"] = "󰇊",
+		["FRIEND"] = "󰆾",
+		["LAG"] = "󰆼",
+		["CONNECTING"] = "󰆺",
+		["CELL"] = "󰈚",
+		["BATTERY"] = "󰈙",
+		["APEX"] = "󰅡",
+		["FIVE"] = "󰆗",
+		["CIRCLE"] = "󰆉",
+		["BLUEPEX"] = "󰅠",
+		["WRAITH_BANNER"] = "󰄒",
+		["BIG_WHITE_CROWN"] = "󰄈",
+		["WHITE_CROWN"] = "󰄇",
+		["BLUE_CROWN"] = "󰄄",
+		["TREE"] = "󰃻",
+		["SUS"] = "󰃴",
+		["RED_SQUARE"] = "󰃭"
+	}
+
+} chat
+
+table <string,string> function ChatEffects()
+{
+	return chat.effects
+}
+
+string function FindChatEffect( string key )
+{
+	if( key in chat.effects )
+	{
+		return chat.effects[key]
+	}
+	
+	string query = key.tolower()
+	
+	foreach( effectKey, chatValue in chat.effects )
+	{
+		if ( effectKey.tolower() == query )
+		{
+			return chatValue
+		}
+	}
+	
+	return "Not found.";
+}
+
+void function PrintAllChatEffects()
+{
+	string print_effects = format( "\n\n --- Chat Effects --- \n\n" )
+	
+	foreach( key, value in chat.effects )
+	{
+		print_effects += format( "%s \n", key ) 
+	}
+	
+	sqprint( print_effects )
+}
 
 bool function bLog()
 {
@@ -919,6 +996,10 @@ void function INIT_fastComputes()
 	//init stat bools (must be before string inits)
 	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
 	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
+	file.DefaultLock1v1Setting = GetCurrentPlaylistVarBool("default_lock1v1_setting", true)
+	file.DefaultEnableInputBannerSetting = GetCurrentPlaylistVarBool("default_enable_input_banner_setting", false)
+	file.DefaultStartInRestSetting = GetCurrentPlaylistVarBool("default_start_in_rest_setting", false)
+
 }
 
 void function UpdateFromLocalPersistence( entity player )
@@ -2713,18 +2794,20 @@ void function Init_NewGame()
 					//SQ_MsgToClient( param.tointeger(), param2 )
 					
 					//return true
-			case "print_attachments":
+			case "thumbsup":
+				
+				SendServerMessage(chat.effects["THUMBSUP"])		
+				return true
+				
+			case "print_chat_effects":
 			
-					array<string> attachments = GetAllAttachmentPoints()
+				PrintAllChatEffects()
+				return true
+				
+			case "msgeffect":
 					
-					string aPrint = ""
-					
-					foreach( mod in attachments )
-					{
-						aPrint += format( " %s \n", mod )
-					}
-					
-					sqprint(aPrint)
+				SendServerMessage( FindChatEffect( param ) )
+				return true
 
 			default:
 			
@@ -4857,6 +4940,22 @@ void function SaveAllPlayerSettings()
 }
 
 
+bool function GetDefaultLock1v1Setting()
+{
+	return file.DefaultLock1v1Setting
+}
+
+bool function GetDefaultEnableInputBannerSetting()
+{
+	return file.DefaultEnableInputBannerSetting
+}
+
+bool function GetDefaultStartInRestSetting()
+{
+	return file.DefaultStartInRestSetting
+}
+
+
 // END PERSISTENCE //////////////////////////////////////////////////////////////////
 
 
@@ -5850,22 +5949,6 @@ string function Concatenate( string str1, string str2 )
 	}
 	
     return str1 + str2;
-}
-
-
-bool function GetDefaultLock1v1Setting()
-{
-	return GetCurrentPlaylistVarBool("default_lock1v1_setting", true)
-}
-
-bool function GetDefaultEnableInputBannerSetting()
-{
-	return GetCurrentPlaylistVarBool("default_enable_input_banner_setting", false)
-}
-
-bool function GetDefaultStartInRestSetting()
-{
-	return GetCurrentPlaylistVarBool("default_start_in_rest_setting", false)
 }
 
 float function GetDefaultIBMM()

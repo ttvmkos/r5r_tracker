@@ -1763,7 +1763,7 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 			serverMsg = format(" %s won a challenge vs %s,  %d - %d", winner, defeated, winnerKills, defeatedDeaths )
 		}
 		
-		SendServerMessage( serverMsg )
+		SendServerMessage( serverMsg + ChatEffects()["SKULL"] )
 	}
 	
 	groupRecapStats( group.player1, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, player2.displayname, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, group.startTime ) 
