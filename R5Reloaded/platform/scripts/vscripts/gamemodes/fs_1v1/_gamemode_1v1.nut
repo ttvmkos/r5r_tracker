@@ -128,6 +128,14 @@ struct {
 
 } file
 
+
+struct {
+
+	int ibmm_wait_limit
+	float default_ibmm_wait
+
+} settings
+
 //script vars 
 bool mGroupMutexLock
 int groupID = 112250000;
@@ -256,11 +264,13 @@ bool function isPlayerInProgress( entity player )
 
 void function INIT_Flags()
 {
-	bGiveSameRandomLegendToBothPlayers = GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false )
-	bIsKarma = GetCurrentPlaylistVarBool( "karma_server", false )
-	bAllowLegend = GetCurrentPlaylistVarBool( "give_legend", true )
-	bAllowTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", true ) //challenge only
-	bChalServerMsg = bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
+	bGiveSameRandomLegendToBothPlayers	= GetCurrentPlaylistVarBool("give_random_legend_on_spawn", false )
+	bIsKarma 							= GetCurrentPlaylistVarBool( "karma_server", false )
+	bAllowLegend 						= GetCurrentPlaylistVarBool( "give_legend", true )
+	bAllowTactical 						= GetCurrentPlaylistVarBool( "give_legend_tactical", true ) //challenge only
+	bChalServerMsg 						= bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
+	settings.ibmm_wait_limit 			= GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999)
+	settings.default_ibmm_wait 			= GetCurrentPlaylistVarFloat("default_ibmm_wait", 3)
 }
 
 int function GetUniqueID() 
@@ -870,7 +880,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 		
 			if( args.len() < 2 )
 			{
-				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id] - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id/all] - Revokes a challenge sent to a player or all players\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n\nTo disable, toggle lock1v1 button in rest area", 30 )			
+				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id] - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id/all] - Revokes a challenge sent to a player or all players\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n/legend - choose legend by number or name", 30 )			
 			}
 			else 
 			{	
@@ -3354,9 +3364,9 @@ void function _soloModeInit(string mapName)
 	//mkos
 	AddCallback_OnUseEntity( restingRoomPanel_IBMM_button, void function(entity panel, entity user, int input)
 	{
-		if(!IsValid(user)) return
+		if( !IsValid( user ) ){ return }
 		
-		if(user.p.IBMM_grace_period > 0)
+		if( user.p.IBMM_grace_period > 0 )
 		{
 			user.p.IBMM_grace_period = 0;
 			SavePlayer_wait_time( user, 0.0 )
@@ -3364,9 +3374,9 @@ void function _soloModeInit(string mapName)
 		}
 		else
 		{	
-			if (GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999) >= 3)
+			if ( settings.ibmm_wait_limit >= 3)
 			{	
-				if (GetCurrentPlaylistVarFloat("default_ibmm_wait", 3) == 0)
+				if ( settings.default_ibmm_wait == 0)
 				{
 					user.p.IBMM_grace_period = 3;
 					SavePlayer_wait_time( user, 3.0 )

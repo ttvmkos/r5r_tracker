@@ -2705,6 +2705,12 @@ void function Init_NewGame()
 					file.bKillIntervalThread = true;
 					Message( player, "INTERVAL THREAD STOPPING" )
 					return true
+					
+			//case "testsend":
+			
+					//SQ_MsgToClient( param.tointeger(), param2 )
+					
+					//return true
 
 			default:
 			
@@ -3010,7 +3016,7 @@ void function EventMessageSystem()
 
 void function __LoadServerBot()
 {
-	wait 2
+	wait 3
 	
 	array<int> result = SQ_CreateServerBot(file.sBotName)
 	
@@ -5294,6 +5300,7 @@ void function PIN_AddPlayer( entity player )
 
 void function BotInvis( entity bot )
 {	
+	if( !IsValid( bot ) ){ return }
 	maki_tp_player( bot, getBotSpawn() )
 	wait 7
 	maki_tp_player( bot, getBotSpawn() )
@@ -6480,6 +6487,7 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_phase_tunnel"] = 255,
 	["mp_weapon_grenade_bangalore"] = 256
 	
+	//ADDING TO THIS LIST REQUIRES CHANGES TO EXCLUSION LIST
 
 };
 
