@@ -76,7 +76,7 @@ global struct soloPlayerStruct
 {
 	entity player
 	int handle
-	float queue_time //marks the time when they queued, to allow checking for same input
+	float queue_time = 0.0 //marks the time when they queued, to allow checking for same input
 	bool IBMM_Timeout_Reached = false //input based match making timeout 
 	bool waitingmsg = true
 	float waitingTime //players may want to play with random opponent(or a matched opponent), so adding a waiting time after they died can allow server to match proper opponent
@@ -180,7 +180,10 @@ void function resetChallenges()
 {
 	foreach ( chalStruct in file.allChallenges )
 	{
-		chalStruct.challengers.clear()
+		if( IsValid( chalStruct ) )
+		{		
+			chalStruct.challengers.clear()
+		}
 	}
 	
 	file.acceptedChallenges.clear()
@@ -343,7 +346,28 @@ void function INIT_1v1_sbmm()
 	
 		try 
 		{	
-			custom_weapons_primary = StringToArray( concatenate );		
+			#if DEVELOPER 
+			sqprint("Checking: custom_weapons_primary")
+			#endif
+			
+			custom_weapons_primary = StringToArray( concatenate )
+			
+			for( int i = custom_weapons_primary.len() - 1 ; i >= 0 ; --i ) 
+			{
+				string before = trim( custom_weapons_primary[i] )
+				
+				custom_weapons_primary[i] = ParseWeapon( trim( custom_weapons_primary[i] ) )
+				
+				if ( trim(custom_weapons_primary[i]) != before )
+				{				
+					sqerror(format("Weapon %d was invalid and corrected. \n Old:\n \"%s\" \n New: \n \"%s\" \n\n", i, before, trim( custom_weapons_primary[i] ) ))
+				}
+				
+				if ( custom_weapons_primary[i] == "" )
+				{
+					custom_weapons_primary.remove(i)
+				}
+			}
 		} 
 		catch ( error ) 
 		{
@@ -358,7 +382,27 @@ void function INIT_1v1_sbmm()
 	
 		try 
 		{	
-			custom_weapons_secondary = StringToArray( concatenate );		
+			#if DEVELOPER 
+			sqprint("Checking: custom_weapons_secondary")
+			#endif
+			custom_weapons_secondary = StringToArray( concatenate )
+			
+			for( int i = custom_weapons_secondary.len() - 1 ; i >= 0 ; --i ) 
+			{
+				string sbefore = trim( custom_weapons_secondary[i] )
+				
+				custom_weapons_secondary[i] = ParseWeapon( trim( custom_weapons_secondary[i] ) )
+				
+				if ( trim(custom_weapons_secondary[i]) != sbefore )
+				{				
+					sqerror(format("Weapon %d was invalid and corrected. \n Old:\n \"%s\" \n New: \n \"%s\"\n\n", i, sbefore, trim( custom_weapons_secondary[i] ) ))
+				}
+				
+				if ( custom_weapons_secondary[i] == "" )
+				{
+					custom_weapons_secondary.remove(i)
+				}
+			}
 		} 
 		catch ( error ) 
 		{
@@ -1308,6 +1352,11 @@ ChallengesStruct function getChallengeListForPlayer( entity player )
 	
 	foreach ( challengeStruct in file.allChallenges )
 	{
+		if( !IsValid( challengeStruct ) )
+		{
+			continue
+		}
+		
 		if ( challengeStruct.player == player )
 		{
 			return challengeStruct
@@ -3522,22 +3571,40 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			continue
 		
 		//遍历等待队列 - cycle waiting queue (mkos version)
-		foreach (playerHandle, playerInWaitingStruct in file.soloPlayersWaiting)
+		foreach ( playerHandle, playerInWaitingStruct in file.soloPlayersWaiting )
 		{
-			if (!IsValid(playerInWaitingStruct.player))
+			if ( !IsValid( playerInWaitingStruct.player ) )
 			{
 				deleteWaitingPlayer(playerInWaitingStruct.handle) //struct contains players handle as basic int
 				continue
 			}
 
-			// check/update ibmm timeouts
-			if (Time() - playerInWaitingStruct.queue_time > playerInWaitingStruct.player.p.IBMM_grace_period)
+			// check/update ibmm timeouts -- temporary try catch to test pinpoint
+			try 
 			{
-				playerInWaitingStruct.IBMM_Timeout_Reached = true;
-			}
-			else
+				if ( Time() - playerInWaitingStruct.queue_time > playerInWaitingStruct.player.p.IBMM_grace_period )
+				{
+					playerInWaitingStruct.IBMM_Timeout_Reached = true;
+				}
+				else
+				{
+					playerInWaitingStruct.IBMM_Timeout_Reached = false;
+				}
+			} 
+			catch (varerror)
 			{
-				playerInWaitingStruct.IBMM_Timeout_Reached = false;
+				sqerror("\n\n --- DEBUGIT ERROR --- \n " + varerror )
+				if( typeof( playerInWaitingStruct.queue_time ) != "float" )
+				{
+					sqerror( "playerInWaitingStruct.queue_time was not a float" )
+				}
+				
+				if( typeof( playerInWaitingStruct.player.p.IBMM_grace_period ) != "float" )
+				{
+					sqerror( "playerInWaitingStruct.player.p.IBMM_grace_period was not a float" )
+				}
+				
+				continue //onward
 			}
 
 			//timeout preferred matchmaking 
@@ -4127,52 +4194,6 @@ void function soloModeThread(LocPair waitingRoomLocation)
 }//thread
 
 //mkos input watch
-/* void function InputWatchdog( entity player, entity opponent, soloGroupStruct group )
-{
-	#if DEVELOPER
-	sqprint( format("THREAD FOR GROUP STARTED" ))
-	#endif
-	
-	while ( isGroupValid(group) )
-	{	
-		if ( group.IsFinished || isPlayerInRestingList( player ) || isPlayerInRestingList( opponent ) ) 
-		{ 
-			break
-		}
-		#if DEVELOPER
-		sqprint("Waiting for input to change");
-		#endif
-	
-		if ( player.p.input != opponent.p.input )
-		{	
-			if(IsValid(player))
-			{
-				Remote_CallFunction_NonReplay( player, "ForceScoreboardLoseFocus" );			
-				Message( player, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
-			}
-			
-			if(IsValid(opponent))
-			{
-				Remote_CallFunction_NonReplay( opponent, "ForceScoreboardLoseFocus" );
-				Message( opponent, "INPUT CHANGED", "A player's input changed during the fight", 3, "weapon_vortex_gun_explosivewarningbeep" )
-			}
-			
-			if(IsValid(group))
-			{
-				group.IsFinished = true
-			}
-			
-			break;	
-		}
-		
-		wait 0.25
-	}
-	#if DEVELOPER
-	sqprint( format("THREAD FOR GROUP ENDED" ))
-	#endif
-} */
-
-
 void function InputWatchdog( entity player, entity opponent, soloGroupStruct group )
 {
 	#if DEVELOPER
@@ -4390,15 +4411,20 @@ void function ForceAllRoundsToFinish_solomode()
 	
 	foreach( challengeStruct in file.allChallenges )
 	{
-		endLock1v1( challengeStruct.player )
+		if( !IsValid( challengeStruct ) ){ return }
+		
+		if( IsValid (challengeStruct.player) )
+		{
+			endLock1v1( challengeStruct.player )
+		}
 	}
 	
 	if(GetCurrentRound() > 0)
 	{
 		//soloPlayersInProgress.clear()
 		//file.soloPlayersWaiting = {} //needed?
-		file.groupsInProgress = {}
-		file.playerToGroupMap = {}
+		file.groupsInProgress.clear()
+		file.playerToGroupMap.clear()
 		ClearAllNotifications()
 	}
 	

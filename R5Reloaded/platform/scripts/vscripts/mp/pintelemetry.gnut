@@ -84,6 +84,8 @@ global function sanitize
 global function LineBreak
 global function printarray
 global function CheckRate
+global function ParseWeapon
+global function IsWeaponValid
 
 
 ////////////////////////////////////
@@ -2711,6 +2713,18 @@ void function Init_NewGame()
 					//SQ_MsgToClient( param.tointeger(), param2 )
 					
 					//return true
+			case "print_attachments":
+			
+					array<string> attachments = GetAllAttachmentPoints()
+					
+					string aPrint = ""
+					
+					foreach( mod in attachments )
+					{
+						aPrint += format( " %s \n", mod )
+					}
+					
+					sqprint(aPrint)
 
 			default:
 			
@@ -6216,7 +6230,25 @@ array<string> function GetPlaylistMaps( PlaylistName playlistName )
 
 int function WeaponToIdentifier( string weaponName )
 {
+	if( !IsWeaponValid( weaponName )) 
+	{
+		string err = format( "#^ Unknown weaponName !DEBUG IT! -- weapon: %s", weaponName )
+		if(isLogging())
+		{
+			LogEvent(err,file.LogE)
+		}
+		
+		sqerror(err)
+		
+		return 2
+	}
+	
 	return WeaponIdentifiers[weaponName]
+}
+
+bool function IsWeaponValid( string weaponref )
+{
+	return ( weaponref in WeaponIdentifiers )
 }
 
 table<string,int> WeaponIdentifiers = {
@@ -6531,4 +6563,72 @@ bool function exclude( int weaponSource )
 	}
 	
 	return false
+}
+
+
+string function ParseWeapon( string weaponString )
+{
+	array<string> mods = split( trim( weaponString ), " " )
+	
+	if( mods.len() < 1 )
+	{
+		return ""
+	}
+	
+	if( !IsWeaponValid( mods[0] ) || !(SURVIVAL_Loot_IsRefValid( mods[0] )) )
+	{
+		return ""
+	}
+	
+	bool removed = false
+	
+	for ( int i = mods.len() - 1 ; i >= 1; i-- )
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( mods[i] ) 
+		|| !IsModValidForWeapon( mods[0], mods[i] ) )
+		{
+			removed = true
+			sqprint("removed: " + mods[i] )		
+			mods.remove(i)
+		}
+	}
+	
+	if (removed)
+	{
+		sqprint( PrintSupportedAttachpointsForWeapon( mods[0] ) )
+	}
+	
+	string return_string = ""
+	
+	foreach( mod in mods )
+	{
+		return_string += mod + " "
+	}
+	
+	return trim(return_string)
+}
+
+bool function IsModValidForWeapon( string weaponref, string mod )
+{	
+	array<string> attachPoint = GetAttachPointsForAttachment( mod )
+	LootData wData = SURVIVAL_Loot_GetLootDataByRef( weaponref )	
+	
+	return ( wData.supportedAttachments.contains( attachPoint[0] ) 
+	&& !wData.disabledAttachments.contains( attachPoint[0] ) )
+}
+
+string function PrintSupportedAttachpointsForWeapon( string weaponref )
+{
+	LootData wData = SURVIVAL_Loot_GetLootDataByRef( weaponref )
+	
+	string debug = format("\n --- Attachment List for %s --- \n", weaponref)
+	int i = 1
+	
+	foreach( supported in wData.supportedAttachments )
+	{
+		debug += format( "%d. %s \n", i, supported )
+		i++;
+	}
+	
+	return debug
 }

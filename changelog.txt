@@ -1,3 +1,8 @@
+4/5/2024
+
+- Fixed a rare timing crash where player in waiting struct queue time is not initialized
+- Implemented new utility functions for parsing weapon configurations
+- Reconstructed initialization logic for all settings vars and replaced these calls in scripts.
 
 4/2/2024
 
