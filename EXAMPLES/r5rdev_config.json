@@ -14,6 +14,11 @@
     },
     "settings": {
         "PLAYER_WHITELIST": "1007946891142",
-        "ADMINS": ""
+        "ADMINS": "",
+        "ENABLE_CHATBOT": "true",
+        "CHATBOT_PREFIX": "SERVER",
+        "INTERVAL_MESSAGES": "start=Welcome to the server. |start= This is a test dispay message |60=This message displays once per minute. |end= This message displays at the end. ",
+        "LOOP_MESSAGES_INTERVAL": "10",
+        "LOOP_MESSAGES": "Loopity loop loop at 10 and 50|another loop|  yet another at 30 seconds| this one is 40"
     }
 }

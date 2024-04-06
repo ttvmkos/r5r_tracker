@@ -30,6 +30,113 @@ global function PIN_PlayerLandedOnGround
 global function PIN_PlayerJumpedFromPlane
 global function PIN_Training
 
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+// these defines dictate the compiler for tracker code vs stub code
+
+global const bool TRACKER = true
+global const bool HAS_TRACKER_DLL = true
+
+//do not edit below this line
+#if TRACKER
+	global const bool STUB = false
+#else
+	global const bool STUB = true 
+#endif 
+
+
+#if STUB 	
+	
+	//const
+	const int SQ_MAX_INT_32 = 2147483647;
+	const int SQ_MIN_INT_32 = -2147483647;
+	
+	//flags
+	global function bAfkToRest
+	global function bGlobalStats
+	global function bLog
+	global function bEnc
+	global bool g_bIs1v1
+	global bool g_bLGmode = false
+	global bool g_bGiveTactical = false
+	global bool g_bRestMsg = false // used in antiafk
+	global float COMMAND_RATE_LIMIT = 0.200 
+	
+	global struct GameSummarySquadData 
+	{
+		int kills
+		int damageDealt
+		int survivalTime
+		int revivesGiven
+		int respawnsGiven
+		int deaths 
+	}
+	
+	//shared
+	global function SetDefaultIBMM
+	global function GetDefaultIBMM
+	global function bBotEnabled
+	global function SendServerMessage
+	global function getEventByPlayerHandle
+	
+	//persistence
+	global function SavePlayer_wait_time
+	global function SavePlayer_lock1v1_setting
+	global function SavePlayer_start_in_rest_setting
+	global function SavePlayer_enable_input_banner
+	global function SavePlayer_saved_weapons
+	
+	//utility 
+	global function empty
+	global function StringToArray
+	global function trim
+	global function Concatenate
+	global function IsNumeric
+	global function IsNum
+	global function GetPlayer
+	global function GetPlayerEntityByOID
+	global function GetPlayerEntityByName
+	global function IsValidOID
+	global function Is_Bool
+	global function sanitize
+	global function LineBreak
+	global function printarray
+	global function CheckRate
+	global function ParseWeapon
+	global function IsWeaponValid
+	
+	global struct DamageEvent {
+		int weaponSource
+		array<int> weaponOrder
+		
+		int attackerHandle //encoded ehandle
+		int victimHandle
+		
+		int hitCount
+		float bulletsHit
+		float damage
+		int headshots
+		float actionTimestamp
+		int lastWeaponSource
+		float lastHitTimestamp
+		
+		bool isNew
+		float shotIdentifier	
+	};
+	
+#endif
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 // ██████  ███████ ██████     ██████  ███████ ██    ██     ████████ ██████   █████   ██████ ██   ██ ███████ ██████ 
 // ██   ██ ██      ██   ██    ██   ██ ██      ██    ██        ██    ██   ██ ██   ██ ██      ██  ██  ██      ██   ██ 
@@ -38,6 +145,7 @@ global function PIN_Training
 // ██   ██ ███████ ██   ██ ██ ██████  ███████   ████          ██    ██   ██ ██   ██  ██████ ██   ██ ███████ ██   ██ 
 // r5r.dev by mkos
 
+#if TRACKER
 //shared
 global function getEventByPlayerHandle
 global function SavePlayer_wait_time
@@ -58,6 +166,11 @@ global function bGlobalStats
 global function bLog
 global function bEnc
 global function ClientCommand_mkos_test_return_data
+global function __executeEventStart_messages
+global function eMessageBot
+global function SendServerMessage
+global function bBotEnabled
+global function update
 
 //admin util
 global function GetAdminList
@@ -79,6 +192,10 @@ global function sanitize
 global function LineBreak
 global function printarray
 global function CheckRate
+global function ParseWeapon
+global function IsWeaponValid
+global function ChatEffects
+
 
 ////////////////////////////////////
 //
@@ -90,14 +207,23 @@ global float COMMAND_RATE_LIMIT = 0.200 //used in all client commands
 //
 ////////////////////////////////////
 
+
 const float MAX_WAIT_FOR_LOGGING_THREAD = 10 //5 seconds
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
-const int MAX_SAY_MSG = 100;
-const SQ_MAX_INT_32 = 2147483647;
-const SQ_MIN_INT_32 = -2147483647;
-const RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
-const REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
+const int MAX_SAY_MSG = 255;
+const int SQ_MAX_INT_32 = 2147483647;
+const int SQ_MIN_INT_32 = -2147483647;
+const int RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
+const int REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
 const float T_VERS = 2.1
+
+const array<string> EventTypes = [
+
+		"start",
+		"end"
+		
+	]
+	
 
 //(respawns) game summary
 
@@ -185,7 +311,7 @@ array<PlayerVerifyCount> playerVerifyCounts
 array< array< string > > list_maps
 array< array< string > > list_gamemodes
 array< string > whitelist
-array<DeleteEvents> DeleteEventTaskList // queue for managing event deletion
+array<DeleteEvents> DeleteEventTaskList // queue for managing event deletion //TODO rework
 
 #if SERVER   
 bool function Logging_ShipStats() 				{ return GetCurrentPlaylistVarBool("logging_shipstats", false) }
@@ -211,7 +337,6 @@ struct {
 struct {
 	
 	table<int,PlayerData> HandleToPlayerData
-	table < int, array<string> > MessageEvents
 	array <string> ADMINS
 	
 	table <string,string> Global_R5RDEV_StringSettings
@@ -242,8 +367,98 @@ struct {
 	string superglide_msg
 	string superglidetitle
 	
+	//ServerMessages
+	bool bChatbotEnabled
+	bool bIntervalThreadRunning
+	bool bKillIntervalThread
+	int iLoopMessagesTime
+	
+	string sBotName
+	int iBotID
+	entity eBotEnt
+	
+	table < int, array<string> > MessageEvents
+	array<string> Messages_EventStart
+	array<string> Messages_EventEnd
+	array<string> arrayLoopMessages = []
+	
+	bool DefaultLock1v1Setting
+	bool DefaultEnableInputBannerSetting
+	bool DefaultStartInRestSetting
+	
 } file
 
+//CHAT EFFECTS
+struct {
+
+	table<string,string> effects = {
+	
+		["THUMBSUP"] = "󰉥",
+		["SKULL"] = "󰆿",
+		["PISTOL"] = "󰉅",
+		["ROOK"] = "󰈭",
+		["YELLOW_SKULL"] = "󰈫",
+		["NO_WEP"] = "󰈝",
+		["HEALTHKIT"] = "󰈘",
+		["PHOENIX"] = "󰈖",
+		["LOCKED"] = "󰈎",
+		["EYE"] = "󰇊",
+		["FRIEND"] = "󰆾",
+		["LAG"] = "󰆼",
+		["CONNECTING"] = "󰆺",
+		["CELL"] = "󰈚",
+		["BATTERY"] = "󰈙",
+		["APEX"] = "󰅡",
+		["FIVE"] = "󰆗",
+		["CIRCLE"] = "󰆉",
+		["BLUEPEX"] = "󰅠",
+		["WRAITH_BANNER"] = "󰄒",
+		["BIG_WHITE_CROWN"] = "󰄈",
+		["WHITE_CROWN"] = "󰄇",
+		["BLUE_CROWN"] = "󰄄",
+		["TREE"] = "󰃻",
+		["SUS"] = "󰃴",
+		["RED_SQUARE"] = "󰃭"
+	}
+
+} chat
+
+table <string,string> function ChatEffects()
+{
+	return chat.effects
+}
+
+string function FindChatEffect( string key )
+{
+	if( key in chat.effects )
+	{
+		return chat.effects[key]
+	}
+	
+	string query = key.tolower()
+	
+	foreach( effectKey, chatValue in chat.effects )
+	{
+		if ( effectKey.tolower() == query )
+		{
+			return chatValue
+		}
+	}
+	
+	return "Not found.";
+}
+
+void function PrintAllChatEffects()
+{
+	string print_effects = format( "\n\n --- Chat Effects --- \n\n" )
+	
+	foreach( key, value in chat.effects )
+	{
+		print_effects += format( "%s \n", key ) 
+	}
+	
+	sqprint( print_effects )
+}
 
 bool function bLog()
 {
@@ -597,8 +812,8 @@ void function SetPlayerKD( entity player )
 			string playtime = (SYNC_Data_length > 3) ? SYNC_Data[3] : "";
 			string gamesplayed = (SYNC_Data_length > 4) ? SYNC_Data[4] : "";
 			string synced_score = (SYNC_Data_length > 5) ? SYNC_Data[5] : "";
-			string synced_wait_time = (SYNC_Data_length > 6) ?ReturnValue(SYNC_Data[6]) : "";
-			string synced_weapon_loadout = (SYNC_Data_length > 7) ?ReturnValue(SYNC_Data[7]) : "";
+			string synced_wait_time = (SYNC_Data_length > 6) ? ReturnValue(SYNC_Data[6]) : "";
+			string synced_weapon_loadout = (SYNC_Data_length > 7) ? ReturnValue(SYNC_Data[7]) : "";
 			string synced_lock1v1_setting = (SYNC_Data_length > 8) ? ReturnValue(SYNC_Data[8]) : "";
 			string synced_start_in_rest_setting = (SYNC_Data_length > 9) ? ReturnValue(SYNC_Data[9]) : "";
 			string synced_enable_input_banner_setting = (SYNC_Data_length > 10) ? ReturnValue(SYNC_Data[10]) : "";
@@ -742,7 +957,6 @@ void function SetPlayerKD( entity player )
 			player.p.lifetime_gamesplayed = player_lifetime_gamesplayed;
 			player.p.lifetime_score = player_lifetime_score;
 			
-			
 			break
 		}
 		
@@ -752,6 +966,11 @@ void function SetPlayerKD( entity player )
 	
 	player.p.stats_done_loading = true;
 
+	if( g_bIs1v1 )
+	{
+		INIT_playerChallengesStruct( player )
+	}		
+			
 	wait 0.2
 	SQ_ResetStats( OID )
 	
@@ -781,10 +1000,16 @@ void function __CONTROLLED_LogInit()
 void function PIN_Init()
 {	
 	INIT_fastComputes()
+	INIT_IntervalMessages()
+	
+	if( file.bChatbotEnabled )
+	{
+		thread __LoadServerBot()
+	}
 	
 	if( file.LogOn )
 	{
-		FlagInit("START_LOG", true)
+		FlagInit( "START_LOG", true )
 		thread __CONTROLLED_LogInit()
 	}
 	
@@ -798,6 +1023,7 @@ void function PIN_Init()
 	//FlagInit("DeleteEvents")
 	//thread EventManager()
 	
+		AddCallback_GameStateEnter( eGameState.Playing, __executeEventStart_messages )
 		AddCallback_OnClientConnected(PlayerConnectedCallback);
 		AddClientCommandCallback( "show", ClientCommand_mkos_test_return_data )
 		
@@ -820,6 +1046,7 @@ void function PIN_Init()
 			file.FS_MaxHealth = (GetCurrentPlaylistVarFloat("default_shield_hp", 100)) + 100;
 		}
 	
+	//moved to r5rdev_config.json
 	file.DISCORD_PLAYERS_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_PLAYERS_WEBHOOK", ""))
 	file.DISCORD_MATCHES_WEBHOOK = (GetCurrentPlaylistVarString("DISCORD_MATCHES_WEBHOOK", ""))
 	
@@ -828,16 +1055,12 @@ void function PIN_Init()
 	INIT_MapNames()
 	INIT_playeradmins()
 	
-	//init bools (must be before string inits)
-	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
-	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
-	
 	if (file.restricted_server) 
 	{
 		INIT_player_whitelist()
 	}
 	
-	//init strings
+	//init superglide strings
 	file.sg_counter_msg = GetCurrentPlaylistVarBool("superglide_counter_msg", false )
 	file.superglide_msg = GetCurrentPlaylistVarString( "custom_superglide_msg", "" )
 	file.superglidetitle = file.global_stats ? "Season Glides" : "Glides";
@@ -854,17 +1077,12 @@ void function PIN_Init()
 		EnableVoice()
 	}
 	
-	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
-	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
-	
 	if( GetCurrentPlaylistVarBool( "enable_chat_commands", true ) )
 	{
 		AddClientCommandCallback( "say", ClientCommand_ParseSay )
 	}
 	
 }
-
-
 
 void function INIT_fastComputes()
 {
@@ -873,6 +1091,23 @@ void function INIT_fastComputes()
 	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false)
 	file.LogOn = GetCurrentPlaylistVarBool("logging_enabled", false)
 	file.LogE = GetCurrentPlaylistVarBool("logging_encryption", false)
+	file.bChatbotEnabled = !IsLobby() && SQ_GetSetting("settings.ENABLE_CHATBOT") == "true" ? true : false;
+	
+	if(file.bChatbotEnabled)
+	{
+		file.sBotName = SQ_GetSetting("settings.CHATBOT_PREFIX")
+	}	
+	
+	COMMAND_RATE_LIMIT = GetCurrentPlaylistVarFloat( "COMMAND_RATE_LIMIT", 0.200 )
+	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
+	
+	//init stat bools (must be before string inits)
+	file.global_stats = GetCurrentPlaylistVarBool( "use_global_stats", false )
+	file.restricted_server = GetCurrentPlaylistVarBool( "restricted_server", false )
+	file.DefaultLock1v1Setting = GetCurrentPlaylistVarBool("default_lock1v1_setting", true)
+	file.DefaultEnableInputBannerSetting = GetCurrentPlaylistVarBool("default_enable_input_banner_setting", false)
+	file.DefaultStartInRestSetting = GetCurrentPlaylistVarBool("default_start_in_rest_setting", false)
+
 }
 
 void function UpdateFromLocalPersistence( entity player )
@@ -1072,11 +1307,9 @@ void function Init_NewGame()
 	///////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////
-	
 	// Round started, make a new log. r5r.dev
-	//Start of FIRST log should ALWAYS be passed with a 3rd parameter of true (mkdir check)
 	LogEvent(
-	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS,GetCurrentRound().tostring(), GetUnixTimestamp()),
+	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS, GetCurrentRound().tostring(), GetUnixTimestamp() ),
 	file.LogE
 	);
 	
@@ -1092,22 +1325,6 @@ void function Init_NewGame()
 	//END .DEV
 }
 
-		
-		bool function CheckRate( entity player )
-		{	
-			if ( !IsValid( player ) ) 
-				return false 
-				
-			if ( Time() - player.p.ratelimit <= COMMAND_RATE_LIMIT )
-			{
-				Message( player, "COMMANDS COOLDOWN")
-				return false
-			}
-			
-			player.p.ratelimit = Time()
-			
-			return true
-		}
 
 		//client command: show
 		bool function ClientCommand_mkos_test_return_data(entity player, array<string> args)
@@ -2517,7 +2734,7 @@ void function Init_NewGame()
 				
 				break;
 				
-			case "serversay":
+			case "msg":
 			
 						if ( args.len() < 2)
 						{
@@ -2645,8 +2862,44 @@ void function Init_NewGame()
 			
 					Message(player, "\"playerToGroupMap\"", getPlayerToGroupMap().len().tostring())
 					return true
-				
 					
+			case "start_interval_thread":
+
+					if(file.bIntervalThreadRunning)
+					{
+						Message( player, "Interval thread is already running." )
+						return true 
+					}
+					
+					thread IntervalThread()
+					return true 
+					
+			case "kill_interval_thread":
+			
+					file.bKillIntervalThread = true;
+					Message( player, "INTERVAL THREAD STOPPING" )
+					return true
+					
+			//case "testsend":
+			
+					//SQ_MsgToClient( param.tointeger(), param2 )
+					
+					//return true
+			case "thumbsup":
+				
+				SendServerMessage(chat.effects["THUMBSUP"])		
+				return true
+				
+			case "print_chat_effects":
+			
+				PrintAllChatEffects()
+				return true
+				
+			case "msgeffect":
+					
+				SendServerMessage( FindChatEffect( param ) )
+				return true
+
 			default:
 			
 						Message( player, "Usage", "cc #command #param1 #param2 #para...." )
@@ -2682,9 +2935,18 @@ void function RunUpdateMsg()
 			Message( player, update_title, update_msg, 3 )
 		}
 		
+		SendServerMessage(update_title)
+		
 		wait 3.6
 		
 	}
+}
+
+void function update()
+{
+	file.stop_update_msg_flag = false;
+	thread RunUpdateMsg()
+	sqerror("Update spam messages started")
 }
 
 bool function EnableVoice()
@@ -2704,48 +2966,272 @@ bool function EnableVoice()
 }
 
 //returns true if message was sent without truncation, false if truncated. 
-bool function SendServerMessage( string append_msg )
+bool function SendServerMessage( string _msg )
 {	
-	bool status = true;
-	
-	string send_msg = "[SERVER] " + append_msg;
-	
-	int msg_length = send_msg.len();
+	bool status = true;	
+	int msg_length = _msg.len();
 	
 	if ( msg_length > MAX_SAY_MSG )
 	{
-		send_msg = truncate( send_msg, MAX_SAY_MSG )
+		_msg = truncate( _msg, MAX_SAY_MSG )
 		sqerror("Message contained " + msg_length.tostring() + " characters ( " + (msg_length - MAX_SAY_MSG).tostring() + " too many ) and was truncated. Maxlength: " + MAX_SAY_MSG.tostring() )
 		status = false;
 	}
 	
-	//function to post the msg 
-	// ?
+	SQ_ServerMsg( sanitize( _msg ), file.iBotID )
 	
 	//if cafe's save chat log enabled
-	ReturnChatArray().append(send_msg)
-	
+	//ReturnChatArray().append(_msg)
 	return status
 }
 
-void function InitIntervalMessages()
+void function INIT_IntervalMessages()
 {
+	string msg_ArrayString = trim( SQ_GetSetting("settings.INTERVAL_MESSAGES") )
+	bool gotoLoopMessage = false 
 	
+	if( msg_ArrayString.len() == 0 )
+	{
+		gotoLoopMessage = true
+	}
+	
+	if( !gotoLoopMessage )
+	{
+		array<string> interval_settings = split( msg_ArrayString , "|")
+		
+		int iMessageNum = 0
+		
+		foreach( msg_string in interval_settings )
+		{
+			iMessageNum++;
+			
+			array<string> _msg = split( trim(msg_string), "=" )
+			if( _msg.len() > 1 )
+			{
+				string sM0 = trim(_msg[0])
+				string sM1 = trim(_msg[1])
+				
+				#if DEVELOPER
+				sqprint(format("interval found: %s  ;message: %s", sM0, sM1))
+				#endif
+				
+				string sm0Match = sM0.tolower()
+				
+				if( IsNumeric( sM0, FS_RoundTime() ) && sM1.len() > 0 && sM1.len() < 1000 )
+				{
+					try
+					{
+						string sMsg = sanitize( sM1 )
+						
+						int convert = sM0.tointeger()
+						float iRound10 = ceil(float(convert) / 10.0) * 10
+						int interval = (iRound10 / 10).tointeger()
+						
+						if ( !( interval in file.MessageEvents ) )
+						{
+							array<string> messages;
+							
+							messages.append( sMsg )
+							
+							file.MessageEvents[interval] <- messages
+						}
+						else 
+						{
+							file.MessageEvents[interval].append( sMsg )
+						}
+					}
+					catch(c_err)
+					{
+						sqerror(format("Cannot add msg #[ %d ] to MessageEvents, improper format", iMessageNum ))
+					}
+				}
+				else if( EventTypes.find( sm0Match ) > -1 && sM1.len() > 0 && sM1.len() < 1000 )
+				{
+					switch( sm0Match )
+					{
+						case "start":
+							file.Messages_EventStart.append(sM1)
+							break
+						case "end":
+							file.Messages_EventEnd.append(sM1)
+							break
+					}
+				}
+				else 
+				{
+					sqerror("InitIntervalMessages parsing error")
+				}
+			}
+		}
+	}//goto
+	
+	//loop messages (every x seconds)
+	
+	string loopTime = SQ_GetSetting( "settings.LOOP_MESSAGES_INTERVAL" )
+	
+	if( IsNumeric( loopTime, SQ_MAX_INT_32 ) )
+	{
+		int convert = loopTime.tointeger()
+		float iRound10 = ceil(float(convert) / 10.0) * 10
+		int interval = (iRound10 / 10).tointeger()
+		file.iLoopMessagesTime = interval //seconds rounded to thread cycle as multiple of 10
+	}
+	else 
+	{
+		file.iLoopMessagesTime = 2 //20 seconds
+	}
+	
+	#if DEVELOPER
+	sqprint(format("file.iLoopMessagesTime is: %d ", file.iLoopMessagesTime ))
+	#endif
+		
+	string getLoopMessages = SQ_GetSetting( "settings.LOOP_MESSAGES" )
+
+	if( getLoopMessages != "" && getLoopMessages.find("|") )
+	{
+		array<string> aLoopMessages = split( getLoopMessages, "|" )
+		
+		foreach( message in aLoopMessages )
+		{
+			file.arrayLoopMessages.append( trim(message) )
+			#if DEVELOPER
+			sqprint( format("Initialized loop message: %s", message ) )
+			#endif
+		}
+	}
+}
+
+
+void function __executeEventStart_messages()
+{	
+	if( file.Messages_EventStart.len() == 0 )
+	{
+		return 
+	}
+	
+	foreach ( message in file.Messages_EventStart )
+	{
+		SendServerMessage( message )
+	}
+}
+
+void function __executeEventEnd_messages()
+{
+	if( file.Messages_EventEnd.len() == 0 )
+	{
+		return 
+	}
+	
+	foreach ( message in file.Messages_EventEnd )
+	{
+		SendServerMessage( message )
+	}
 }
 
 void function InitPlayerWelcomeMessage()
 {
-
+	//requires filter recipient
 }
 
 void function IntervalThread()
 {
+	if(file.bIntervalThreadRunning)
+	{
+		sqerror( "Interval thread is already running." )
+		return
+	}
+	
+	int threadCycleCount = 0;
+	int loopMsgCount = 1; //gets reset when last message in loop messages is reached
+	file.bIntervalThreadRunning = true
+	
+	bool bLoopServerMessages = true 
+	
+	if( file.arrayLoopMessages.len() <= 0 )
+	{
+		bLoopServerMessages = false
+	}
+	
+	while(true)
+	{	
+		if(file.bKillIntervalThread){ break }
+		
+		wait 10
+		threadCycleCount += 1;
+		
+		//events
+		foreach(interval, msgs in file.MessageEvents) 
+		{
+			if ( ( threadCycleCount % interval) == 0 ) 
+			{
+				foreach( index, _msg in msgs ) 
+				{
+					SendServerMessage( _msg );
+				}
+			}
+		}	
+		
+		//train (loopmessages)
+		if( bLoopServerMessages )
+		{
+			loopMsgCount = SendLoopMessage( threadCycleCount, loopMsgCount )
+		}
+	}
+	
+	file.bIntervalThreadRunning = false
+}
 
+int function SendLoopMessage( int threadCycleCount, int loopMsgCount  )
+{
+	if( loopMsgCount > file.arrayLoopMessages.len() )
+	{
+		loopMsgCount = 1
+	}
+	
+	if( loopMsgCount > 0 && threadCycleCount > 0 && threadCycleCount % file.iLoopMessagesTime == 0  )
+	{
+		SendServerMessage( file.arrayLoopMessages[( loopMsgCount - 1 )] )
+		loopMsgCount++;
+	}
+	
+	return loopMsgCount
 }
 
 void function EventMessageSystem()
 {
+	//TODO
+}
 
+void function __LoadServerBot()
+{
+	wait 3
+	
+	array<int> result = SQ_CreateServerBot(file.sBotName)
+	
+	if( result.len() < 1 )
+	{
+		return
+	}
+	
+	file.iBotID = result[0]
+	
+	if(file.iBotID == -1)
+	{
+		return
+	}
+	
+	//file.iBotHandle = result[1]
+	//sqprint(format( "Bot id is: %d", file.iBotID ))
+}
+
+entity function eMessageBot() //global
+{
+	return file.eBotEnt
+}
+
+bool function bBotEnabled()
+{
+	return file.bChatbotEnabled
 }
 
 //chat commands
@@ -2766,15 +3252,20 @@ void function Commands( entity player, array<string> args )
 	
 	switch( args[0].tolower() )
 	{	
+		case "!wait":
 		case "/wait":
 		case "\\wait":
 			args.remove(0)
 			ClientCommand_mkos_LGDuel_IBMM_wait( player, args )
-			break			
+			break
+			
+		case "!rest":
 		case "/rest":
 		case "\\rest":
 			ClientCommand_Maki_SoloModeRest( player, [] )
 			break
+			
+		case "!info":
 		case "/info":
 		case "\\info":
 			args.remove(0)
@@ -2785,18 +3276,111 @@ void function Commands( entity player, array<string> args )
 			}
 			ClientCommand_mkos_test_return_data( player, args )
 			break 
+			
+		case "!id":
 		case "/id":
 		case "\\id":
 			ClientCommand_mkos_test_return_data( player, ["id"] )
 			break
+			
+		case "!aa":
 		case "/aa":
 		case "\\aa":
 			ClientCommand_mkos_test_return_data( player, ["aa"] )
 			break
+			
+		case "!inputs":
 		case "/inputs":
 		case "\\inputs":
 			ClientCommand_mkos_test_return_data( player, ["inputs"] )
 			break
+		
+		case "!chal":
+		case "!chall":
+		case "/chall":
+		case "\\chall":
+		case "!challenge":
+		case "/challenge":
+		case "\\challenge":
+		case "/chal":
+		case "\\chal":
+			args.remove(0)
+			args.insert(0, "chal")
+			ClientCommand_mkos_challenge( player, args )
+			break
+		
+		case "!accept":
+		case "/accept":
+		case "\\accept":
+			args.remove(0)
+			args.insert(0, "accept")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!list":
+		case "/list":
+		case "\\list":
+			args.remove(0)
+			args.insert(0, "list")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!end":
+		case "/end":
+		case "\\end":
+			args.remove(0)
+			args.insert(0, "end")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!remove":
+		case "/remove":
+		case "\\remove":
+			args.remove(0)
+			args.insert(0, "remove")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!clear":
+		case "/clear":
+		case "\\clear":
+			args.remove(0)
+			args.insert(0, "clear")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!revoke":
+		case "/revoke":
+		case "\\revoke":
+			args.remove(0)
+			args.insert(0, "revoke")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!cycle":
+		case "/cycle":
+		case "\\cycle":
+			args.remove(0)
+			args.insert(0, "cycle")
+			ClientCommand_mkos_challenge( player, args )
+			break
+		
+		case "!swap":
+		case "/swap":
+		case "\\swap":
+			args.remove(0)
+			args.insert(0, "swap")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
+		case "!legend":
+		case "/legend":
+		case "\\legend":
+			args.remove(0)
+			args.insert(0, "legend")
+			ClientCommand_mkos_challenge( player, args )
+			break
+			
 	}
 }
 
@@ -2979,7 +3563,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		int attackerSuperglides = 0;
 		
 		
-		// collect all DamageEvents for victim and calculate total damage
+		// collect all DamageEvents on victim and calculate total damage
 		foreach ( DamageEvent event in allDamageEvents ) 
 		{
 			if ( event.victimHandle == victim.p.handle ) 
@@ -3007,7 +3591,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 			#if DEVELOPER 
 			else 
 			{
-				sqprint(format("event.attackerHandle does not equal victim.p.handle. values: %d, %d", event.attackerHandle, victim.p.handle))
+				sqprint(format("event.victimHandle does not equal event victim of: victim.p.handle. values: %d, %d", event.victimHandle, victim.p.handle))
 			}
 			#endif
 		}
@@ -3024,14 +3608,13 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		
 		if ( totalDamageToVictim <= 0 )
 		{
-			return
-			
-			/*REPORT_STATS = false;
+			//return	
+			REPORT_STATS = false;
 			DeleteEvents Event;
 			Event.attacker_handle = attacker_handle 
 			Event.victim_handle = victim_handle
-			AddEventTask( Event, false )
-			return*/
+			AddEventTask( Event )
+			return
 		}
 		
 		#if DEVELOPER
@@ -3219,7 +3802,10 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		//This for loop is fine, it should never really exceed 2-5 attackers on the same victim. Even if it's server limit, it's relatively close to O(1)	
 		for ( int i = 0; i < player_handles.len(); ++i ) 
 		{
-		
+			
+			attackerShots = 0
+			attackerSuperglides = 0
+			attackerJumps = 0
 			//attackers jumps & total shots for fight
 			int attackerIndex = GetPlayerMetricsIndexByUID( GetPlayerIdFromHandle(player_handles[i]) ); 
 			
@@ -3243,6 +3829,8 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 						attackerShots += event_hitcount;
 					}	
 				}
+				
+				playerTotalShots[i] += attackerShots;
 			}
 		
 			logString += format("{%s}{%s} dealt:Recap: {%.2f} total damage in {%d} hits with weapon(s), headshots: {%d}, Total Jumps: {%d}, Total Shots: {%d}, Superglides: {%d};",
@@ -3260,7 +3848,18 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 									{
 										RecapStats( attacker, playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat(), victim.p.name, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat()  )
 									}
-								}					
+								}
+								
+								if( g_bIs1v1 )
+								{
+									soloGroupStruct group = returnSoloGroupOfPlayer( attacker )
+									
+									if( group.IsKeep )
+									{
+										addStatsToGroup( attacker, group, playerTotalDamages[i], playerTotalHits[i], playerTotalShots[i], true )
+									}
+								}
+								
 		}
 		
 		
@@ -3307,6 +3906,16 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 				{
 					RecapStats( victim, victimTotalDamage, victimTotalHits.tofloat(), victimTotalShots.tofloat(), playerDISPLAYNAME[i], playerTotalDamages[i], playerTotalHits[i].tofloat(), playerTotalShots[i].tofloat()  )
 				}
+			}
+		}
+		
+		if( g_bIs1v1 )
+		{
+			soloGroupStruct group = returnSoloGroupOfPlayer( victim )
+			
+			if( group.IsKeep )
+			{
+				addStatsToGroup( victim, group, victimTotalDamage, victimTotalHits, victimTotalShots, false )
 			}
 		}
 			
@@ -3432,7 +4041,9 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 			if (REPORT_STATS && file.bSafeLog)
 			{
 				LogEvent(logString, file.LogE);
-				//sqprint(logString);
+				#if DEVELOPER
+				sqprint(logString);
+				#endif
 			}
 
             return;
@@ -3441,8 +4052,8 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 	//TODO redesign delete thread
 	void function EventManager() 
 	{		
-		if (DeleteEventTaskList.len() > 0)
-		{	
+		if ( DeleteEventTaskList.len() > 0 )
+		{				
 			int victim_handle = DeleteEventTaskList[0].victim_handle;
 			int attacker_handle = DeleteEventTaskList[0].attacker_handle;
 			RemoveEvents( victim_handle, attacker_handle );	
@@ -3450,14 +4061,10 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		}
 	}
 	
-	void function AddEventTask( DeleteEvents Event, bool flag = true ) 
+	void function AddEventTask( DeleteEvents Event ) 
 	{
 		DeleteEventTaskList.append( Event );
-		
-		if(flag)
-		{
-			EventManager()
-		}
+		EventManager()
 		//FlagSet("DeleteEvents")
 	}
 
@@ -3495,7 +4102,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		#if DEVELOPER
 				foreach (event in allDamageEvents) 
 				{
-					sqprint(format( "Remaining event handle: dealer: %d, reciever: ", event.attackerHandle, event.victimHandle ));
+					sqprint(format( "Remaining event handle: dealer: %d, reciever: %d ", event.attackerHandle, event.victimHandle ));
 				}
 			sqprint(format("Total remaining events: %d, Total removed: %d", allDamageEvents.len(), removed));
 		#endif
@@ -3503,7 +4110,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 
 
 // these need replaced with global CONST to make future updates seamless
-table<int,float> DamagePerBullet = {
+const table<int,float> DamagePerBullet = {
 
  [54] = 7.00, //mp_weapon_shotgun
  [55] = 11.00, //mp_weapon_mastiff
@@ -3513,7 +4120,7 @@ table<int,float> DamagePerBullet = {
  
 }
 
-table<int,int> SpecialWeaponsBulletsPerShot = {
+const table<int,int> SpecialWeaponsBulletsPerShot = {
 
  [54] = 8, //mp_weapon_shotgun
  [55] = 8, //mp_weapon_mastiff
@@ -3634,7 +4241,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
     float damageAmount = DamageInfo_GetDamage(damageInfo);
 
 	#if DEVELOPER
-	sqprint(format("Source ID: %d, Weapon Source: %d, Damage Amount: %.2f", weaponSource, weaponSource, damageAmount));
+	//sqprint(format("Weapon Source: %d, Damage Amount: %.2f", weaponSource, damageAmount));
 	#endif
 
 	int attackerHandle = 0  
@@ -3732,9 +4339,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
 
 DamageEvent function getEventByPlayerHandle( int playerHandle )
-{
-	DamageEvent nullevent;
-	
+{	
 	foreach( event in allDamageEvents )
 	{
 		if ( event.attackerHandle == playerHandle )
@@ -3743,6 +4348,8 @@ DamageEvent function getEventByPlayerHandle( int playerHandle )
 		}
 	}
 	
+	DamageEvent nullevent;
+	nullevent.lastHitTimestamp = 0.0
 	return nullevent
 }
 
@@ -4061,7 +4668,7 @@ int function InitializePlayerMetricsStructForPlayerByUID( string playerID )
 		
 	PlayerMetrics NewMetrics;
 	NewMetrics.playerID = playerID
-		NewMetrics.playername = ""
+	NewMetrics.playername = ""
     NewMetrics.JumpTimestamps = []
     NewMetrics.WeaponShotsTimestamps = {}
 	NewMetrics.SuperglideTimestamps = []
@@ -4424,6 +5031,22 @@ void function SaveAllPlayerSettings()
 }
 
 
+bool function GetDefaultLock1v1Setting()
+{
+	return file.DefaultLock1v1Setting
+}
+
+bool function GetDefaultEnableInputBannerSetting()
+{
+	return file.DefaultEnableInputBannerSetting
+}
+
+bool function GetDefaultStartInRestSetting()
+{
+	return file.DefaultStartInRestSetting
+}
+
+
 // END PERSISTENCE //////////////////////////////////////////////////////////////////
 
 
@@ -4648,8 +5271,9 @@ void function WeaponAttack(entity player, entity weapon, string weaponName, int 
 
 /**** END JUMPS SHOTS SUPERGLIDES ************************************************************/
 
-void function PlayerDisconnectedCallback(entity player) 
+void function PlayerDisconnectedCallback( entity player ) 
 {	
+	player.Signal( "PlayerDisconnected" )
     string reason = "Disconnection";
     PIN_PlayerLeft(player, reason);
 }
@@ -4672,6 +5296,7 @@ void function PIN_RoundEnd( int roundnum )
 {	
 	if ( process_end_round_complete == true )
 	{
+		__executeEventEnd_messages()
 		thread FinishGameStatsRound()
 	}
 }
@@ -4751,18 +5376,10 @@ void function FinishGameStatsRound()
 
 
 void function PIN_GameEnd()
-{
-
-	foreach( player in GetPlayerArray() )
-	{
-		if (player.p.isSpectating)
-		{
-			endSpectate( player )
-		}
-	}
-	
+{	
 	if ( process_end_round_complete == true )
 	{
+		file.bKillIntervalThread = true; //TEST
 		thread FinishGameStatsRound()
 	}
 }
@@ -4773,6 +5390,26 @@ int function FS_RoundTime(){ return GetCurrentPlaylistVarInt("flowstateRoundtime
 void function PIN_AddPlayer( entity player )
 {	
 	if(!IsValid(player)) return 
+	
+	if( file.bChatbotEnabled && player.GetPlayerName() == "["+ file.sBotName +"]")
+	{
+		file.eBotEnt = player 
+		
+		if( IsValid(file.eBotEnt) )
+		{
+			player.p.bIsChatbot = true
+			mkos_Force_Rest( file.eBotEnt, [] )
+			file.eBotEnt.p.start_in_rest_setting = true;
+			thread BotInvis( player )
+			thread IntervalThread()
+		}
+		else 
+		{
+			sqerror("ServerBot Entity Error")
+		}
+		
+		return
+	}
 	
 	string UID = player.GetPlatformUID()
 	InitializePlayerMetricsStructForPlayer( player )
@@ -4815,11 +5452,7 @@ void function PIN_AddPlayer( entity player )
 	
 	if ( file.LogOn && isLogging() && IsValid( player ) )
 	{	
-	
-		string pName = player.GetPlatformUID();
 		string p_ea_name = player.GetPlayerName();
-		
-
 		Message(player, " ", "\n\n\n\n\n\n\n\n\n\n Match stats tracking and \n Input Based Match Making by: \n https://r5r.dev (mkos) \n\n\n\n\n\n\n\n\n " , 10)	
 
 		
@@ -4853,7 +5486,7 @@ void function PIN_AddPlayer( entity player )
 				if (IsValid(player)) 
 				{
 					LogEvent(format("^^,%s,0,%s,%d,,,,%i,,,,,%s\n",
-					   pName,
+					   UID,
 					   GetNumTeamsRemaining().tostring(),
 					   GetUnixTimestamp(),
 					   timeRemaining,
@@ -4867,7 +5500,17 @@ void function PIN_AddPlayer( entity player )
 			catch (error) 
 			{}		
 	}	
-	
+}
+
+void function BotInvis( entity bot )
+{	
+	if( !IsValid( bot ) ){ return }
+	maki_tp_player( bot, getBotSpawn() )
+	wait 7
+	maki_tp_player( bot, getBotSpawn() )
+	bot.MakeInvisible()
+	wait 2
+	bot.MakeInvisible()
 }
 
 void function PIN_PlayerLeft( entity player, string reason )
@@ -5267,6 +5910,9 @@ void function PIN_Training( entity player, string status, string trainingStatus 
 }
 
 
+#endif //END TRACKER DEFINE
+
+
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////					  ///////////////////////////
@@ -5397,22 +6043,6 @@ string function Concatenate( string str1, string str2 )
 	}
 	
     return str1 + str2;
-}
-
-
-bool function GetDefaultLock1v1Setting()
-{
-	return GetCurrentPlaylistVarBool("default_lock1v1_setting", true)
-}
-
-bool function GetDefaultEnableInputBannerSetting()
-{
-	return GetCurrentPlaylistVarBool("default_enable_input_banner_setting", false)
-}
-
-bool function GetDefaultStartInRestSetting()
-{
-	return GetCurrentPlaylistVarBool("default_start_in_rest_setting", false)
 }
 
 float function GetDefaultIBMM()
@@ -5574,22 +6204,21 @@ bool function Is_Bool(string str)
 
 entity function GetPlayerEntityByName( string name )
 {	
-	entity p;
-
+	entity p;	
+	name = name.tolower()
+	
 	foreach ( player in GetPlayerArray() )
 	{
-	
-		if ( player.GetPlayerName() == name ){
-			
-			return player;
-		
-		}
-	
+		if ( player.GetPlayerName().tolower() == name )
+		{		
+			return player;	
+		}	
 	}
 	
 	return p;
 }
 
+#if TRACKER
 bool function IsAdmin( string CheckPlayer )
 {
 	foreach ( Player, OID in player_admins) 
@@ -5604,6 +6233,7 @@ bool function IsAdmin( string CheckPlayer )
 	
 	return false;
 }
+#endif
 
 bool function IsValidOID( string str )
 {
@@ -5661,9 +6291,7 @@ entity function GetPlayer( string str )
 	
 	if ( IsValidOID( str ) )
 	{
-	
-		return GetPlayerEntityByOID( str )
-	
+		return GetPlayerEntityByOID( str )	
 	}
 	else
 	{
@@ -5673,6 +6301,7 @@ entity function GetPlayer( string str )
 	return player
 }
 
+#if TRACKER
 string function GetMap( string str ) 
 {
 	foreach ( map in list_maps ) 
@@ -5699,6 +6328,7 @@ string function GetMode( string str )
 	
 	return GameRules_GetGameMode()
 }
+#endif //TRACKER
 
 bool function IsControlCharacter(string c) 
 {
@@ -5755,6 +6385,23 @@ void function printarray( array<string> args )
 	}
 }
 
+
+bool function CheckRate( entity player )
+{	
+	if ( !IsValid( player ) ) 
+		return false 
+		
+	if ( Time() - player.p.ratelimit <= COMMAND_RATE_LIMIT )
+	{
+		Message( player, "COMMANDS COOLDOWN")
+		return false
+	}
+	
+	player.p.ratelimit = Time()
+	
+	return true
+}
+
 //taken from sh_playlists.gnut
 #if SERVER	
 array<string> function GetPlaylistMaps( PlaylistName playlistName )
@@ -5781,7 +6428,25 @@ array<string> function GetPlaylistMaps( PlaylistName playlistName )
 
 int function WeaponToIdentifier( string weaponName )
 {
+	if( !IsWeaponValid( weaponName )) 
+	{
+		string err = format( "#^ Unknown weaponName !DEBUG IT! -- weapon: %s", weaponName )
+		if(isLogging())
+		{
+			LogEvent(err,file.LogE)
+		}
+		
+		sqerror(err)
+		
+		return 2
+	}
+	
 	return WeaponIdentifiers[weaponName]
+}
+
+bool function IsWeaponValid( string weaponref )
+{
+	return ( weaponref in WeaponIdentifiers )
 }
 
 table<string,int> WeaponIdentifiers = {
@@ -6026,8 +6691,8 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_plasma_grenade_halomod"] = 230,
 	["mp_weapon_oddball_primary"] = 231,
 	["melee_oddball"] = 232,
+	["mp_weapon_clickweaponauto"] = 233,
 	// lies
-	["mp_weapon_grenade_bangalore"] = 233,
 	["mp_weapon_grenade_creeping_bombardment"] = 234,
 	["mp_ability_area_sonar_scan"] = 235,
 	["mp_ability_hunt_mode"] = 236,
@@ -6049,7 +6714,10 @@ table<string,int> WeaponIdentifiers = {
 	["mp_weapon_tesla_trap"] = 252,
 	["mp_weapon_trophy_defense_system"] = 253,
 	["mp_ability_phase_walk"] = 254,
-	["mp_weapon_phase_tunnel"] = 255
+	["mp_weapon_phase_tunnel"] = 255,
+	["mp_weapon_grenade_bangalore"] = 256
+	
+	//ADDING TO THIS LIST REQUIRES CHANGES TO EXCLUSION LIST
 
 };
 
@@ -6078,7 +6746,8 @@ array<int> function exclusions()
 		252,
 		253,
 		254,
-		255
+		255,
+		256
 	];
 
 	return exclude;
@@ -6093,3 +6762,209 @@ bool function exclude( int weaponSource )
 	
 	return false
 }
+
+
+string function ParseWeapon( string weaponString )
+{
+	array<string> mods = split( trim( weaponString ), " " )
+	
+	if( mods.len() < 1 )
+	{
+		return ""
+	}
+	
+	if( !IsWeaponValid( mods[0] ) || !(SURVIVAL_Loot_IsRefValid( mods[0] )) )
+	{
+		return ""
+	}
+	
+	bool removed = false
+	
+	for ( int i = mods.len() - 1 ; i >= 1; i-- )
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( mods[i] ) 
+		|| !IsModValidForWeapon( mods[0], mods[i] ) )
+		{
+			removed = true
+			sqprint("removed: " + mods[i] )		
+			mods.remove(i)
+		}
+	}
+	
+	if (removed)
+	{
+		sqprint( PrintSupportedAttachpointsForWeapon( mods[0] ) )
+	}
+	
+	string return_string = ""
+	
+	foreach( mod in mods )
+	{
+		return_string += mod + " "
+	}
+	
+	return trim(return_string)
+}
+
+bool function IsModValidForWeapon( string weaponref, string mod )
+{	
+	array<string> attachPoint = GetAttachPointsForAttachment( mod )
+	LootData wData = SURVIVAL_Loot_GetLootDataByRef( weaponref )	
+	
+	return ( wData.supportedAttachments.contains( attachPoint[0] ) 
+	&& !wData.disabledAttachments.contains( attachPoint[0] ) )
+}
+
+string function PrintSupportedAttachpointsForWeapon( string weaponref )
+{
+	LootData wData = SURVIVAL_Loot_GetLootDataByRef( weaponref )
+	
+	string debug = format("\n --- Attachment List for %s --- \n", weaponref)
+	int i = 1
+	
+	foreach( supported in wData.supportedAttachments )
+	{
+		debug += format( "%d. %s \n", i, supported )
+		i++;
+	}
+	
+	return debug
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+#if HAS_TRACKER_DLL
+//do nothing
+#else
+		array<int> function SQ_CreateServerBot(){ return [-1] }
+		
+		int function EA_Verify(){ return 0 }
+		
+		bool function isLogging(){ return false }
+		bool function SQ_GetLogState(){ return false }
+	
+		string function SQMatchID(){ return "" }
+		string function GetKDString( string UID ){ return "NA" }
+		string function SQ_GetSetting( string key ){ return "" }
+		string function FetchGlobalSettingsFromR5RDEV( string query ){ return "" }
+			
+		void function InitializeLogThread_internal(){}
+		void function LogEvent( string data, bool encrypt ){}
+		void function stopLogging(){}	
+		void function sqprint( string data ){ printl(data) }
+		void function sqerror( string data ){ Error(data) }		
+		void function testbool(){}		
+		void function _STATSHOOK_UpdatePlayerCount(){}
+		void function _STATSHOOK_EndOfMatch(){}
+		void function LoadKDString( string UID ){}
+		void function SQ_UpdateLiveStats(){}
+		void function SQ_ResetStats(){}
+		void function LoadBatchKDStrings(){}
+		void function CleanupLogs(){}	
+		void function SQ_ReloadConfig(){}		
+		void function SQ_ServerMsg( string msg, int id ){}	
+#endif
+
+#if STUB
+
+struct {
+
+	bool LogOn = false
+	bool LogE = false
+	bool bChatbotEnabled = false
+	bool global_stats = false
+	bool afk_to_rest_enabled = false
+
+} file
+
+//flags
+bool function bLog(){ return file.LogOn }
+bool function bEnc(){ return file.LogE }
+bool function bGlobalStats(){ return file.global_stats }
+bool function bAfkToRest(){ return file.afk_to_rest_enabled }
+bool function bBotEnabled(){ return file.bChatbotEnabled }
+
+//persistence
+void function SavePlayer_wait_time( entity ent, float time ){}
+void function SavePlayer_lock1v1_setting( entity ent, bool setting ){}
+void function SavePlayer_start_in_rest_setting( entity ent, bool setting ){}
+void function SavePlayer_enable_input_banner( entity ent, bool setting ){}
+void function SavePlayer_saved_weapons( entity ent, string settings ){}
+
+//shared
+void function SendServerMessage( string msg ){}
+DamageEvent function getEventByPlayerHandle( int handle ){ DamageEvent e; e.lastHitTimestamp = 0.0; return e }
+
+void function PIN_Init()
+{
+	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
+	g_bIs1v1 = GetCurrentPlaylistName() == "fs_1v1" ? true : false;
+	g_bLGmode = GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false )
+	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false )
+	AddCallback_OnClientConnected(PlayerConnectedCallback);
+}
+
+void function PIN_GameStart(){}
+void function PIN_RoundEnd( int roundnum ){}
+void function PIN_GameEnd(){}
+void function PIN_AddPlayer( entity player ){}
+void function PIN_PlayerLeft( entity player, string reason ){}
+void function PIN_PlayerSpawned( entity player ){}
+void function PIN_PlayerDowned( entity victim, entity attacker, var damageInfo ){}
+void function PIN_PlayerRevived( entity injured, entity healer ){}
+void function PIN_PlayerKilled( entity victim, entity attacker, var damageInfo ){}
+void function PIN_PlanePath( vector startPos, vector endPos, float duration ){}
+void function PIN_SetGameStartTime(){}
+void function PIN_GameStartedForPlayer( entity player ){}
+void function PIN_ItemPickup( entity player, entity pickup, string ref, int unitsPickedUp ){}
+void function PIN_CircleLocation( string type, vector origin, float radius, string action ){}
+void function PIN_DamageDone( entity attacker, entity victim, float damageAmount ){}
+void function PIN_DamageDoneToPlayerForWeapon( entity attacker, string weaponclassname, float damageAmount, bool isHeadshot ){}
+void function PIN_PlayerEquip( entity player ){}
+void function PIN_PlayerUse( entity player, string ref, ... ){}
+void function PIN_PlayerOutResource( entity player, string ref ){}
+
+void function PlayerConnectedCallback( entity player )
+{	
+	if ( !IsValid( player ) ){ return }
+	
+	player.p.name = player.GetPlayerName()
+	player.p.UID = player.GetPlatformUID()
+	player.p.handle = player.GetEncodedEHandle()
+}
+
+GameSummarySquadData function GameSummary_GetPlayerData( entity player )
+{
+	GameSummarySquadData data
+
+	if ( !IsValid( player ) )
+		return data
+
+	data.kills = player.GetPlayerNetInt( "kills" )
+	data.deaths = player.p.numberOfDeaths
+	data.survivalTime = int( Time() - player.p.lastRespawnTime )
+	data.damageDealt = int( player.p.playerDamageDealt )
+	data.revivesGiven = player.p.revivesGiven
+	data.respawnsGiven = player.p.respawnsGiven
+
+	return data
+}
+
+void function PIN_Interact(entity player, string sound, ... ){}
+void function PIN_PlayerAbility( entity player, string name, int ability, entity tracked, table additionalData ){}
+void function PIN_PlayerAbilityReady( entity player, int ability ){}
+void function PIN_AddToPlayerCountStat( entity player, string ability ){}
+void function PIN_OnWeaponAttack( entity player, entity meleeAttackWeapon, string classname, int num, vector origin, vector lookDirection ){}
+void function PIN_Ping( entity player, string pingType, entity pingEnt, vector position ){}
+void function PIN_OnPlayerHealed( entity player, ... ){}
+void function PIN_PlayerLandedOnGround( entity player ){}
+void function PIN_PlayerJumpedFromPlane( entity player, int len ){}
+void function PIN_Training( entity player, string status, string trainingStatus ){}
+
+#endif

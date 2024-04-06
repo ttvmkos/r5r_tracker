@@ -56,8 +56,7 @@ void function AfkWarning( entity player )
 
 void function CheckAfkKickThread(entity player)
 {	
-	printt("Flowstate - AFK thread initialized for " + player.GetPlayerName() )
-	
+	//printt("Flowstate - AFK thread initialized for " + player.GetPlayerName() )	
 	while( true )
 	{
 		wait GetCurrentPlaylistVarFloat( "Flowstate_antiafk_interval", 10.0 )
@@ -80,9 +79,9 @@ void function CheckAfkKickThread(entity player)
 		//another mkos mod
 		if ( g_bIs1v1 && isPlayerInRestingList( player ) && g_bRestMsg )
 		{	
-			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 25 )
+			if ( player.p.messagetime == 0 || Time() >= player.p.messagetime + 30 )
 			{	
-				Message(player, "\n\n\n\n\n\n You are Resting", LineBreak("Type 'rest' in console to exit rest or press panel button to resume 1v1s \n\n Type 'wait' in console for info about your IBMM queue times \n\n Type 'show player #' in console replacing # with player's name/id for info about that player.",50), 25, "")
+				Message(player, "\n\n\n\n\n\n You are Resting", LineBreak("Type 'rest' in console to exit rest or press panel button to resume 1v1s \n\n Type 'wait' in console for info about your IBMM queue times \n\n Type 'show player #' in console replacing # with player's name/id for info about that player.",50), 30, "")
 				player.p.messagetime = Time()
 			}
 			
