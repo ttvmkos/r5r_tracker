@@ -30,6 +30,113 @@ global function PIN_PlayerLandedOnGround
 global function PIN_PlayerJumpedFromPlane
 global function PIN_Training
 
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+// these defines dictate the compiler for tracker code vs stub code
+
+global const bool TRACKER = true
+global const bool HAS_TRACKER_DLL = true
+
+//do not edit below this line
+#if TRACKER
+	global const bool STUB = false
+#else
+	global const bool STUB = true 
+#endif 
+
+
+#if STUB 	
+	
+	//const
+	const int SQ_MAX_INT_32 = 2147483647;
+	const int SQ_MIN_INT_32 = -2147483647;
+	
+	//flags
+	global function bAfkToRest
+	global function bGlobalStats
+	global function bLog
+	global function bEnc
+	global bool g_bIs1v1
+	global bool g_bLGmode = false
+	global bool g_bGiveTactical = false
+	global bool g_bRestMsg = false // used in antiafk
+	global float COMMAND_RATE_LIMIT = 0.200 
+	
+	global struct GameSummarySquadData 
+	{
+		int kills
+		int damageDealt
+		int survivalTime
+		int revivesGiven
+		int respawnsGiven
+		int deaths 
+	}
+	
+	//shared
+	global function SetDefaultIBMM
+	global function GetDefaultIBMM
+	global function bBotEnabled
+	global function SendServerMessage
+	global function getEventByPlayerHandle
+	
+	//persistence
+	global function SavePlayer_wait_time
+	global function SavePlayer_lock1v1_setting
+	global function SavePlayer_start_in_rest_setting
+	global function SavePlayer_enable_input_banner
+	global function SavePlayer_saved_weapons
+	
+	//utility 
+	global function empty
+	global function StringToArray
+	global function trim
+	global function Concatenate
+	global function IsNumeric
+	global function IsNum
+	global function GetPlayer
+	global function GetPlayerEntityByOID
+	global function GetPlayerEntityByName
+	global function IsValidOID
+	global function Is_Bool
+	global function sanitize
+	global function LineBreak
+	global function printarray
+	global function CheckRate
+	global function ParseWeapon
+	global function IsWeaponValid
+	
+	global struct DamageEvent {
+		int weaponSource
+		array<int> weaponOrder
+		
+		int attackerHandle //encoded ehandle
+		int victimHandle
+		
+		int hitCount
+		float bulletsHit
+		float damage
+		int headshots
+		float actionTimestamp
+		int lastWeaponSource
+		float lastHitTimestamp
+		
+		bool isNew
+		float shotIdentifier	
+	};
+	
+#endif
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 // ██████  ███████ ██████     ██████  ███████ ██    ██     ████████ ██████   █████   ██████ ██   ██ ███████ ██████ 
 // ██   ██ ██      ██   ██    ██   ██ ██      ██    ██        ██    ██   ██ ██   ██ ██      ██  ██  ██      ██   ██ 
@@ -38,6 +145,7 @@ global function PIN_Training
 // ██   ██ ███████ ██   ██ ██ ██████  ███████   ████          ██    ██   ██ ██   ██  ██████ ██   ██ ███████ ██   ██ 
 // r5r.dev by mkos
 
+#if TRACKER
 //shared
 global function getEventByPlayerHandle
 global function SavePlayer_wait_time
@@ -103,10 +211,10 @@ global float COMMAND_RATE_LIMIT = 0.200 //used in all client commands
 const float MAX_WAIT_FOR_LOGGING_THREAD = 10 //5 seconds
 const float DAMAGE_LOOKBACK_TIME_WINDOW = 20.0;
 const int MAX_SAY_MSG = 255;
-const SQ_MAX_INT_32 = 2147483647;
-const SQ_MIN_INT_32 = -2147483647;
-const RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
-const REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
+const int SQ_MAX_INT_32 = 2147483647;
+const int SQ_MIN_INT_32 = -2147483647;
+const int RESTRICTED_ACCESS_STATUS_REQUIRED = 7; // refer to Player_Has_Access()
+const int REQUIRED_SYNC_DATA_FIELDS = 5;  //amount of fields returned by stats the scripts require (non-settings values)
 const float T_VERS = 2.1
 
 const array<string> EventTypes = [
@@ -894,14 +1002,14 @@ void function PIN_Init()
 	INIT_fastComputes()
 	INIT_IntervalMessages()
 	
-	if(file.bChatbotEnabled)
+	if( file.bChatbotEnabled )
 	{
 		thread __LoadServerBot()
 	}
 	
 	if( file.LogOn )
 	{
-		FlagInit("START_LOG", true)
+		FlagInit( "START_LOG", true )
 		thread __CONTROLLED_LogInit()
 	}
 	
@@ -1199,10 +1307,9 @@ void function Init_NewGame()
 	///////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////
-	
 	// Round started, make a new log. r5r.dev
 	LogEvent(
-	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS,GetCurrentRound().tostring(), GetUnixTimestamp()),
+	format("|#Tracker version:%.1f\n|| New match; round %s;  started at: %d\n",T_VERS, GetCurrentRound().tostring(), GetUnixTimestamp() ),
 	file.LogE
 	);
 	
@@ -1218,22 +1325,6 @@ void function Init_NewGame()
 	//END .DEV
 }
 
-		
-		bool function CheckRate( entity player )
-		{	
-			if ( !IsValid( player ) ) 
-				return false 
-				
-			if ( Time() - player.p.ratelimit <= COMMAND_RATE_LIMIT )
-			{
-				Message( player, "COMMANDS COOLDOWN")
-				return false
-			}
-			
-			player.p.ratelimit = Time()
-			
-			return true
-		}
 
 		//client command: show
 		bool function ClientCommand_mkos_test_return_data(entity player, array<string> args)
@@ -4248,9 +4339,7 @@ void function R5R_OnPlayerDamaged(entity victim, var damageInfo)
 
 
 DamageEvent function getEventByPlayerHandle( int playerHandle )
-{
-	DamageEvent nullevent;
-	
+{	
 	foreach( event in allDamageEvents )
 	{
 		if ( event.attackerHandle == playerHandle )
@@ -4259,6 +4348,8 @@ DamageEvent function getEventByPlayerHandle( int playerHandle )
 		}
 	}
 	
+	DamageEvent nullevent;
+	nullevent.lastHitTimestamp = 0.0
 	return nullevent
 }
 
@@ -5819,6 +5910,9 @@ void function PIN_Training( entity player, string status, string trainingStatus 
 }
 
 
+#endif //END TRACKER DEFINE
+
+
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////					  ///////////////////////////
@@ -6124,6 +6218,7 @@ entity function GetPlayerEntityByName( string name )
 	return p;
 }
 
+#if TRACKER
 bool function IsAdmin( string CheckPlayer )
 {
 	foreach ( Player, OID in player_admins) 
@@ -6138,6 +6233,7 @@ bool function IsAdmin( string CheckPlayer )
 	
 	return false;
 }
+#endif
 
 bool function IsValidOID( string str )
 {
@@ -6205,6 +6301,7 @@ entity function GetPlayer( string str )
 	return player
 }
 
+#if TRACKER
 string function GetMap( string str ) 
 {
 	foreach ( map in list_maps ) 
@@ -6231,6 +6328,7 @@ string function GetMode( string str )
 	
 	return GameRules_GetGameMode()
 }
+#endif //TRACKER
 
 bool function IsControlCharacter(string c) 
 {
@@ -6285,6 +6383,23 @@ void function printarray( array<string> args )
 	{
 		sqprint("Error: " + badType )
 	}
+}
+
+
+bool function CheckRate( entity player )
+{	
+	if ( !IsValid( player ) ) 
+		return false 
+		
+	if ( Time() - player.p.ratelimit <= COMMAND_RATE_LIMIT )
+	{
+		Message( player, "COMMANDS COOLDOWN")
+		return false
+	}
+	
+	player.p.ratelimit = Time()
+	
+	return true
 }
 
 //taken from sh_playlists.gnut
@@ -6715,3 +6830,141 @@ string function PrintSupportedAttachpointsForWeapon( string weaponref )
 	
 	return debug
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+#if HAS_TRACKER_DLL
+//do nothing
+#else
+		array<int> function SQ_CreateServerBot(){ return [-1] }
+		
+		int function EA_Verify(){ return 0 }
+		
+		bool function isLogging(){ return false }
+		bool function SQ_GetLogState(){ return false }
+	
+		string function SQMatchID(){ return "" }
+		string function GetKDString( string UID ){ return "NA" }
+		string function SQ_GetSetting( string key ){ return "" }
+		string function FetchGlobalSettingsFromR5RDEV( string query ){ return "" }
+			
+		void function InitializeLogThread_internal(){}
+		void function LogEvent( string data, bool encrypt ){}
+		void function stopLogging(){}	
+		void function sqprint( string data ){ printl(data) }
+		void function sqerror( string data ){ Error(data) }		
+		void function testbool(){}		
+		void function _STATSHOOK_UpdatePlayerCount(){}
+		void function _STATSHOOK_EndOfMatch(){}
+		void function LoadKDString( string UID ){}
+		void function SQ_UpdateLiveStats(){}
+		void function SQ_ResetStats(){}
+		void function LoadBatchKDStrings(){}
+		void function CleanupLogs(){}	
+		void function SQ_ReloadConfig(){}		
+		void function SQ_ServerMsg( string msg, int id ){}	
+#endif
+
+#if STUB
+
+struct {
+
+	bool LogOn = false
+	bool LogE = false
+	bool bChatbotEnabled = false
+	bool global_stats = false
+	bool afk_to_rest_enabled = false
+
+} file
+
+//flags
+bool function bLog(){ return file.LogOn }
+bool function bEnc(){ return file.LogE }
+bool function bGlobalStats(){ return file.global_stats }
+bool function bAfkToRest(){ return file.afk_to_rest_enabled }
+bool function bBotEnabled(){ return file.bChatbotEnabled }
+
+//persistence
+void function SavePlayer_wait_time( entity ent, float time ){}
+void function SavePlayer_lock1v1_setting( entity ent, bool setting ){}
+void function SavePlayer_start_in_rest_setting( entity ent, bool setting ){}
+void function SavePlayer_enable_input_banner( entity ent, bool setting ){}
+void function SavePlayer_saved_weapons( entity ent, string settings ){}
+
+//shared
+void function SendServerMessage( string msg ){}
+DamageEvent function getEventByPlayerHandle( int handle ){ DamageEvent e; e.lastHitTimestamp = 0.0; return e }
+
+void function PIN_Init()
+{
+	g_bGiveTactical = GetCurrentPlaylistVarBool( "give_legend_tactical", false )
+	g_bIs1v1 = GetCurrentPlaylistName() == "fs_1v1" ? true : false;
+	g_bLGmode = GetCurrentPlaylistVarBool( "lg_duel_mode_60p", false )
+	g_bRestMsg = GetCurrentPlaylistVarBool( "rest_msg", false )
+	AddCallback_OnClientConnected(PlayerConnectedCallback);
+}
+
+void function PIN_GameStart(){}
+void function PIN_RoundEnd( int roundnum ){}
+void function PIN_GameEnd(){}
+void function PIN_AddPlayer( entity player ){}
+void function PIN_PlayerLeft( entity player, string reason ){}
+void function PIN_PlayerSpawned( entity player ){}
+void function PIN_PlayerDowned( entity victim, entity attacker, var damageInfo ){}
+void function PIN_PlayerRevived( entity injured, entity healer ){}
+void function PIN_PlayerKilled( entity victim, entity attacker, var damageInfo ){}
+void function PIN_PlanePath( vector startPos, vector endPos, float duration ){}
+void function PIN_SetGameStartTime(){}
+void function PIN_GameStartedForPlayer( entity player ){}
+void function PIN_ItemPickup( entity player, entity pickup, string ref, int unitsPickedUp ){}
+void function PIN_CircleLocation( string type, vector origin, float radius, string action ){}
+void function PIN_DamageDone( entity attacker, entity victim, float damageAmount ){}
+void function PIN_DamageDoneToPlayerForWeapon( entity attacker, string weaponclassname, float damageAmount, bool isHeadshot ){}
+void function PIN_PlayerEquip( entity player ){}
+void function PIN_PlayerUse( entity player, string ref, ... ){}
+void function PIN_PlayerOutResource( entity player, string ref ){}
+
+void function PlayerConnectedCallback( entity player )
+{	
+	if ( !IsValid( player ) ){ return }
+	
+	player.p.name = player.GetPlayerName()
+	player.p.UID = player.GetPlatformUID()
+	player.p.handle = player.GetEncodedEHandle()
+}
+
+GameSummarySquadData function GameSummary_GetPlayerData( entity player )
+{
+	GameSummarySquadData data
+
+	if ( !IsValid( player ) )
+		return data
+
+	data.kills = player.GetPlayerNetInt( "kills" )
+	data.deaths = player.p.numberOfDeaths
+	data.survivalTime = int( Time() - player.p.lastRespawnTime )
+	data.damageDealt = int( player.p.playerDamageDealt )
+	data.revivesGiven = player.p.revivesGiven
+	data.respawnsGiven = player.p.respawnsGiven
+
+	return data
+}
+
+void function PIN_Interact(entity player, string sound, ... ){}
+void function PIN_PlayerAbility( entity player, string name, int ability, entity tracked, table additionalData ){}
+void function PIN_PlayerAbilityReady( entity player, int ability ){}
+void function PIN_AddToPlayerCountStat( entity player, string ability ){}
+void function PIN_OnWeaponAttack( entity player, entity meleeAttackWeapon, string classname, int num, vector origin, vector lookDirection ){}
+void function PIN_Ping( entity player, string pingType, entity pingEnt, vector position ){}
+void function PIN_OnPlayerHealed( entity player, ... ){}
+void function PIN_PlayerLandedOnGround( entity player ){}
+void function PIN_PlayerJumpedFromPlane( entity player, int len ){}
+void function PIN_Training( entity player, string status, string trainingStatus ){}
+
+#endif

@@ -1729,6 +1729,7 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 	int defeatedDeaths = 0
 	bool tied = false
 	
+	#if TRACKER
 	if( bChalServerMsg )
 	{
 		if( player1.kills > player2.kills )
@@ -1765,6 +1766,7 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 		
 		SendServerMessage( serverMsg + ChatEffects()["SKULL"] )
 	}
+	#endif
 	
 	groupRecapStats( group.player1, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, player2.displayname, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, group.startTime ) 
 	groupRecapStats( group.player2, player2.damage, player2.hits, player2.shots, player2.kills, player2.deaths, player1.displayname, player1.damage, player1.hits, player1.shots, player1.kills, player1.deaths, group.startTime ) 
@@ -3382,10 +3384,12 @@ void function _soloModeInit(string mapName)
 	    	array<entity> enemiesArray = GetPlayerArray_Alive()
 			enemiesArray.fastremovebyvalue( user )
 			
-			if( IsValid ( eMessageBot() ) && IsAlive( eMessageBot() ) )
+			#if TRACKER
+			if( bBotEnabled() && IsValid ( eMessageBot() ) && IsAlive( eMessageBot() ) )
 			{
 				enemiesArray.fastremovebyvalue( eMessageBot() )
 			}
+			#endif
 			
 		    entity specTarget = enemiesArray.getrandom()
 

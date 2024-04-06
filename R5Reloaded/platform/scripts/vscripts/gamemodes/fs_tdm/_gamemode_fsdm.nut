@@ -63,7 +63,6 @@ global function GetCurrentRound
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
 global function ClientCommand_mkos_lock1v1_setting
-global bool input_monitor_running = false;
 global bool IS_1V1_MODE_ENABLED
 
 //LGDuels
@@ -629,18 +628,11 @@ bool function ClientCommand_mkos_LGDuel_p_damage( entity player, array<string> a
 		param = args[0];
 	}
 	
-	
-		if (args.len() < 1)
+		if (args.len() < 1 || param == "" )
 		{
 			Message( player, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n handicap:", " Type into console: handicap # \n replacing # with 'on' or 'off'.  \n\n On: Deal and recieve 2 damage per hit. \n\n Off: Deal and recieve 3 damage per hit.", 15)
 			return true
 		}				
-		
-		if ( param == "")
-		{
-			return true; 
-		}
-		
 		
 		switch( param.tolower() )
 		{
