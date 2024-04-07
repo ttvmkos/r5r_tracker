@@ -197,6 +197,7 @@ ______________________________________________________________________
 	enable_chat_commands		1 // allows typing /rest /info /id /aa  into chat. 
 	
 	//challenges
+	enable_challenge   			1  // players can use challenge system , 0 for disabled
 	give_legend_tactical		1 //gives player tactical ability for legend on spawn (challenge realm only)
 	give_legend 			1 // allows giving legend ( during challenge only )
 	challenge_recap_server_message	1 //enables quick kill/death recap msg in chat (requires chat bot enabled in r5rdev_config.json)

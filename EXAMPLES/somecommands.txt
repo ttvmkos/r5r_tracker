@@ -276,3 +276,9 @@ cc start_interval_thread
 cc kill_interval_thread
 
 	manually kill the msg interval thread
+
+/////////////////////////////
+
+cc nextmap
+
+	manually cycle to next map in the maplist.

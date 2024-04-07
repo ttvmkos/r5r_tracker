@@ -108,6 +108,8 @@ global const bool HAS_TRACKER_DLL = true
 	global function CheckRate
 	global function ParseWeapon
 	global function IsWeaponValid
+	global function sqprint
+	global function sqerror
 	
 	global struct DamageEvent {
 		int weaponSource
@@ -2899,6 +2901,11 @@ void function Init_NewGame()
 					
 				SendServerMessage( FindChatEffect( param ) )
 				return true
+				
+			case "nextmap":
+			
+				RotateMap()
+				return true
 
 			default:
 			
@@ -3217,6 +3224,7 @@ void function __LoadServerBot()
 	
 	if(file.iBotID == -1)
 	{
+		file.bChatbotEnabled = false
 		return
 	}
 	
@@ -3852,11 +3860,17 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 								
 								if( g_bIs1v1 )
 								{
-									soloGroupStruct group = returnSoloGroupOfPlayer( attacker )
-									
-									if( group.IsKeep )
+									if( IsValid( attacker ) )
 									{
-										addStatsToGroup( attacker, group, playerTotalDamages[i], playerTotalHits[i], playerTotalShots[i], true )
+										soloGroupStruct group = returnSoloGroupOfPlayer( attacker )
+									
+										if ( IsValid( group ) )
+										{
+											if( group.IsKeep )
+											{
+												addStatsToGroup( attacker, group, playerTotalDamages[i], playerTotalHits[i], playerTotalShots[i], true )
+											}
+										}
 									}
 								}
 								
@@ -3913,7 +3927,7 @@ DamageEvent function CreateDamageEvent( int weaponSource, float damage, float ac
 		{
 			soloGroupStruct group = returnSoloGroupOfPlayer( victim )
 			
-			if( group.IsKeep )
+			if( IsValid( group ) && group.IsKeep )
 			{
 				addStatsToGroup( victim, group, victimTotalDamage, victimTotalHits, victimTotalShots, false )
 			}
@@ -5979,27 +5993,23 @@ array<string> function StringToArray( string str, int MAX_LENGTH = 128 )
 	*/
 	
     foreach ( item in arr ) 
-	{	
-	
+	{		
 		item_index++
 		item = trim( item )
 		length_check = item.len()
 	
         if ( item == "" ) 
 		{   
-		
-            sqerror( "Empty item in the list for item # " + ( item_index ) + " removed. " )	
-			
-        } else if ( length_check >= MAX_LENGTH ){
-
+            sqerror( "Empty item in the list for item # " + ( item_index ) + " removed. " )			
+        } 
+		else if ( length_check >= MAX_LENGTH )
+		{
 			sqerror( "item # " + ( item_index ) + " is too long and was removed. Length: " + length_check + " ; Max: " + MAX_LENGTH + " chars")	
-		
-		} else {
-			
-			valid.append( item )
-			
-		}
-		
+		} 
+		else
+		{		
+			valid.append( item )		
+		}	
     }
 	
 	if ( valid.len() <= 0 ) 
@@ -6037,9 +6047,7 @@ string function Concatenate( string str1, string str2 )
 	
 	if ( str2 != ""  )
 	{
-	
-		str2 = "," + str2;
-	
+		str2 = "," + str2;	
 	}
 	
     return str1 + str2;
@@ -6059,7 +6067,6 @@ void function SetDefaultIBMM( entity player )
 
 bool function IsNum( string str ) 
 {
-
 	if ( str.len() == 0 )
 		return false
 	
@@ -6082,7 +6089,7 @@ bool function empty( string str )
 	return str == "";
 }
 
-bool function IsNumeric(string str, int limit = 16 )
+bool function IsNumeric(string str, int limit = 16 ) //TODO default max to sq max int, (change 16 specific calls to 16)
 {
 
 	if ( !IsNum( str ) ) return false;
@@ -6374,7 +6381,7 @@ void function printarray( array<string> args )
 		
 		foreach( arg in args )
 		{
-			test += arg;
+			test += format( "%s \n", arg )
 		}
 		
 		sqprint(test)
@@ -6858,7 +6865,7 @@ string function PrintSupportedAttachpointsForWeapon( string weaponref )
 		void function LogEvent( string data, bool encrypt ){}
 		void function stopLogging(){}	
 		void function sqprint( string data ){ printl(data) }
-		void function sqerror( string data ){ Error(data) }		
+		void function sqerror( string data ){ printl(data) }		
 		void function testbool(){}		
 		void function _STATSHOOK_UpdatePlayerCount(){}
 		void function _STATSHOOK_EndOfMatch(){}
@@ -6895,7 +6902,7 @@ void function SavePlayer_wait_time( entity ent, float time ){}
 void function SavePlayer_lock1v1_setting( entity ent, bool setting ){}
 void function SavePlayer_start_in_rest_setting( entity ent, bool setting ){}
 void function SavePlayer_enable_input_banner( entity ent, bool setting ){}
-void function SavePlayer_saved_weapons( entity ent, string settings ){}
+void function SavePlayer_saved_weapons( entity ent, string setting ){}
 
 //shared
 void function SendServerMessage( string msg ){}

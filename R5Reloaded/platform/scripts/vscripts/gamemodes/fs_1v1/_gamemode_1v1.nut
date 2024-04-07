@@ -72,6 +72,7 @@ global struct soloGroupStruct
 	float startTime
 	table <entity,groupStats> statsRecap
 }
+
 global struct soloPlayerStruct
 {
 	entity player
@@ -88,7 +89,7 @@ global struct soloPlayerStruct
 struct ChallengesStruct
 {
 	entity player 
-	table<entity,float> challengers // challenging entity, float Time()
+	table<entity,float> challengers = {} // challenging entity, float Time()
 }
 
 array< bool > realmSlots
@@ -133,6 +134,7 @@ struct {
 
 	int ibmm_wait_limit
 	float default_ibmm_wait
+	bool enableChallenges = false
 
 } settings
 
@@ -272,9 +274,11 @@ void function INIT_Flags()
 	bAllowLegend 						= GetCurrentPlaylistVarBool( "give_legend", true )
 	bAllowTactical 						= GetCurrentPlaylistVarBool( "give_legend_tactical", true ) //challenge only
 	bChalServerMsg 						= bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
-	settings.ibmm_wait_limit 			= GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999)
-	settings.default_ibmm_wait 			= GetCurrentPlaylistVarFloat("default_ibmm_wait", 3)
+	settings.ibmm_wait_limit 			= GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999 )
+	settings.default_ibmm_wait 			= GetCurrentPlaylistVarFloat( "default_ibmm_wait", 3 )
+	settings.enableChallenges			= GetCurrentPlaylistVarBool( "enable_challenges", true )
 }
+
 
 int function GetUniqueID() 
 {
@@ -528,9 +532,11 @@ soloGroupStruct function returnSoloGroupOfPlayer( entity player )
 	{	
 		#if DEVELOPER
 		sqprint("returnSoloGroupOfPlayer entity was invalid")
-		return group; 
 		#endif
-	}	
+		
+		return group; 
+	}
+	
 	try
 	{
 		if ( player.p.handle in file.playerToGroupMap ) 
@@ -790,7 +796,7 @@ void function deleteSoloPlayerResting( entity player )
 
 void function addSoloPlayerResting( entity player )
 {
-	if(!IsValid (player) )
+	if( !IsValid (player) )
 	{	
 		#if DEVELOPER
 		sqprint("addSoloPlayerResting enttiy was invalid")
@@ -822,13 +828,13 @@ void function AddPlayerToWaitingList(soloPlayerStruct playerStruct)
 {
 	try 
 	{
-		if(!IsValid(playerStruct))
+		if( !IsValid(playerStruct) )
 		{
 			sqerror( "[AddPlayerToWaitingList] playerStruct was invalid" )
 		}
 		else 
 		{
-			if(IsValid(playerStruct.player))
+			if( IsValid(playerStruct.player) )
 			{
 				file.soloPlayersWaiting[playerStruct.player.p.handle] <- playerStruct
 			}
@@ -848,6 +854,9 @@ void function AddPlayerToWaitingList(soloPlayerStruct playerStruct)
 
 bool function mkos_Force_Rest(entity player, array<string> args)
 {
+	if( GameRules_GetGameMode() != "fs_1v1" )
+		return false
+	
 	if( !IsValid(player) ) //|| !IsAlive(player) )
 		return false
 
@@ -899,6 +908,12 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 	if( GetTDMState() != eTDMState.IN_PROGRESS )
 	{
 		Message( player, "Game is not playing" )
+		return true
+	}
+	
+	if( !settings.enableChallenges )
+	{
+		Message( player, "Host has disabled challenges" )
 		return true
 	}
 	
@@ -1067,9 +1082,16 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 		case "clear":
 			
 			player.p.waitingFor1v1 = false
-			getChallengeListForPlayer( player ).challengers.clear()
+			ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+			
+			if( isChalValid( chalStruct ) )
+			{
+				chalStruct.challengers.clear()
+			}
+			
 			endLock1v1( player, false )
 			Message( player, "CHALLENGERS CLEARED")
+			
 			return true
 			
 		case "revoke":
@@ -1303,7 +1325,7 @@ int function addToChallenges( entity challenger, entity challengedPlayer )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( challengedPlayer )
 	
-	if( !IsValid( chalStruct.player ) )
+	if( !IsValid( chalStruct ) || !IsValid( chalStruct.player ) )
 	{
 		return 5;
 	}
@@ -1330,9 +1352,19 @@ int function addToChallenges( entity challenger, entity challengedPlayer )
 }
 
 
+bool function isChalValid( ChallengesStruct chalStruct )
+{
+	return ( IsValid( chalStruct ) && IsValid( chalStruct.player ) )
+}
+
+
 float function checkChallengeTime( entity challenger, entity challengedPlayer )
 {
-	if( challenger in getChallengeListForPlayer( challengedPlayer ).challengers )
+	ChallengesStruct chalStruct = getChallengeListForPlayer( challengedPlayer )
+	
+	if ( !isChalValid( chalStruct ) ){ return 0.0 }
+	
+	if( challenger in chalStruct.challengers )
 	{
 		return getChallengeListForPlayer( challengedPlayer ).challengers[challenger]
 	}
@@ -1370,6 +1402,7 @@ ChallengesStruct function getChallengeListForPlayer( entity player )
 string function listPlayerChallenges( entity player )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+	
 	string list = "";
 	string emphasis = ""
 	entity opponent
@@ -1388,7 +1421,7 @@ string function listPlayerChallenges( entity player )
 		list += "No active challenge yet... \n\n";
 	}
 	
-	if ( !IsValid(chalStruct) )
+	if ( !isChalValid( chalStruct ) )
 	{
 		return list;
 	}
@@ -1417,7 +1450,11 @@ string function listPlayerChallenges( entity player )
 
 bool function removeChallenger( entity player, entity challenger )
 {
-	if ( challenger in getChallengeListForPlayer( player ).challengers )
+	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
+	
+	if ( !isChalValid( chalStruct ) ){ return false }
+	
+	if ( challenger in chalStruct.challengers )
 	{
 		delete getChallengeListForPlayer( player ).challengers[challenger]
 		return true
@@ -1449,7 +1486,7 @@ bool function acceptChallenge( entity player, entity challenger )
 	//sqprint("accepted")
 	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
 	
-	if ( challenger in chalStruct.challengers )
+	if ( isChalValid( chalStruct ) && challenger in chalStruct.challengers )
 	{
 		file.acceptedChallenges[player] <- challenger 	
 		SetUpChallengeNotifications( player, challenger )
@@ -1473,7 +1510,7 @@ bool function acceptRecentChallenge( entity player )
 	
 	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
 	
-	if(!IsValid( chalStruct ))
+	if( !isChalValid( chalStruct ) )
 	{
 		return false;
 	}
@@ -1500,7 +1537,7 @@ bool function acceptRecentChallenge( entity player )
 		
 	if( !IsValid(recentChallenger) )
 	{
-		if (removeChallenger( player, recentChallenger ))
+		if ( removeChallenger( player, recentChallenger ) )
 		{
 			Message( player, "CHALLENGER QUIT" )
 		}
@@ -1512,7 +1549,7 @@ bool function acceptRecentChallenge( entity player )
 		return false
 	}
 	
-	if( isPlayerPendingChallenge( recentChallenger ) ||  isPlayerPendingLockOpponent( recentChallenger ) )
+	if( isPlayerPendingChallenge( recentChallenger ) || isPlayerPendingLockOpponent( recentChallenger ) )
 	{
 		Message( player, "PLAYER ALREADY IN CHALLENGE")
 	}
@@ -1774,6 +1811,8 @@ void function sendGroupRecapsToPlayers( soloGroupStruct group )
 
 void function addStatsToGroup( entity player, soloGroupStruct group, float damage, int hits, int shots, bool bIsKill )
 {
+	if( !IsValid( player ) || !IsValid( group ) ){ return }
+	
 	if ( !( player in group.statsRecap ) )
 	{
 		groupStats gS;	
@@ -4472,6 +4511,8 @@ vector function Return_Loc_Data( string _type )
 				coordinates = < -532.278, 20713.6, 4746.85 >
 				return coordinates
 				break
+				
+			//TODO add party crasher?
 				
 			default: 
 			
