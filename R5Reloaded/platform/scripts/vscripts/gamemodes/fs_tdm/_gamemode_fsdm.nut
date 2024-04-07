@@ -7,6 +7,7 @@
 // Zer0Bytes#4428 -- Weapons randomizer rewrite
 // makimakima#5561 -- TDM Saved Weapon List, 1v1 gamemode
 // michae\l/#1125 -- flowstate admin
+// mkos -- things
 // everyone else -- advice
 
 global function _CustomTDM_Init
@@ -63,6 +64,7 @@ global function GetCurrentRound
 global function Thread_CheckInput
 global function ClientCommand_mkos_LGDuel_IBMM_wait
 global function ClientCommand_mkos_lock1v1_setting
+global function RotateMap
 global bool IS_1V1_MODE_ENABLED
 
 //LGDuels
@@ -336,13 +338,18 @@ void function Init_IBMM( entity player )
 		SetDefaultIBMM( player )
 	}
 	
-	player.p.messagetime = 0
+	player.p.messagetime = 0 //probably should be global setting
+	
 	thread Thread_CheckInput( player )
+	
+	//these really don't need to be client commands, use rpc, then 
+	//we can disable clientcommands in production, and only enable for development
 	AddClientCommandCallback("wait", ClientCommand_mkos_LGDuel_IBMM_wait )
 	AddClientCommandCallback("lock1v1", ClientCommand_mkos_lock1v1_setting )
 	AddClientCommandCallback("start_in_rest", ClientCommand_mkos_start_in_rest_setting ) 
 	AddClientCommandCallback("enable_input_banner", ClientCommand_enable_input_banner )
 	AddClientCommandCallback("challenge", ClientCommand_mkos_challenge )
+	
 	AddButtonPressedPlayerInputCallback( player, IN_MOVELEFT, SetInput_IN_MOVELEFT )
 	AddButtonPressedPlayerInputCallback( player, IN_MOVERIGHT, SetInput_IN_MOVERIGHT )
 	AddButtonPressedPlayerInputCallback( player, IN_BACK, SetInput_IN_BACK )
@@ -956,6 +963,29 @@ bool function ClientCommand_enable_input_banner( entity player, array<string> ar
 		
 	return false
 					
+}
+
+
+void function RotateMap()
+{
+	string to_map = GetMapName()
+	
+	array<string> maplist = split( flowstateSettings.maplist, "," )
+	
+	int countmaps = maplist.len()
+	int i;
+
+	for ( i = 0; i < countmaps; i++ ) 
+	{
+		if ( GetMapName() == maplist[i] ) 
+		{
+			int index = (i + 1) % countmaps	
+			to_map = maplist[index]
+			break
+		}
+	}
+	
+	GameRules_ChangeMap( to_map , GameRules_GetGameMode() )	
 }
 
 //////////////////////////////////////////////////// 

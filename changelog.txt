@@ -1,3 +1,10 @@
+4/6/2024
+
+- Added checks to prevent potentially manipulating/accessing null data
+- Added new cc command:  nextmap 
+- Added playlist setting:  enable_challenge   1  // players can use challenge system , 0 for disabled
+- From a previous comitt: chat effects ( just a map of type to special char ) 
+
 4/5/2024
 
 - Fixed a rare timing crash where player in waiting struct queue time is not initialized
