@@ -854,7 +854,7 @@ void function AddPlayerToWaitingList(soloPlayerStruct playerStruct)
 
 bool function mkos_Force_Rest(entity player, array<string> args)
 {
-	if( GameRules_GetGameMode() != "fs_1v1" )
+	if( !g_bIs1v1 )
 		return false
 	
 	if( !IsValid(player) ) //|| !IsAlive(player) )
