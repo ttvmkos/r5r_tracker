@@ -4,6 +4,8 @@
 
 //globalize_all_functions // why?
 
+global const INVALID_ACCESS_DEBUG = true
+
 global function isPlayerInRestingList
 global function mkos_Force_Rest
 global function INIT_playerChallengesStruct
@@ -182,8 +184,11 @@ void function resetChallenges()
 {
 	foreach ( chalStruct in file.allChallenges )
 	{
-		if( IsValid( chalStruct ) )
-		{		
+		if( isChalValid( chalStruct ) )
+		{	
+			#if INVALID_ACCESS_DEBUG
+			printl("Potential crash avoided 01")
+			#endif
 			chalStruct.challengers.clear()
 		}
 	}
@@ -334,7 +339,7 @@ string function GetScore( entity player )
 	float lt_kd = getkd( (player.GetPlayerNetInt( "kills" ) + player.p.lifetime_kills) , (player.GetPlayerNetInt( "deaths" ) + player.p.lifetime_deaths) )
 	float cur_kd = getkd( player.GetPlayerNetInt( "kills" ) , player.GetPlayerNetInt( "deaths" )  )
 	float score = (  ( lt_kd * file.lifetime_kd_weight ) + ( cur_kd * file.current_kd_weight ) )
-	string name = player.GetPlayerName()	
+	string name = player.p.name	
 	
 	return format("Player: %s, Lifetime KD: %.2f, Current KD: %.2f, Round Score: %.2f ", name, lt_kd, cur_kd, score )
 }
@@ -1088,6 +1093,12 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			{
 				chalStruct.challengers.clear()
 			}
+			else 
+			{
+				#if INVALID_ACCESS_DEBUG
+				PrintDebug( player, 2 )
+				#endif
+			}
 			
 			endLock1v1( player, false )
 			Message( player, "CHALLENGERS CLEARED")
@@ -1325,8 +1336,11 @@ int function addToChallenges( entity challenger, entity challengedPlayer )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( challengedPlayer )
 	
-	if( !IsValid( chalStruct ) || !IsValid( chalStruct.player ) )
+	if( !isChalValid( chalStruct ) )
 	{
+		#if INVALID_ACCESS_DEBUG
+		PrintDebug( challengedPlayer, 7 )
+		#endif
 		return 5;
 	}
 	
@@ -1362,7 +1376,20 @@ float function checkChallengeTime( entity challenger, entity challengedPlayer )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( challengedPlayer )
 	
-	if ( !isChalValid( chalStruct ) ){ return 0.0 }
+	if ( !isChalValid( chalStruct ) )
+	{
+		#if INVALID_ACCESS_DEBUG
+		if( IsValid( challengedPlayer ) )
+		{
+			PrintDebug( challengedPlayer, 3 )
+		}
+		else 
+		{
+			printl("Invalid player during chal access #8")
+		}
+		#endif
+		return 0.0 
+	}
 	
 	if( challenger in chalStruct.challengers )
 	{
@@ -1389,7 +1416,7 @@ ChallengesStruct function getChallengeListForPlayer( entity player )
 			continue
 		}
 		
-		if ( challengeStruct.player == player )
+		if ( IsValid( challengeStruct.player ) && challengeStruct.player == player )
 		{
 			return challengeStruct
 		}
@@ -1423,6 +1450,9 @@ string function listPlayerChallenges( entity player )
 	
 	if ( !isChalValid( chalStruct ) )
 	{
+		#if INVALID_ACCESS_DEBUG
+		PrintDebug( player, 4 )
+		#endif
 		return list;
 	}
 	
@@ -1452,7 +1482,14 @@ bool function removeChallenger( entity player, entity challenger )
 {
 	ChallengesStruct chalStruct = getChallengeListForPlayer( player )
 	
-	if ( !isChalValid( chalStruct ) ){ return false }
+	if ( !isChalValid( chalStruct ) )
+	{	
+		#if INVALID_ACCESS_DEBUG
+		PrintDebug( player, 5 )
+		#endif
+		
+		return false 
+	}
 	
 	if ( challenger in chalStruct.challengers )
 	{
@@ -1463,6 +1500,10 @@ bool function removeChallenger( entity player, entity challenger )
 	return false
 }
 
+void function PrintDebug( entity player, int functioncall )
+{
+	printl( format("Potential invalid access for player: %s, %s --CALL: %d", player.p.name, player.p.UID, functioncall) )
+}
 
 bool function acceptChallenge( entity player, entity challenger )
 {
@@ -1512,6 +1553,9 @@ bool function acceptRecentChallenge( entity player )
 	
 	if( !isChalValid( chalStruct ) )
 	{
+		#if INVALID_ACCESS_DEBUG
+		PrintDebug( player, 6 )
+		#endif
 		return false;
 	}
 	
@@ -4180,7 +4224,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			
 			if(newGroup.player1.p.enable_input_banner && !bMatchFound )
 			{
-				Message( newGroup.player1 , e_str, "VS: " + newGroup.player2.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player2 ) , 2.5)
+				Message( newGroup.player1 , e_str, "VS: " + newGroup.player2.p.name + "   USING -> " + FetchInputName( newGroup.player2 ) , 2.5)
 			}
 			
 			if ( newGroup.player2.p.IBMM_grace_period == 0 && newGroup.GROUP_INPUT_LOCKED == false )
@@ -4188,7 +4232,7 @@ void function soloModeThread(LocPair waitingRoomLocation)
 			
 			if(newGroup.player2.p.enable_input_banner && !bMatchFound )
 			{
-				Message( newGroup.player2 , e_str, "VS: " + newGroup.player1.GetPlayerName() + "   USING -> " + FetchInputName( newGroup.player1 ) , 2.5)
+				Message( newGroup.player2 , e_str, "VS: " + newGroup.player1.p.name + "   USING -> " + FetchInputName( newGroup.player1 ) , 2.5)
 			}
 		} //not waiting
 		
@@ -4329,7 +4373,7 @@ void function GiveWeaponsToGroup( array<entity> players )
 			
 			DeployAndEnableWeapons( player )
 
-			if ( !(player.GetPlayerName() in weaponlist))//avoid give weapon twice if player saved his guns //TODO: change to eHandle - mkos
+			if ( !(player.p.name in weaponlist))//avoid give weapon twice if player saved his guns //TODO: change to eHandle - mkos
 			{
 				TakeAllWeapons(player)
 
@@ -4434,7 +4478,7 @@ void function ForceAllRoundsToFinish_solomode()
 		
 		if(isPlayerInWaitingList(player))
 		{
-			return
+			continue
 		}
 
 		soloGroupStruct group = returnSoloGroupOfPlayer(player) 	
@@ -4454,7 +4498,7 @@ void function ForceAllRoundsToFinish_solomode()
 	
 	foreach( challengeStruct in file.allChallenges )
 	{
-		if( !IsValid( challengeStruct ) ){ return }
+		if( !IsValid( challengeStruct ) ){ continue }
 		
 		if( IsValid (challengeStruct.player) )
 		{
