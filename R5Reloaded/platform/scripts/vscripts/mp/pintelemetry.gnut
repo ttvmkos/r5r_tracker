@@ -261,7 +261,7 @@ global struct DamageEvent {
 	int headshots
 	float actionTimestamp
 	int lastWeaponSource
-	float lastHitTimestamp
+	float lastHitTimestamp = 0
 	
 	bool isNew
 	float shotIdentifier
