@@ -4189,6 +4189,8 @@ void function SimpleChampionUI()
 			}
 		}
 
+		PIN_Callback_CheckReload()
+		wait 1.2
 		GameRules_ChangeMap( to_map , GameRules_GetGameMode() )
 	}
 
@@ -4266,7 +4268,7 @@ void function SimpleChampionUI()
 		FS_DM.scoreboardShowing = false
 	}
 
-
+	PIN_Callback_CheckReload()
 
 	if( VOTING_PHASE_ENABLE )
 	{
