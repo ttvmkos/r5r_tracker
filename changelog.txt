@@ -1,3 +1,12 @@
+4/10/2024
+
+- Refactored challenge system data structures to use integer ehandle keys
+- Fixed potential crashes
+- Added reload check callback
+
+- IMPORTANT NEW PLAYLIST SETTING, this checks up time and performs reload. This retains players, and is executed only at end of a round when uptime exceeds this number: 
+- sv_autoReloadRate 9000 //time in seconds to auto refresh (reload) server (9000 is 2.5 hours) RECCOMENDED
+
 4/6/2024
 
 - Added checks to prevent potentially manipulating/accessing null data

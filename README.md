@@ -126,6 +126,14 @@ There will be an automatic file generator on r5r.dev for creating these files wi
 }
 
 
+______________________________________________________________________
+The following should and can be placed at a global level in playlist file :
+______________________________________________________________________
+
+- sv_autoReloadRate 9000 //time in seconds to auto refresh server
+
+
+
 
 ______________________________________________________________________
 As normal, 
