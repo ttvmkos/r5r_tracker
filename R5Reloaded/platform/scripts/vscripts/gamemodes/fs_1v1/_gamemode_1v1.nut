@@ -30,7 +30,7 @@ global function soloModePlayerToWaitingList
 global function ForceAllRoundsToFinish_solomode
 global function addStatsToGroup
 global function getBotSpawn
-global function RechargePlayerTactical //for testing
+global function RechargePlayerAbilities
 
 global struct soloLocStruct
 {
@@ -944,7 +944,7 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 		
 			if( args.len() < 2 )
 			{
-				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id] - challenges a player to 1v1\n/chal player - challenges current fight player\n/accept [playername/id] - accepts a specific challenge or the most recent if none specified\n/list - lists all challenges\n/end - ends and removes current challenge\n/remove [playername/id] - removes challenge from list\n/clear - clears all incoming challenges\n/revoke [playername/id/all] - Revokes a challenge sent to a player or all players\n/cycle - enables/disables spawn cycling\n/swap - enables/disables spawn position randomizer\n/legend - choose legend by number or name", 30 )			
+				Message( player, "CHALLENGES", "\n\n\n/chal [playername/id] -challenges a player to 1v1\n/chal player -challenges current fight player\n/accept [playername/id] -accepts a specific challenge or the most recent if none specified\n/list -incoming challenges\n/outlist -outgoing challenges\n/end -ends and removes current challenge\n/remove [playername/id] -removes challenge from list\n/clear -clears all incoming challenges\n/revoke [playername/id/all] -Revokes a challenge sent to a player or all players\n/cycle -random spawn\n/swap -random side of spawn\n/legend -choose legend by number or name", 30 )			
 			}
 			else 
 			{	
@@ -1313,6 +1313,37 @@ bool function ClientCommand_mkos_challenge(entity player, array<string> args)
 			}
 			
 			return true
+			
+			
+		case "outlist":
+		
+			string list = "";
+			
+			foreach( chalplayer in GetPlayerArray() )
+			{
+				if ( !IsValid( chalplayer ) ){continue}
+				
+				ChallengesStruct chalStruct = getChallengeListForPlayer( chalplayer )
+				
+				if( isChalValid( chalStruct ) )
+				{
+					if ( player.p.handle in chalStruct.challengers )
+					{
+						list += format("Outgoing challenge to: %s \n", chalplayer.p.name )
+					}
+				}
+			}
+			
+			if( list != "" )
+			{
+				Message( player, "OUTGOING CHALLENGES", list, 15 )
+			}
+			else 
+			{
+				Message( player, "NO OUTGOING CHALLENGES")
+			}
+		
+			return true
 		
 		default:
 			Message( player, "Failed: ", "Unknown command \n", 5 )
@@ -1530,7 +1561,8 @@ bool function acceptChallenge( entity player, entity challenger )
 	
 	if ( isChalValid( chalStruct ) && challenger.p.handle in chalStruct.challengers )
 	{
-		file.acceptedChallenges[player.p.handle] <- challenger 	
+		file.acceptedChallenges[player.p.handle] <- challenger 
+		removeChallenger( player, challenger.p.handle ) //removes from incoming list	
 		SetUpChallengeNotifications( player, challenger )
 	}
 	else 
@@ -1582,7 +1614,7 @@ bool function acceptRecentChallenge( entity player )
 		}
 	}
 		
-	if( !IsValid(recentChallenger) )
+	if( !IsValid( recentChallenger ) )
 	{
 		if ( removeChallenger( player, recentChallenger_eHandle ) )
 		{
@@ -1604,6 +1636,7 @@ bool function acceptRecentChallenge( entity player )
 	//sqprint("accepted")
 	
 	file.acceptedChallenges[player.p.handle] <- recentChallenger 
+	removeChallenger( player, recentChallenger.p.handle )
 	SetUpChallengeNotifications( player, recentChallenger )
 	
 	return true
@@ -1709,6 +1742,8 @@ bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false
 		if( IsValid( group ) )
 		{	
 			sendGroupRecapsToPlayers( group )
+			addmsg = false
+			
 			group.IsKeep = false;
 			group.IsFinished = true;
 			mkos_Force_Rest( group.player1, [] )
@@ -1731,6 +1766,12 @@ bool function endLock1v1( entity player, bool addmsg = true, bool revoke = false
 			opp = challenged
 		}
 		
+		if(addmsg)
+		{
+			Message( player, "CHALLENGE ENDED")
+		}
+		
+		player.Signal( "NotificationChanged" )
 		SetChallengeNotifications( [player,opp], false )
 	}
 	
@@ -2022,7 +2063,7 @@ bool function ClientCommand_Maki_SoloModeRest(entity player, array<string> args 
 					start_grace_exceeded = true
 				}
 				
-				if(difference < REST_GRACE || !start_grace_exceeded )
+				if( difference < REST_GRACE || !start_grace_exceeded )
 				{	
 					float fTryAgainIn;
 					
@@ -2401,6 +2442,10 @@ void function soloModePlayerToRestingList(entity player)
 			soloModePlayerToWaitingList(opponent) //将对手放回waiting list
 		}
 	}
+	else 
+	{
+		endLock1v1( player, false )
+	}
 
 	//deleteSoloPlayerResting( player ) // ??why do we do this (replaced with my functions as well)
 	addSoloPlayerResting( player ) // ??
@@ -2747,8 +2792,8 @@ void function _decideLegend( soloGroupStruct group )
 	}
 	else 
 	{
-		RechargePlayerTactical( group.player1 )
-		RechargePlayerTactical( group.player2 )
+		RechargePlayerAbilities( group.player1 )
+		RechargePlayerAbilities( group.player2 )
 	}
 }
 
@@ -4817,7 +4862,6 @@ void function notify_thread( entity player ) //whole thing is convoluted as fuck
 				
 				wait 1
 				continue
-				if (!IsValid( player )){break}
 			}
 			
 			entity challenged = player.p.eLastChallenger
@@ -4888,7 +4932,9 @@ void function ClearAllNotifications()
 void function _CleanupPlayerEntities( entity player )
 {
 	DestroyAllTeslaTrapsForPlayer( player )	// no signal for destroying by owner.. (designed to persist)
-	player.Signal( "OnDestroy" ) //this takes care of most tacticals
+	//player.Signal( "OnDestroy" ) //this takes care of most tacticals
+	
+	player.Signal( "CleanUpChallenge1v1" ) 	
 	
 	if( IsValid( CryptoDrone_GetPlayerDrone( player ) ) )
 	{
@@ -4928,15 +4974,47 @@ LocPair function getBotSpawn()
 	return move
 }
 
-//taken from _clientcommands.gnut & CTF
+const array<int> LegendGUID_EnabledPassives = [
+	
+	725342087, //ref character_bangalore
+	
+]
 
-void function RechargePlayerTactical( entity player )
+const array<int> LegendGUID_EnabledUltimates = [
+	
+	898565421, //ref character_bloodhound
+	187386164, //ref character_wattson
+	2045656322, //ref character_mirage
+	843405508 //ref character_octane
+
+]
+
+void function RechargePlayerAbilities( entity player )
 {
 	ItemFlavor character = LoadoutSlot_WaitForItemFlavor( ToEHI( player ), Loadout_CharacterClass() )
-	//ItemFlavor ultiamteAbility = CharacterClass_GetUltimateAbility( character )
+	
+	//sqprint( format("LEGEND: %s, GUID: %d", ItemFlavor_GetHumanReadableRef( character ), ItemFlavor_GetGUID( character ) ))
 	ItemFlavor tacticalAbility = CharacterClass_GetTacticalAbility( character )
 	player.GiveOffhandWeapon(CharacterAbility_GetWeaponClassname(tacticalAbility), OFFHAND_TACTICAL, [] )
-	//player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( ultiamteAbility ), OFFHAND_ULTIMATE, [] )
+	
+	int charID = ItemFlavor_GetGUID( character )
+	
+	if( LegendGUID_EnabledPassives.contains( charID ) )
+	{
+		GivePassive( player, 0 )
+		/* //Only needed if passive list expands
+		TakeAllPassives( player )
+		ItemFlavor passive = CharacterClass_GetPassiveAbility( character )
+		GivePassive( player, CharacterAbility_GetPassiveIndex( passive ) )
+		*/
+	}
+
+	if( LegendGUID_EnabledUltimates.contains( charID ) ) 
+	{
+		ItemFlavor ultiamteAbility = CharacterClass_GetUltimateAbility( character )
+		player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( ultiamteAbility ), OFFHAND_ULTIMATE, [] )
+	}
+
 	
 	if(IsValid(player.GetOffhandWeapon( OFFHAND_INVENTORY )))
 	player.GetOffhandWeapon( OFFHAND_INVENTORY ).SetWeaponPrimaryClipCount( player.GetOffhandWeapon( OFFHAND_INVENTORY ).GetWeaponPrimaryClipCountMax() )

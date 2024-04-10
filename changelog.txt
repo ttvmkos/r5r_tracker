@@ -1,3 +1,11 @@
+4/10/2024 (2)
+
+- Reworked signals for abilities cleanup
+- Added select Ultimates/Passives to challenge
+- Fixed potential issues in challenge logic
+- Added /outlist command  (needed for ui menu outgoing challenges)
+- Rebuilt SDK with CERT flags
+
 4/10/2024
 
 - Refactored challenge system data structures to use integer ehandle keys

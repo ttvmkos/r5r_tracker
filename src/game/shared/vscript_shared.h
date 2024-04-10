@@ -32,7 +32,6 @@ namespace VScriptCode
 
 		SQRESULT sqprint(HSQUIRRELVM v);
 		SQRESULT sqerror(HSQUIRRELVM v);
-		SQRESULT testbool(HSQUIRRELVM v);
 
 
 		SQRESULT EA_Verify(HSQUIRRELVM v);
@@ -51,6 +50,9 @@ namespace VScriptCode
 
 		SQRESULT SQ_ServerMsg(HSQUIRRELVM v);
 		SQRESULT SQ_CreateServerBot(HSQUIRRELVM v);
+
+
+
 
 		//Declare to be used with logger
 		int64_t getMatchID();

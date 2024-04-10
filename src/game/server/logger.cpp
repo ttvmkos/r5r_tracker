@@ -89,8 +89,6 @@ std::string SanitizeString(const std::string & input)
 }
 
 
-
-
 namespace LOGGER 
 {   
 
@@ -186,10 +184,10 @@ namespace LOGGER
 
             pFileSystem->RemoveFile(fileInfo.fullPath.c_str(), "PLATFORM");
             dirSize -= fileInfo.fileSize;
-            DevMsg(eDLL_T::SERVER, "Removing log: %s\n", fileInfo.fullPath.c_str());
+            //DevMsg(eDLL_T::SERVER, "Removing log: %s\n", fileInfo.fullPath.c_str());
         }
 
-        DevMsg(eDLL_T::SERVER, "Final statlog directory size: %zd bytes\n", dirSize);
+        //DevMsg(eDLL_T::SERVER, "Final statlog directory size: %zd bytes\n", dirSize);
     }
 
 
@@ -260,7 +258,7 @@ namespace LOGGER
         FileHandle_t configFile = pFileSystem->Open(configFileName, "rt");
         if (!configFile)
         {
-            DevMsg(eDLL_T::SERVER, "Failed to open config file: %s\n", configFileName);
+            Error(eDLL_T::SERVER, NO_ERROR, "Failed to open config file: %s\n", configFileName);
             return;
         }
 
@@ -274,18 +272,18 @@ namespace LOGGER
         rapidjson::Document document;
         if (document.Parse(buffer.get()).HasParseError())
         {
-            DevMsg(eDLL_T::SERVER, "JSON parse error: %s\n", rapidjson::GetParseError_En(document.GetParseError()));
+            Error(eDLL_T::SERVER, NO_ERROR, "JSON parse error: %s\n", rapidjson::GetParseError_En(document.GetParseError()));
             return;
         }
 
         if (document.IsObject()) 
         {
             AddToConfigMap(document);
-            DevMsg(eDLL_T::SERVER, "Loaded R5R.DEV config file: %s \n", configFileName);
+            //DevMsg(eDLL_T::SERVER, "Loaded R5R.DEV config file: %s \n", configFileName);
         }
         else
         {
-            DevMsg(eDLL_T::SERVER, "Failed to load stats config file: File was not a valid json object. \n");
+            Error(eDLL_T::SERVER, NO_ERROR, "Failed to load stats config file: File was not a valid json object. \n");
         }
     }
 
@@ -447,7 +445,7 @@ namespace LOGGER
         {
             if (handle) 
             {
-                DevMsg(eDLL_T::SERVER, ":: Handle discarded as pool is full \n");
+                //DevMsg(eDLL_T::SERVER, ":: Handle discarded as pool is full \n");
                 curl_easy_cleanup(handle);
             }
             else 
@@ -901,7 +899,7 @@ namespace LOGGER
 
 
 
-    //called by TaskManager::LoadKDString
+    //called by TaskManager:: LoadKDString
     std::string FetchPlayerStats(const char* player_oid)
     {
         if (!player_oid)
@@ -1695,7 +1693,7 @@ namespace LOGGER
             return;
         }
 
-        DevMsg(eDLL_T::SERVER, "Curl initialized...\n");
+        //DevMsg(eDLL_T::SERVER, "Curl initialized...\n");
         curl_easy_setopt(curl, CURLOPT_URL, "https://r5r.dev/api/tracker.php");
     
         std::string serverName = ::IsDedicated() ? hostname->GetString() : g_pServerListManager->m_Server.m_svHostName;
@@ -1714,9 +1712,9 @@ namespace LOGGER
             Error(eDLL_T::SERVER, NO_ERROR, "Invalid characters in uniquekey. \n");
         }
 
-        DevMsg(eDLL_T::SERVER, "Server name: %s \n", serverName.c_str());
-        DevMsg(eDLL_T::SERVER, "Server map: %s \n", serverMap.c_str());
-        DevMsg(eDLL_T::SERVER, "MatchID to ship: %s \n", matchID.c_str());
+        //DevMsg(eDLL_T::SERVER, "Server name: %s \n", serverName.c_str());
+        //DevMsg(eDLL_T::SERVER, "Server map: %s \n", serverMap.c_str());
+        //DevMsg(eDLL_T::SERVER, "MatchID to ship: %s \n", matchID.c_str());
 
         std::string logdata_url_encoded = url_encode(logdata);
 
@@ -1955,7 +1953,7 @@ namespace LOGGER
         }
         else 
         {
-            DevMsg(eDLL_T::RTECH, "No active logging thread.\n\n");
+            //DevMsg(eDLL_T::RTECH, "No active logging thread.\n\n");
         }
     }
 
@@ -2007,7 +2005,7 @@ namespace LOGGER
 
         if (!logThread.joinable()) 
         {
-            DevMsg(eDLL_T::RTECH, "No active logging thread to stop.\n");
+            //DevMsg(eDLL_T::RTECH, "No active logging thread to stop.\n");
             return;
         }
 
@@ -2039,7 +2037,7 @@ namespace LOGGER
 
         if (sendToAPI) 
         {   
-            DevMsg(eDLL_T::SERVER, " .. Shipping logfile to tracker https://r5r.dev \n");
+            //DevMsg(eDLL_T::SERVER, " .. Shipping logfile to tracker https://r5r.dev \n");
 
             {
                 std::lock_guard<std::mutex> apilock(file_mtx);
@@ -2098,7 +2096,7 @@ namespace LOGGER
 
                 if (dir_created) 
                 {
-                    DevMsg(eDLL_T::SERVER, "Created logging directory: '%s'\n", dirPath.string().c_str());
+                    Warning(eDLL_T::SERVER, "Created logging directory: '%s'\n", dirPath.string().c_str());
                 }
             }
 
