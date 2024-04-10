@@ -69,7 +69,7 @@ namespace LOGGER
 
             //vars
             int CVAR_LTHREAD_DEBOUNCE = 1;
-            size_t CVAR_MAX_BUFFER = 30;
+            size_t CVAR_MAX_BUFFER = 50000; //abitraily large number for no-write during game
 
         private:
 

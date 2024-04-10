@@ -26,6 +26,7 @@ class SVC_UserMessage;
 class SVC_PlaylistOverrides;
 class CLC_SetPlaylistVarOverride;
 class Base_CmdKeyValues;
+class ToClient_SVC_Print;
 
 //-------------------------------------------------------------------------
 // MM_HEARTBEAT

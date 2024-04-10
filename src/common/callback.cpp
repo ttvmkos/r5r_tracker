@@ -1489,6 +1489,14 @@ void CC_CreateFakePlayer_f(const CCommand& args)
 	g_pEngineServer->LockNetworkStringTables(true);
 
 	const edict_t nHandle = g_pEngineServer->CreateFakeClient(playerName, teamNum);
+
+	const int index = nHandle - 1;
+
+	if ( index >= 0 && index < g_pServer->GetMaxClients() )
+	{
+		g_pServer->GetClient(index)->SetNucleusID(0); //thanks Robotic
+	}
+
 	g_pServerGameClients->ClientFullyConnect(nHandle, false);
 
 	g_pEngineServer->LockNetworkStringTables(false);

@@ -20,6 +20,7 @@
 #include "game/server/logger.h"
 #include "game/server/gameinterface.h"
 #include "common/callback.h"
+#include "common/netmessages.h"
 #ifndef CLIENT_DLL
 #include "engine/server/server.h"
 #endif // !CLIENT_DLL
@@ -150,7 +151,7 @@ namespace VScriptCode
         // Purpose: mkos funni io logger
         //-----------------------------------------------------------------------------
 
-        // Check of is currently running -- returns true if not logging, false if running
+        // Check of is currently running -- returns true if logging, false if not running
         SQRESULT isLogging(HSQUIRRELVM v) 
         {
             bool state = LOGGER::Logger::getInstance().isLogging();
@@ -226,7 +227,6 @@ namespace VScriptCode
                 doSendToAPI = sendToAPI != 0;
             }
 
-            DevMsg(eDLL_T::SERVER, "Send to API bool set to: %s \n", doSendToAPI ? "true" : "false");
             LOGGER::pMkosLogger->stopLogging(doSendToAPI);
 
             return SQ_OK;
@@ -254,7 +254,7 @@ namespace VScriptCode
             oss << sqprintmsg;
 
             std::string str = oss.str();
-            DevMsg(eDLL_T::SERVER, ":: %s\n", str.c_str());
+            Msg(eDLL_T::SERVER, ":: %s\n", str.c_str());
 
             return SQ_OK;
         }
@@ -271,21 +271,6 @@ namespace VScriptCode
             return SQ_OK;
         }
 
-        //-----------------------------------------------------------------------------
-        // Purpose: None whatsoever
-        //-----------------------------------------------------------------------------
-
-        SQRESULT testbool(HSQUIRRELVM v) 
-        {
-            SQBool sqbool = sq_getbool(v, 1);
-            std::string returnvalue = sqbool ? "true" : "false";
-
-            DevMsg(eDLL_T::SERVER, "Bool value: %s \n", returnvalue.c_str());
-
-            sq_pushbool(v, sqbool);
-
-            return SQ_OK;
-        }
 
         //-----------------------------------------------------------------------------
         // Purpose: facilitates communication between sqvm and logger api calls 
@@ -302,13 +287,12 @@ namespace VScriptCode
             string status = LOGGER::VERIFY_EA_ACCOUNT(token, OID, ea_name);
             try {
                 status_num = std::stoi(status);
-                //DevMsg(eDLL_T::SERVER, "Conversion successful, number is: %d\n", status_num);
             }
             catch (const std::invalid_argument& e) {
-                DevMsg(eDLL_T::SERVER, "Error: Invalid argument for conversion: %s\n", e.what());
+                Error(eDLL_T::SERVER, NO_ERROR, "Error: Invalid argument for conversion: %s\n", e.what());
             }
             catch (const std::out_of_range& e) {
-                DevMsg(eDLL_T::SERVER, "Error: Value out of range for conversion: %s\n", e.what());
+                Error(eDLL_T::SERVER, NO_ERROR, "Error: Value out of range for conversion: %s\n", e.what());
             }
 
             sq_pushinteger(v, status_num);
@@ -478,21 +462,30 @@ namespace VScriptCode
                 {
                     const CNetChan* pNetChan = pClient->GetNetChan();
 
-                    if ( pNetChan->GetName() == "[" + ImmutableName + "]" )
+                    if (pNetChan != nullptr)
                     {
-                        int ID = pClient->GetUserID();
+                        const char* name = pNetChan->GetName();
 
-                        if (ID >= 0 && ID < 119)
+                        if ( name != nullptr && name == "[" + ImmutableName + "]")
                         {
-                            sq_newarray(v, 0);
-                            sq_pushinteger(v, static_cast<int>(pClient->GetHandle()));
-                            sq_arrayappend(v, -2);
-                            return SQ_OK;
+                            int ID = pClient->GetUserID();
+
+                            if (ID >= 0 && ID < 119)
+                            {
+                                sq_newarray(v, 0);
+                                sq_pushinteger(v, static_cast<int>(pClient->GetHandle()));
+                                sq_arrayappend(v, -2);
+                                return SQ_OK;
+                            }
                         }
                     }
                 }
             }
 
+            //return array with -1 at element[0]
+            sq_newarray(v, 0);
+            sq_pushinteger(v, -1);
+            sq_arrayappend(v, -2);
             return SQ_OK;
         }
     }
@@ -529,7 +522,6 @@ void Script_RegisterCommonAbstractions(CSquirrelVM* s)
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, CleanupLogs, "Deletes oldest logs in platform/eventlogs when directory exceeds 20mb", "void", "");
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, sqprint, "Prints string to console window from sqvm", "void", "string");
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, sqerror, "Prints error string to console window from sqvm", "void", "string");
-    DEFINE_SHARED_SCRIPTFUNC_NAMED(s, testbool, "Prints string to console window from sqvm", "bool", "bool");
 
     //for verification
     DEFINE_SHARED_SCRIPTFUNC_NAMED(s, EA_Verify, "Verifys EA Account on R5R.DEV", "int", "string, string, string");
