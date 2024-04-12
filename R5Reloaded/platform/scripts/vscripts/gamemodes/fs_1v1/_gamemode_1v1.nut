@@ -4,7 +4,7 @@
 
 //globalize_all_functions // why?
 
-global const INVALID_ACCESS_DEBUG = true
+global const INVALID_ACCESS_DEBUG = false
 
 global function isPlayerInRestingList
 global function mkos_Force_Rest
