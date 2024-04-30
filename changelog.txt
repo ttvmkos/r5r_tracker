@@ -1,3 +1,7 @@
+4/30/2024
+
+- Patched tgive loading weapons from old persistence system with tgive disabled
+
 4/10/2024 (2)
 
 - Reworked signals for abilities cleanup

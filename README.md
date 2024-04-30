@@ -1,3 +1,12 @@
+!!!NOTICE!!!
+
+SUPPORT FOR THIS REPO IS ENDING. 
+
+Support for tracker is being implemented into main flowstate branch 
+and will be optional with plugin or dlls 
+
+
+
 # r5r_tracker
 Stats Tracker system for R5Reloaded servers. 
 

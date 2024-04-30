@@ -854,12 +854,14 @@ void function SetPlayerKD( entity player )
 				
 				if( !empty(synced_weapon_loadout) && ReturnKey(SYNC_Data[7]) == "saved_weapons" )
 				{	
-					
-					if( synced_weapon_loadout != "NA" )
+					if( !FlowState_AdminTgive() )
 					{
-						weaponlist[player.GetPlayerName()] <- synced_weapon_loadout
-						player.p.weapon_loadout = synced_weapon_loadout
-					}
+						if( synced_weapon_loadout != "NA" )
+						{
+							weaponlist[player.GetPlayerName()] <- synced_weapon_loadout
+							player.p.weapon_loadout = synced_weapon_loadout
+						}
+					} 
 				}
 				
 				if( !empty(synced_lock1v1_setting ) && ReturnKey(SYNC_Data[8]) == "lock1v1_setting" )

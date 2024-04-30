@@ -1145,11 +1145,15 @@ void function _CustomTDM_Init()
 	if( !FlowState_AdminTgive() && GetCurrentPlaylistName() != "fs_movementgym" )
 	{
 		AddClientCommandCallback("saveguns", ClientCommand_SaveCurrentWeapons)
-		AddClientCommandCallback("resetguns", ClientCommand_ResetSavedWeapons)
 		AddClientCommandCallback("saveskills", ClientCommand_Maki_SaveCurSkill)
 		AddClientCommandCallback("resetskills", ClientCommand_Maki_ResetSkills)
 	}
-
+	
+	if( GetCurrentPlaylistName() != "fs_movementgym" )
+	{
+		AddClientCommandCallback("resetguns", ClientCommand_ResetSavedWeapons)
+	}
+	
 	//AddClientCommandCallback("controllerstate", ClientCommand_ControllerReport)
 
 	if( flowstateSettings.hackersVsPros )
@@ -5848,6 +5852,7 @@ bool function ClientCommand_ResetSavedWeapons(entity player, array<string> args)
 	SavePlayer_saved_weapons(player, "NA")
 	player.p.weapon_loadout = "NA";
 	
+	Message( player, "WEAPONS RESET" )
 	return true
 }
 
