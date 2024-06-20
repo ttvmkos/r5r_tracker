@@ -1,8 +1,9 @@
 !!!NOTICE!!!
 
-SUPPORT FOR THIS REPO IS ENDING. 
+SUPPORT FOR THIS REPO HAS ENDED. 
+[No updates or patches will be provided]
 
-Support for tracker is being implemented into main flowstate branch 
+Support for tracker is has been implemented into main flowstate branch 
 and will be optional with plugin or dlls 
 
 
